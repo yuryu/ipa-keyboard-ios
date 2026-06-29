@@ -34,12 +34,12 @@ Requires Xcode with the iOS 26.5 SDK. Build the project directly (there is no
 ```sh
 # Framework only, no signing (validates the kit + bundled JSON)
 xcodebuild -project IPAKeyboard.xcodeproj -scheme IPAKeyboard \
-  -destination 'platform=iOS Simulator,name=iPhone 16' \
+  -destination 'platform=iOS Simulator,name=iPhone 17' \
   -target IPAKeyboardKit CODE_SIGNING_ALLOWED=NO build
 
 # IPAKeyboardKit unit tests
 xcodebuild -project IPAKeyboard.xcodeproj -scheme IPAKeyboardKit \
-  -destination 'platform=iOS Simulator,name=iPhone 16' \
+  -destination 'platform=iOS Simulator,name=iPhone 17' \
   CODE_SIGNING_ALLOWED=NO test
 ```
 

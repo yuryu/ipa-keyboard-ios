@@ -35,7 +35,7 @@ The two share data through an **App Group** (`group.net.yuryu.IPAKeyboard`). Use
 
 ```sh
 xcodebuild -project IPAKeyboard.xcodeproj -scheme IPAKeyboard \
-  -destination 'platform=iOS Simulator,name=iPhone 16' build
+  -destination 'platform=iOS Simulator,name=iPhone 17' build
 ```
 
 Adding an extension target requires Xcode UI (File ▸ New ▸ Target ▸ Custom Keyboard Extension). When you cannot do that from the CLI, write the exact step-by-step the user must click, plus the Info.plist keys (`NSExtension` → `IntentsSupported`/`RequestsOpenAccess`, principal class) that must result.

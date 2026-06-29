@@ -65,16 +65,16 @@ Both app and extension carry the App Group entitlement `group.net.yuryu.IPAKeybo
 ```sh
 # Build the framework only, no signing (works today; validates the kit + bundled JSON)
 xcodebuild -project IPAKeyboard.xcodeproj -scheme IPAKeyboard \
-  -destination 'platform=iOS Simulator,name=iPhone 16' \
+  -destination 'platform=iOS Simulator,name=iPhone 17' \
   -target IPAKeyboardKit CODE_SIGNING_ALLOWED=NO build
 
 # Full build for the simulator (app + extension; requires signing/provisioning)
 xcodebuild -project IPAKeyboard.xcodeproj -scheme IPAKeyboard \
-  -destination 'platform=iOS Simulator,name=iPhone 16' build
+  -destination 'platform=iOS Simulator,name=iPhone 17' build
 
 # Run the IPAKeyboardKit unit tests (no signing needed)
 xcodebuild -project IPAKeyboard.xcodeproj -scheme IPAKeyboardKit \
-  -destination 'platform=iOS Simulator,name=iPhone 16' \
+  -destination 'platform=iOS Simulator,name=iPhone 17' \
   CODE_SIGNING_ALLOWED=NO test
 
 # Open in Xcode (preferred for running on simulator/device and SwiftUI previews)

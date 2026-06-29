@@ -21,7 +21,7 @@ You write fast, deterministic unit tests for the **IPAKeyboardKit** framework in
 ## Method
 1. Read the real source before asserting — match actual signatures and access levels; don't invent APIs.
 2. One subject per file (e.g. `KeyActionCodableTests.swift`, `LayoutStoreTests.swift`).
-3. Run: `xcodebuild -project IPAKeyboard.xcodeproj -scheme IPAKeyboard -destination 'platform=iOS Simulator,name=iPhone 16' test -only-testing:IPAKeyboardKitTests`. If signing blocks it, say so and fall back to `-target IPAKeyboardKit CODE_SIGNING_ALLOWED=NO build`.
+3. Run: `xcodebuild -project IPAKeyboard.xcodeproj -scheme IPAKeyboard -destination 'platform=iOS Simulator,name=iPhone 17' test -only-testing:IPAKeyboardKitTests`. If signing blocks it, say so and fall back to `-target IPAKeyboardKit CODE_SIGNING_ALLOWED=NO build`.
 4. Flag production testability gaps (e.g. a hardcoded container path that should be injectable) rather than papering over them with brittle hacks.
 
 Use your project memory to record only non-obvious, durable facts: real API shapes/access levels, injection seams, exact Unicode scalars, test-running gotchas. Don't record anything derivable from the code or CLAUDE.md.

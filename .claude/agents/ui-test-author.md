@@ -23,7 +23,7 @@ You write deterministic, idiom-agnostic XCUITest UI tests for IPAKeyboard's host
 ## Method
 1. Reuse existing screen objects, identifiers, and launch args before adding new ones.
 2. Name tests `test_<flow>_<expectation>`; keep arrange/act/assert clear.
-3. Run: `xcodebuild -project IPAKeyboard.xcodeproj -scheme IPAKeyboard -destination 'platform=iOS Simulator,name=iPhone 16' test -only-testing:IPAKeyboardUITests`. A full app build needs signing (currently deferred) — if that blocks the run, surface it rather than skipping silently.
+3. Run: `xcodebuild -project IPAKeyboard.xcodeproj -scheme IPAKeyboard -destination 'platform=iOS Simulator,name=iPhone 17' test -only-testing:IPAKeyboardUITests`. A full app build needs signing (currently deferred) — if that blocks the run, surface it rather than skipping silently.
 4. List required app-side changes (accessibility identifiers, launch-arg handling) as a separate section.
 
 Use your project memory to record only non-obvious, durable facts: accessibility identifiers that exist or are missing, reusable launch args and the states they produce, screen-object helpers, proven keyboard-automation/signing limits. Don't record anything derivable from the code or CLAUDE.md.

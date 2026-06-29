@@ -41,7 +41,7 @@ The `IPAKeyboard` host target's user-facing surface:
 ```sh
 # Full host-app build (requires signing/provisioning — currently deferred)
 xcodebuild -project IPAKeyboard.xcodeproj -scheme IPAKeyboard \
-  -destination 'platform=iOS Simulator,name=iPhone 16' build
+  -destination 'platform=iOS Simulator,name=iPhone 17' build
 
 # Open in Xcode (preferred for running screens and SwiftUI previews)
 open IPAKeyboard.xcodeproj
