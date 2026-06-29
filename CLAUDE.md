@@ -15,6 +15,21 @@ The defining requirement is **customizability**: the app ships read-only default
 - CI on GitHub Actions (`.github/workflows/ci.yml`); Dependabot keeps Actions current
 - Licensed under the MIT License (`LICENSE`)
 
+## Workflow
+
+This is an early-stage prototype. Commit directly to `main`; don't create feature branches or PRs unless I ask. (Still commit or push only when I ask — this just removes the auto-branch step.)
+
+## Working style: verify, don't trust memory
+
+Don't rely on recalled memory or assumptions for things that are cheap to check. Before referencing or recommending any of the following, verify it against the actual source (read the file, grep, or check the entitlement/build setting) rather than citing it from memory:
+
+- File paths, type/function/symbol names, and public API of `IPAKeyboardKit`.
+- Build settings and flags (`APPLICATION_EXTENSION_API_ONLY`, `BUILD_LIBRARY_FOR_DISTRIBUTION`, `TARGETED_DEVICE_FAMILY`, signing flags).
+- The App Group identifier — confirm `AppGroup.identifier` in code matches both `.entitlements` files.
+- Exact Unicode code points in layouts and IPA data (see the Unicode note in Architecture).
+
+When you state a fact about the codebase, make clear whether you verified it or are assuming it. A recalled memory that names a file, function, or flag is a starting point to check, not a fact to repeat.
+
 ## Targets
 
 Three targets in `IPAKeyboard.xcodeproj` (build the project directly — there is no `xcworkspace`):
