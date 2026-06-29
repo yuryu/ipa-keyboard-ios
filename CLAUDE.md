@@ -11,6 +11,7 @@ The defining requirement is **customizability**: the app ships read-only default
 - Language: Swift 6.0 on all three targets (app, extension, framework)
 - Deployment target: iOS 26.5, universal (`TARGETED_DEVICE_FAMILY = "1,2"`, iPhone + iPad)
 - No third-party dependencies, no Swift Package Manager manifest, no test target yet
+- Licensed under the MIT License (`LICENSE`)
 
 ## Targets
 
