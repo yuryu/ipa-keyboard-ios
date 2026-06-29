@@ -4,57 +4,126 @@
 //
 //  Created by Emma Haruka Iwao on 6/28/26.
 //
+//  Renders a bundled `KeyboardLayout` with the shared SwiftUI `KeyboardView`
+//  and applies each emitted `KeyAction` to the document via the text proxy.
+//
 
+import SwiftUI
 import UIKit
+import IPAKeyboardKit
 
 class KeyboardViewController: UIInputViewController {
 
-    @IBOutlet var nextKeyboardButton: UIButton!
-    
-    override func updateViewConstraints() {
-        super.updateViewConstraints()
-        
-        // Add custom view sizing constraints here
-    }
-    
+    private let metrics = KeyboardMetrics()
+    private var heightConstraint: NSLayoutConstraint?
+
     override func viewDidLoad() {
         super.viewDidLoad()
-        
-        // Perform custom UI setup here
-        self.nextKeyboardButton = UIButton(type: .system)
-        
-        self.nextKeyboardButton.setTitle(NSLocalizedString("Next Keyboard", comment: "Title for 'Next Keyboard' button"), for: [])
-        self.nextKeyboardButton.sizeToFit()
-        self.nextKeyboardButton.translatesAutoresizingMaskIntoConstraints = false
-        
-        self.nextKeyboardButton.addTarget(self, action: #selector(handleInputModeList(from:with:)), for: .allTouchEvents)
-        
-        self.view.addSubview(self.nextKeyboardButton)
-        
-        self.nextKeyboardButton.leftAnchor.constraint(equalTo: self.view.leftAnchor).isActive = true
-        self.nextKeyboardButton.bottomAnchor.constraint(equalTo: self.view.bottomAnchor).isActive = true
-    }
-    
-    override func viewWillLayoutSubviews() {
-        self.nextKeyboardButton.isHidden = !self.needsInputModeSwitchKey
-        super.viewWillLayoutSubviews()
-    }
-    
-    override func textWillChange(_ textInput: UITextInput?) {
-        // The app is about to change the document's contents. Perform any preparation here.
-    }
-    
-    override func textDidChange(_ textInput: UITextInput?) {
-        // The app has just changed the document's contents, the document context has been updated.
-        
-        var textColor: UIColor
-        let proxy = self.textDocumentProxy
-        if proxy.keyboardAppearance == UIKeyboardAppearance.dark {
-            textColor = UIColor.white
-        } else {
-            textColor = UIColor.black
-        }
-        self.nextKeyboardButton.setTitleColor(textColor, for: [])
+
+        let layout = loadLayout()
+        installKeyboard(for: layout)
+        applyHeight(forRowCount: layout.rows.count)
     }
 
+    // MARK: Layout loading
+
+    /// The layout to render. For the render-spine step we pin to the `en-US`
+    /// bundled default (any bundled layout as a backstop); arrangement/
+    /// selection comes later in the roadmap. Falls back to a minimal safe
+    /// layout so the keyboard never renders blank.
+    private func loadLayout() -> KeyboardLayout {
+        let bundled = LayoutStore().bundledLayouts()
+        if let layout = bundled.first(where: { $0.locale == "en-US" }) ?? bundled.first {
+            return layout
+        }
+        return KeyboardLayout(
+            name: "Fallback",
+            locale: "en-US",
+            rows: [KeyRow(keys: [
+                .insert("ə"),
+                Key(action: .space, label: "space", widthFactor: 3.0),
+                Key(action: .backspace, label: "⌫", widthFactor: 1.5),
+            ])]
+        )
+    }
+
+    /// Hide the globe key when the host doesn't need a keyboard-switch key
+    /// (e.g. when this is the only keyboard installed). `needsInputModeSwitchKey`
+    /// is read at install time; it's stable for the lifetime of the view.
+    private func displayLayout(_ layout: KeyboardLayout) -> KeyboardLayout {
+        guard !needsInputModeSwitchKey else { return layout }
+        var trimmed = layout
+        trimmed.rows = layout.rows.map { row in
+            var row = row
+            row.keys.removeAll { $0.action == .nextKeyboard }
+            return row
+        }
+        return trimmed
+    }
+
+    // MARK: View installation
+
+    private func installKeyboard(for layout: KeyboardLayout) {
+        let root = KeyboardView(layout: displayLayout(layout), metrics: metrics) { [weak self] action in
+            self?.handle(action)
+        }
+
+        let host = UIHostingController(rootView: root)
+        host.view.backgroundColor = .clear
+        host.view.translatesAutoresizingMaskIntoConstraints = false
+
+        addChild(host)
+        view.addSubview(host.view)
+        NSLayoutConstraint.activate([
+            host.view.leadingAnchor.constraint(equalTo: view.leadingAnchor),
+            host.view.trailingAnchor.constraint(equalTo: view.trailingAnchor),
+            host.view.topAnchor.constraint(equalTo: view.topAnchor),
+            host.view.bottomAnchor.constraint(equalTo: view.bottomAnchor),
+        ])
+        host.didMove(toParent: self)
+    }
+
+    private func applyHeight(forRowCount rowCount: Int) {
+        let constraint = view.heightAnchor.constraint(
+            equalToConstant: metrics.totalHeight(rowCount: rowCount))
+        // Below required so the system can still resize during rotation/setup
+        // instead of producing unsatisfiable-constraint warnings.
+        constraint.priority = .defaultHigh
+        constraint.isActive = true
+        heightConstraint = constraint
+    }
+
+    // MARK: Action handling
+
+    private func handle(_ action: KeyAction) {
+        let proxy = textDocumentProxy
+        switch action {
+        case .insert(let text):
+            proxy.insertText(text)
+        case .space:
+            proxy.insertText(" ")
+        case .return:
+            proxy.insertText("\n")
+        case .backspace:
+            deleteBackwardGraphemeAware(proxy)
+        case .nextKeyboard:
+            advanceToNextInputMode()
+        @unknown default:
+            break
+        }
+    }
+
+    /// Delete one user-perceived character. Combining diacritics and other
+    /// multi-scalar clusters are removed as a unit so a length/tone mark
+    /// vanishes with its base glyph in a single backspace.
+    private func deleteBackwardGraphemeAware(_ proxy: UITextDocumentProxy) {
+        guard let context = proxy.documentContextBeforeInput else {
+            proxy.deleteBackward()
+            return
+        }
+        let count = max(GraphemeText.deletionScalarCount(before: context), 1)
+        for _ in 0..<count {
+            proxy.deleteBackward()
+        }
+    }
 }
