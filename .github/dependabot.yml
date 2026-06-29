@@ -1,0 +1,14 @@
+version: 2
+updates:
+  # Keep the GitHub Actions used by the workflows current. There is no SwiftPM
+  # manifest or other package ecosystem in this repo, so Actions is the only one.
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    commit-message:
+      prefix: ci
+    groups:
+      actions:
+        patterns:
+          - "*"

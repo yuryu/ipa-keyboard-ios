@@ -1,0 +1,86 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+# Cancel superseded runs on the same ref to save runner minutes.
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  build-and-test:
+    name: Build + test (unsigned simulator)
+    runs-on: macos-26
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Select Xcode
+        uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: latest-stable
+
+      - name: Show toolchain
+        run: xcodebuild -version
+
+      # Signing is deferred until the Apple developer account is provisioned, so
+      # everything runs against a simulator with code signing disabled (CLAUDE.md).
+      - name: Pick an iOS simulator
+        id: sim
+        run: |
+          udid=$(xcrun simctl list devices available --json \
+            | jq -r 'first(.devices[][] | select(.name | startswith("iPhone")) | .udid)')
+          if [ -z "$udid" ] || [ "$udid" = "null" ]; then
+            echo "No available iPhone simulator found" >&2
+            xcrun simctl list devices available
+            exit 1
+          fi
+          echo "udid=$udid" >> "$GITHUB_OUTPUT"
+
+      # Compile-checks all three targets (app, extension, framework) plus the
+      # UI-test bundle. A signed device/archive build is out of scope until the
+      # App Group is provisioned with Apple.
+      - name: Build app + extension for testing
+        run: |
+          xcodebuild \
+            -project IPAKeyboard.xcodeproj \
+            -scheme IPAKeyboard \
+            -destination "id=${{ steps.sim.outputs.udid }}" \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY="" \
+            build-for-testing
+
+      - name: Build IPAKeyboardKit for testing
+        run: |
+          xcodebuild \
+            -project IPAKeyboard.xcodeproj \
+            -scheme IPAKeyboardKit \
+            -destination "id=${{ steps.sim.outputs.udid }}" \
+            CODE_SIGNING_ALLOWED=NO \
+            build-for-testing
+
+      - name: Run IPAKeyboardKit unit tests
+        run: |
+          xcodebuild \
+            -project IPAKeyboard.xcodeproj \
+            -scheme IPAKeyboardKit \
+            -destination "id=${{ steps.sim.outputs.udid }}" \
+            -resultBundlePath TestResults.xcresult \
+            CODE_SIGNING_ALLOWED=NO \
+            test-without-building
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: unit-test-results
+          path: TestResults.xcresult
+          if-no-files-found: ignore
