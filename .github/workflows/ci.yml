@@ -15,6 +15,11 @@ concurrency:
 permissions:
   contents: read
 
+env:
+  # Named simulator; OS is omitted so xcodebuild picks the newest eligible
+  # runtime on the runner. Update the device if the runner image drops it.
+  DESTINATION: platform=iOS Simulator,name=iPhone 17
+
 jobs:
   build-and-test:
     name: Build + test (unsigned simulator)
@@ -32,27 +37,14 @@ jobs:
 
       # Signing is deferred until the Apple developer account is provisioned, so
       # everything runs against a simulator with code signing disabled (CLAUDE.md).
-      - name: Pick an iOS simulator
-        id: sim
-        run: |
-          udid=$(xcrun simctl list devices available --json \
-            | jq -r 'first(.devices[][] | select(.name | startswith("iPhone")) | .udid)')
-          if [ -z "$udid" ] || [ "$udid" = "null" ]; then
-            echo "No available iPhone simulator found" >&2
-            xcrun simctl list devices available
-            exit 1
-          fi
-          echo "udid=$udid" >> "$GITHUB_OUTPUT"
-
       # Compile-checks all three targets (app, extension, framework) plus the
-      # UI-test bundle. A signed device/archive build is out of scope until the
-      # App Group is provisioned with Apple.
+      # UI-test bundle. A signed device/archive build is out of scope for now.
       - name: Build app + extension for testing
         run: |
           xcodebuild \
             -project IPAKeyboard.xcodeproj \
             -scheme IPAKeyboard \
-            -destination "id=${{ steps.sim.outputs.udid }}" \
+            -destination "$DESTINATION" \
             CODE_SIGNING_ALLOWED=NO \
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGN_IDENTITY="" \
@@ -63,7 +55,7 @@ jobs:
           xcodebuild \
             -project IPAKeyboard.xcodeproj \
             -scheme IPAKeyboardKit \
-            -destination "id=${{ steps.sim.outputs.udid }}" \
+            -destination "$DESTINATION" \
             CODE_SIGNING_ALLOWED=NO \
             build-for-testing
 
@@ -72,7 +64,7 @@ jobs:
           xcodebuild \
             -project IPAKeyboard.xcodeproj \
             -scheme IPAKeyboardKit \
-            -destination "id=${{ steps.sim.outputs.udid }}" \
+            -destination "$DESTINATION" \
             -resultBundlePath TestResults.xcresult \
             CODE_SIGNING_ALLOWED=NO \
             test-without-building
