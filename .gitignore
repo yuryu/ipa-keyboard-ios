@@ -1,0 +1,11 @@
+# Xcode / Swift build artifacts
+build/
+DerivedData/
+*.xcuserstate
+
+# macOS
+.DS_Store
+
+# Swift Package Manager
+.build/
+.swiftpm/
