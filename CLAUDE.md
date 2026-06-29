@@ -15,6 +15,26 @@ The defining requirement is **customizability**: the app ships read-only default
 - CI on GitHub Actions (`.github/workflows/ci.yml`); Dependabot keeps Actions current
 - Licensed under the MIT License (`LICENSE`)
 
+## Product direction
+
+The living feature wishlist and UX intent live in `docs/ROADMAP.md` (this file
+covers code structure; the roadmap covers what we're building and why). Read it
+before planning feature work. The headline goals:
+
+- **Multiple arrangements per dialect** — a dialect (e.g. `en-US`) offers more
+  than one arrangement of a shared symbol inventory: a split consonants/vowels
+  layout and a QWERTY-style full layout. Arrangements are *within* a dialect,
+  not separate dialects.
+- **Multi-symbol keys** for allophones/variants (`pʰ` from `p`) — already in the
+  schema via `Key.alternates`; rendering the long-press popup is open.
+- **One screen, no horizontal scrolling**; a **secondary symbols panel** (like
+  iOS's `123`/`#+=`) for less-common symbols.
+- **Setup-screen selection** of which arrangements/symbols are enabled.
+
+Build order: render spine first (wire `KeyboardViewController` to `LayoutStore`
+for a single grid), *then* evolve the schema for arrangements + panels with a
+migration. Don't generalize the schema before a real keyboard renders.
+
 ## Workflow
 
 This is an early-stage prototype. Commit directly to `main`; don't create feature branches or PRs unless I ask. (Still commit or push only when I ask — this just removes the auto-branch step.)
