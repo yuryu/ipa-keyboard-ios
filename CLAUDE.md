@@ -10,7 +10,9 @@ The defining requirement is **customizability**: the app ships read-only default
 
 - Language: Swift 6.0 on all three targets (app, extension, framework)
 - Deployment target: iOS 26.5, universal (`TARGETED_DEVICE_FAMILY = "1,2"`, iPhone + iPad)
-- No third-party dependencies, no Swift Package Manager manifest, no test target yet
+- No third-party dependencies, no Swift Package Manager manifest
+- Two test targets (`IPAKeyboardKitTests`, `IPAKeyboardUITests`) — currently stock template tests only
+- CI on GitHub Actions (`.github/workflows/ci.yml`); Dependabot keeps Actions current
 - Licensed under the MIT License (`LICENSE`)
 
 ## Targets
@@ -35,11 +37,16 @@ xcodebuild -project IPAKeyboard.xcodeproj -scheme IPAKeyboard \
 xcodebuild -project IPAKeyboard.xcodeproj -scheme IPAKeyboard \
   -destination 'platform=iOS Simulator,name=iPhone 16' build
 
+# Run the IPAKeyboardKit unit tests (no signing needed)
+xcodebuild -project IPAKeyboard.xcodeproj -scheme IPAKeyboardKit \
+  -destination 'platform=iOS Simulator,name=iPhone 16' \
+  CODE_SIGNING_ALLOWED=NO test
+
 # Open in Xcode (preferred for running on simulator/device and SwiftUI previews)
 open IPAKeyboard.xcodeproj
 ```
 
-There are no tests yet. If a test target is added, run with `xcodebuild ... test` and a single test via `-only-testing:<Target>/<Class>/<method>`.
+Run a single test with `-only-testing:<Target>/<Class>/<method>`. The test bundles (`IPAKeyboardKitTests` uses Swift Testing; `IPAKeyboardUITests` uses XCUITest) currently hold only the stock template tests — real coverage is still to be written. CI (`.github/workflows/ci.yml`, `macos-26`) does `build-for-testing` for all three targets plus the UI-test bundle with signing disabled, then runs the kit unit tests; it does not yet run the UI tests or any signed/device/archive build.
 
 > **Signing is deferred.** The Apple developer account is mid-relocation, so the App Group is configured in the project but not yet provisioned with Apple. A full app/extension build fails at code-signing until that is resolved; the framework builds standalone without signing.
 
@@ -77,6 +84,9 @@ When building out `KeyboardViewController` and any code that runs in the extensi
 
 ## Subagents
 
-Two project subagents exist under `.claude/agents/`:
+Five project subagents exist under `.claude/agents/`:
 - `keyboard-extension-builder` — extension/host/App Group wiring and the two-target plumbing.
 - `ipa-data-curator` — IPA character data, layout schema, per-locale defaults, Unicode correctness.
+- `layout-editor-ui` — SwiftUI for the host app: settings, onboarding, layout-management/editor screens.
+- `unit-test-author` — Swift Testing unit tests for `IPAKeyboardKit` (Codable round-trips, `LayoutStore`/`AppGroup`, migration, forking).
+- `ui-test-author` — XCUITest UI tests for the host app in `IPAKeyboardUITests`.
