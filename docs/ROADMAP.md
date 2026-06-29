@@ -41,11 +41,20 @@ long-press popup) is the open part.
 The active arrangement must fit the keyboard area without horizontal scroll.
 Key widths come from `widthFactor`; the renderer sizes rows to fit.
 
-### 4. A secondary symbols panel
+**Within-row grouping** (done): a row may contain a flexible `spacer`
+(`KeyAction.spacer`) that absorbs leftover width and pushes the following keys to
+the right — e.g. consonants packed left, vowels packed right, with a gap between.
+Rows with a spacer lay out on a shared key grid so grouped keys stay a consistent
+size; plain rows still stretch to fill.
+
+### 4. A secondary symbols panel — *delivered*
 
 Less-common symbols (extended diacritics, suprasegmentals, tone marks, rare
 consonants) live in a **separate panel**, reached the way the standard iOS
 keyboard switches to its `123` / `#+=` panels — not crammed into the main grid.
+Implemented in v2: an arrangement holds multiple panels plus a shared bottom bar;
+a per-panel `switchKey` toggles between them while the bottom bar stays pinned.
+`en-US` ships an "IPA" main panel and a "More" panel.
 
 ### 5. Setup-screen selection
 
@@ -53,30 +62,34 @@ In the host app's setup/settings screen the user chooses which arrangements and
 symbols they want enabled, so the keyboard shows their curated set rather than
 forcing them to cycle through many layouts.
 
-## Schema evolution (deferred — do after the render spine works)
+## Schema evolution
 
-The current schema (`KeyboardLayout` → `rows`) describes a single flat grid. The
-wishlist needs:
+**Arrangements + panels — delivered (schema v2).** The document is now
+`KeyboardLayout.arrangements` → `Arrangement` → `Panel`:
 
-- **Arrangements**: a dialect's layout holds multiple named arrangements
-  (split, qwerty), each with its own rows. Decision made: multiple arrangements
-  *per dialect*, sharing a symbol inventory.
-- **Panels**: each arrangement has a primary panel plus one or more secondary
-  panels (the "additional symbols" panel), with a panel-switch affordance.
+- **Arrangements**: a dialect's layout holds one or more named arrangements
+  (e.g. "Split"; QWERTY-style still to author), each sharing the symbol
+  inventory. Index 0 is shown by default until arrangement selection lands.
+- **Panels**: each `Arrangement` has a primary panel plus optional secondary
+  panels and a shared `functionRow` (the pinned bottom bar). A per-`Panel`
+  `switchKey` (a `KeyAction.switchPanel(target)`) moves between panels.
+- `currentSchemaVersion` is `2`; v1 (flat `rows`) files migrate on decode by
+  wrapping their rows in one default arrangement/panel, and a file claiming a
+  *newer* version than supported is rejected rather than silently downgraded.
+
+Still deferred:
+
 - **Enabled set**: user selection of arrangements/symbols, stored with the
   user's layouts in the App Group container.
 
-Evolve this *after* the single-grid renderer exists, so the abstraction is
-informed by a working keyboard rather than guessed up front. Bump
-`KeyboardLayout.currentSchemaVersion` and add a migration when the format
-changes.
-
 ## Suggested build order
 
-1. **Render spine** (extension): wire `KeyboardViewController` to `LayoutStore`,
-   render one arrangement's `rows` as a one-screen grid (size from
-   `widthFactor`, no horizontal scroll), handle tap→insert (grapheme-cluster-
-   aware), backspace/space/return/nextKeyboard, and long-press→`alternates`.
-2. **Schema: arrangements + panels**, with migration and updated defaults.
+1. ~~**Render spine** (extension): wire `KeyboardViewController` to
+   `LayoutStore`, render a one-screen grid (size from `widthFactor`, no
+   horizontal scroll), handle tap→insert (grapheme-cluster-aware),
+   backspace/space/return/nextKeyboard, and long-press→`alternates`.~~ **Done.**
+2. ~~**Schema: arrangements + panels**, with migration and updated defaults.~~
+   **Done** (v2: arrangements → panels, shared bottom bar, `switchPanel`,
+   flexible `spacer`; `en-US` migrated).
 3. **Host-app setup screen**: browse/select arrangements and symbols; fork/edit.
 4. **More dialect defaults** once the format has settled.

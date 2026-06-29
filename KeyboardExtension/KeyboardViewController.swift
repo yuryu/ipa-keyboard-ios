@@ -22,7 +22,9 @@ class KeyboardViewController: UIInputViewController {
 
         let layout = loadLayout()
         installKeyboard(for: layout)
-        applyHeight(forRowCount: layout.rows.count)
+        // Size to the tallest panel plus the shared bottom bar so switching
+        // panels doesn't resize us.
+        applyHeight(forRowCount: layout.primaryArrangement?.totalRowCount ?? 0)
     }
 
     // MARK: Layout loading
@@ -52,13 +54,7 @@ class KeyboardViewController: UIInputViewController {
     /// is read at install time; it's stable for the lifetime of the view.
     private func displayLayout(_ layout: KeyboardLayout) -> KeyboardLayout {
         guard !needsInputModeSwitchKey else { return layout }
-        var trimmed = layout
-        trimmed.rows = layout.rows.map { row in
-            var row = row
-            row.keys.removeAll { $0.action == .nextKeyboard }
-            return row
-        }
-        return trimmed
+        return layout.filteringKeys { $0.action == .nextKeyboard }
     }
 
     // MARK: View installation

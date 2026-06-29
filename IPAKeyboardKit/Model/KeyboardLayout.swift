@@ -28,9 +28,13 @@ public struct KeyRow: Codable, Sendable, Hashable, Identifiable {
 }
 
 public struct KeyboardLayout: Codable, Sendable, Hashable, Identifiable {
-    /// Current on-disk schema version. Bump when the format changes and add
-    /// a migration; older files are recognized via the decoded `schemaVersion`.
-    public static let currentSchemaVersion = 1
+    /// Current on-disk schema version. Bump when the format changes and add a
+    /// migration. Old files are recognized *structurally* on decode (a v1 file
+    /// has flat `rows`, a v2 file has `arrangements`); a file claiming a *newer*
+    /// version than this is rejected rather than silently downgraded.
+    ///
+    /// v1: flat `rows`. v2: `arrangements` → `panels` → `rows`.
+    public static let currentSchemaVersion = 2
 
     public var schemaVersion: Int
     public var id: UUID
@@ -42,8 +46,31 @@ public struct KeyboardLayout: Codable, Sendable, Hashable, Identifiable {
     public var isBuiltIn: Bool
     /// When this layout was forked from a built-in, the source's id.
     public var derivedFrom: UUID?
-    public var rows: [KeyRow]
+    /// One or more arrangements of this dialect's symbols; index 0 is shown
+    /// by default until arrangement selection (host app) lands.
+    public var arrangements: [Arrangement]
 
+    public init(
+        schemaVersion: Int = KeyboardLayout.currentSchemaVersion,
+        id: UUID = UUID(),
+        name: String,
+        locale: String,
+        isBuiltIn: Bool = false,
+        derivedFrom: UUID? = nil,
+        arrangements: [Arrangement]
+    ) {
+        self.schemaVersion = schemaVersion
+        self.id = id
+        self.name = name
+        self.locale = locale
+        self.isBuiltIn = isBuiltIn
+        self.derivedFrom = derivedFrom
+        self.arrangements = arrangements
+    }
+
+    /// Convenience for building a layout from a single flat grid of rows,
+    /// wrapping them in one default arrangement/panel. Used by terse call
+    /// sites (extension fallback, previews, tests) and by the v1→v2 migration.
     public init(
         schemaVersion: Int = KeyboardLayout.currentSchemaVersion,
         id: UUID = UUID(),
@@ -53,29 +80,78 @@ public struct KeyboardLayout: Codable, Sendable, Hashable, Identifiable {
         derivedFrom: UUID? = nil,
         rows: [KeyRow]
     ) {
-        self.schemaVersion = schemaVersion
-        self.id = id
-        self.name = name
-        self.locale = locale
-        self.isBuiltIn = isBuiltIn
-        self.derivedFrom = derivedFrom
-        self.rows = rows
+        self.init(
+            schemaVersion: schemaVersion,
+            id: id,
+            name: name,
+            locale: locale,
+            isBuiltIn: isBuiltIn,
+            derivedFrom: derivedFrom,
+            arrangements: KeyboardLayout.singleArrangement(rows: rows))
     }
 
+    /// Wrap a flat grid of rows in one default arrangement/panel. Shared by the
+    /// terse `rows:` initializer and the v1→v2 decode migration so both build
+    /// the same shape. A migrated v1 layout has no separate `functionRow` — its
+    /// function keys stay inline in the rows.
+    static func singleArrangement(rows: [KeyRow]) -> [Arrangement] {
+        [Arrangement(name: "Default", panels: [Panel(name: "Main", rows: rows)], functionRow: nil)]
+    }
+
+    /// The arrangement shown by default; nil only for a malformed layout.
+    public var primaryArrangement: Arrangement? { arrangements.first }
+
     private enum CodingKeys: String, CodingKey {
-        case schemaVersion, id, name, locale, isBuiltIn, derivedFrom, rows
+        case schemaVersion, id, name, locale, isBuiltIn, derivedFrom, arrangements, rows
     }
 
     public init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
-        schemaVersion = try container.decodeIfPresent(Int.self, forKey: .schemaVersion)
+
+        // Refuse to silently downgrade a file written by a newer build; we have
+        // no way to migrate a format we don't know. Older/equal versions are
+        // normalized up to the current version once migrated below.
+        let onDisk = try container.decodeIfPresent(Int.self, forKey: .schemaVersion)
             ?? KeyboardLayout.currentSchemaVersion
+        guard onDisk <= KeyboardLayout.currentSchemaVersion else {
+            throw DecodingError.dataCorruptedError(
+                forKey: .schemaVersion, in: container,
+                debugDescription: "layout schemaVersion \(onDisk) is newer than supported "
+                    + "\(KeyboardLayout.currentSchemaVersion)")
+        }
+        schemaVersion = KeyboardLayout.currentSchemaVersion
+
         id = try container.decodeIfPresent(UUID.self, forKey: .id) ?? UUID()
         name = try container.decode(String.self, forKey: .name)
         locale = try container.decode(String.self, forKey: .locale)
         isBuiltIn = try container.decodeIfPresent(Bool.self, forKey: .isBuiltIn) ?? false
         derivedFrom = try container.decodeIfPresent(UUID.self, forKey: .derivedFrom)
-        rows = try container.decode([KeyRow].self, forKey: .rows)
+
+        // A present-but-empty `arrangements` is treated as absent so it can't
+        // produce a silent blank keyboard: fall back to the v1 `rows` migration,
+        // and if there are no rows either the document is malformed.
+        if let arrangements = try container.decodeIfPresent([Arrangement].self, forKey: .arrangements),
+           !arrangements.isEmpty {
+            self.arrangements = arrangements
+        } else if let rows = try container.decodeIfPresent([KeyRow].self, forKey: .rows) {
+            self.arrangements = KeyboardLayout.singleArrangement(rows: rows)
+        } else {
+            throw DecodingError.dataCorrupted(
+                DecodingError.Context(
+                    codingPath: container.codingPath,
+                    debugDescription: "layout has neither non-empty `arrangements` nor `rows`"))
+        }
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(schemaVersion, forKey: .schemaVersion)
+        try container.encode(id, forKey: .id)
+        try container.encode(name, forKey: .name)
+        try container.encode(locale, forKey: .locale)
+        try container.encode(isBuiltIn, forKey: .isBuiltIn)
+        try container.encodeIfPresent(derivedFrom, forKey: .derivedFrom)
+        try container.encode(arrangements, forKey: .arrangements)
     }
 
     /// Produce an editable, user-owned copy of a built-in layout
@@ -88,7 +164,35 @@ public struct KeyboardLayout: Codable, Sendable, Hashable, Identifiable {
             locale: locale,
             isBuiltIn: false,
             derivedFrom: id,
-            rows: rows
+            arrangements: arrangements
         )
+    }
+
+    /// A copy with every key matching `shouldRemove` dropped — across each
+    /// panel's rows, the shared `functionRow`, and per-panel `switchKey`s. The
+    /// single place that walks the whole arrangements→panels→rows→keys tree, so
+    /// callers (e.g. hiding the globe key, applying a user's enabled set) don't
+    /// re-implement the traversal.
+    public func filteringKeys(_ shouldRemove: (Key) -> Bool) -> KeyboardLayout {
+        var copy = self
+        copy.arrangements = arrangements.map { arrangement in
+            var arrangement = arrangement
+            arrangement.panels = arrangement.panels.map { panel in
+                var panel = panel
+                if let key = panel.switchKey, shouldRemove(key) { panel.switchKey = nil }
+                panel.rows = panel.rows.map { row in
+                    var row = row
+                    row.keys.removeAll(where: shouldRemove)
+                    return row
+                }
+                return panel
+            }
+            if var functionRow = arrangement.functionRow {
+                functionRow.keys.removeAll(where: shouldRemove)
+                arrangement.functionRow = functionRow
+            }
+            return arrangement
+        }
+        return copy
     }
 }

@@ -48,6 +48,12 @@ public struct Key: Codable, Sendable, Hashable, Identifiable {
         Key(action: .insert(text), accessibilityLabel: accessibilityLabel, alternates: alternates)
     }
 
+    /// A non-interactive flexible gap (see `KeyAction.spacer`).
+    public static var spacer: Key { Key(action: .spacer) }
+
+    /// Whether this key is a flexible gap rather than an interactive key.
+    public var isSpacer: Bool { action == .spacer }
+
     /// The glyph to render, falling back to the inserted text.
     public var displayLabel: String {
         if let label { return label }

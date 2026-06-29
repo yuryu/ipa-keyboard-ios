@@ -22,13 +22,20 @@ public enum KeyAction: Sendable, Hashable {
     case `return`
     /// Advance to the next keyboard (the required globe key).
     case nextKeyboard
+    /// Switch the visible panel within the current arrangement, by panel name
+    /// (e.g. "More"). Handled by the renderer; never reaches the host document.
+    case switchPanel(String)
+    /// A non-interactive flexible gap in a row. Absorbs leftover width so the
+    /// keys after it are pushed to the right (e.g. consonants grouped left,
+    /// vowels right). Renders nothing and emits no action.
+    case spacer
 }
 
 extension KeyAction: Codable {
-    private enum CodingKeys: String, CodingKey { case type, text }
+    private enum CodingKeys: String, CodingKey { case type, text, target }
 
     private enum Kind: String, Codable {
-        case insert, backspace, space, `return`, nextKeyboard
+        case insert, backspace, space, `return`, nextKeyboard, switchPanel, spacer
     }
 
     public init(from decoder: Decoder) throws {
@@ -40,6 +47,9 @@ extension KeyAction: Codable {
         case .space: self = .space
         case .return: self = .return
         case .nextKeyboard: self = .nextKeyboard
+        case .switchPanel:
+            self = .switchPanel(try container.decode(String.self, forKey: .target))
+        case .spacer: self = .spacer
         }
     }
 
@@ -53,6 +63,10 @@ extension KeyAction: Codable {
         case .space: try container.encode(Kind.space, forKey: .type)
         case .return: try container.encode(Kind.return, forKey: .type)
         case .nextKeyboard: try container.encode(Kind.nextKeyboard, forKey: .type)
+        case .switchPanel(let target):
+            try container.encode(Kind.switchPanel, forKey: .type)
+            try container.encode(target, forKey: .target)
+        case .spacer: try container.encode(Kind.spacer, forKey: .type)
         }
     }
 }
