@@ -1,0 +1,2 @@
+- [Test style & Swift 6.0 gotchas](feedback_test_style.md) — no @Suite on top-level structs; use explicit closures not key-path shorthands inside #expect
+- [API facts & test command](project_test_api_facts.md) — StoreError is equatable, correct simulator is iPhone 17, PBXFileSystemSynchronizedRootGroup auto-includes files
