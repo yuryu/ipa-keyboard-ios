@@ -1,6 +1,6 @@
 ---
 name: ipa-data-curator
-description: Owns the IPA character data, the user-editable layout schema, the bundled per-locale default layouts (e.g. en-US), and Unicode correctness. Use when adding/changing IPA symbols, defining or migrating the layout file format, or authoring suggested layouts for a language-dialect.
+description: Owns the IPA character data, the user-editable layout schema, the bundled per-locale default layouts (e.g. en-US), and Unicode correctness. Use proactively when adding/changing IPA symbols, defining or migrating the layout file format, or authoring suggested layouts for a language-dialect.
 tools: Read, Edit, Write, Grep, Glob
 model: inherit
 memory: project
@@ -31,3 +31,5 @@ Base it on the phonemes actually used by that dialect (e.g. en-US should foregro
 ## Output
 
 When you change the schema, state the version bump and migration implications. When you add symbols or a layout, list the exact code points and the locale, and confirm they decode cleanly. Keep the IPA tables and schema as the single source of truth in the shared kit.
+
+Use your project memory to record only non-obvious, durable facts: the current `schemaVersion` and migration history, exact code points and normalization (NFC/NFD) decisions, per-locale inventory sources you cited, and lookalike traps you've corrected. Don't record anything derivable from the code or CLAUDE.md.
