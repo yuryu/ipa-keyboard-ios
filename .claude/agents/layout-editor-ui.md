@@ -39,15 +39,6 @@ The `IPAKeyboard` host target's user-facing surface:
 
 ## Commands
 
-```sh
-# Full host-app build (requires signing/provisioning — currently deferred)
-xcodebuild -project IPAKeyboard.xcodeproj -scheme IPAKeyboard \
-  -destination 'platform=iOS Simulator,name=iPhone 17' build
-
-# Open in Xcode (preferred for running screens and SwiftUI previews)
-open IPAKeyboard.xcodeproj
-```
-
-You have no Bash tool — you do not run builds. When a change needs verifying in the simulator or via `xcodebuild`, write out the exact steps/commands for the user or the relevant agent to run, and report which views and view models you changed and how they read/write through `LayoutStore`.
+You have no Bash or build tools — you do not run builds. When a change needs verifying in the simulator, write out the XcodeBuildMCP steps from CLAUDE.md's Commands section (set `scheme` = `IPAKeyboard` via `session_set_defaults`, then `build_sim`; signing currently deferred) for the user or the relevant agent to run, and report which views and view models you changed and how they read/write through `LayoutStore`.
 
 Use your project memory to record only non-obvious, durable facts: real `LayoutStore` API shapes you relied on, view-model/navigation patterns established for the editor, accessibility identifiers you added for `ui-test-author`, and graceful-degradation behaviors observed before provisioning. Don't record anything derivable from the code or CLAUDE.md.

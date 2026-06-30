@@ -1,7 +1,7 @@
 ---
 name: keyboard-extension-builder
 description: Specialist for the iOS custom keyboard extension (UIInputViewController appex), the host container app, and the App Group data sharing between them. Use proactively for adding/modifying the keyboard target, the input view, key handling, and anything touching the extension's runtime constraints.
-tools: Read, Edit, Write, Bash, Grep, Glob
+tools: Read, Edit, Write, Bash, Grep, Glob, mcp__XcodeBuildMCP__*
 model: inherit
 memory: project
 isolation: worktree
@@ -34,10 +34,7 @@ The two share data through an **App Group** (`group.net.yuryu.IPAKeyboard`). Use
 
 ## Commands
 
-```sh
-xcodebuild -project IPAKeyboard.xcodeproj -scheme IPAKeyboard \
-  -destination 'platform=iOS Simulator,name=iPhone 17' build
-```
+Build via the XcodeBuildMCP tools per CLAUDE.md's Commands section: set `scheme` = `IPAKeyboard` with `session_set_defaults` (the build tools take no `scheme` arg), then `build_sim` (or `build_run_sim`). Raw `xcodebuild` only if the MCP server is unavailable.
 
 Adding an extension target requires Xcode UI (File ▸ New ▸ Target ▸ Custom Keyboard Extension). When you cannot do that from the CLI, write the exact step-by-step the user must click, plus the Info.plist keys (`NSExtension` → `IntentsSupported`/`RequestsOpenAccess`, principal class) that must result.
 

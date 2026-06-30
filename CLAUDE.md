@@ -62,26 +62,17 @@ Both app and extension carry the App Group entitlement `group.net.yuryu.IPAKeybo
 
 ## Commands
 
-```sh
-# Build the framework only, no signing (works today; validates the kit + bundled JSON)
-xcodebuild -project IPAKeyboard.xcodeproj -scheme IPAKeyboard \
-  -destination 'platform=iOS Simulator,name=iPhone 17' \
-  -target IPAKeyboardKit CODE_SIGNING_ALLOWED=NO build
+**Use the XcodeBuildMCP tools (`mcp__XcodeBuildMCP__*`, configured in `.mcp.json`) for all builds, tests, and simulator work; fall back to raw `xcodebuild` only if the server is unavailable.**
 
-# Full build for the simulator (app + extension; requires signing/provisioning)
-xcodebuild -project IPAKeyboard.xcodeproj -scheme IPAKeyboard \
-  -destination 'platform=iOS Simulator,name=iPhone 17' build
+Once per session, call `session_show_defaults` (don't assume defaults are set); if unset, `session_set_defaults` with `projectPath` = `IPAKeyboard.xcodeproj`, simulator e.g. `iPhone 17` (use `discover_projs` / `list_schemes` / `list_sims` to confirm names). **`build_sim`/`test_sim` take no `scheme` argument** — the scheme comes from the active defaults, so switch it with `session_set_defaults`, `scheme` = … (do not pass `-scheme` in `extraArgs`; it collides with the one the tool injects). Then:
 
-# Run the IPAKeyboardKit unit tests (no signing needed)
-xcodebuild -project IPAKeyboard.xcodeproj -scheme IPAKeyboardKit \
-  -destination 'platform=iOS Simulator,name=iPhone 17' \
-  CODE_SIGNING_ALLOWED=NO test
+- **Kit build, no signing** (works today; validates the kit + bundled JSON): set `scheme` = `IPAKeyboardKit`, then `build_sim` with `extraArgs: ["CODE_SIGNING_ALLOWED=NO"]`.
+- **Full simulator build** (app + extension; requires signing/provisioning): set `scheme` = `IPAKeyboard`, then `build_sim` (`build_run_sim` to build and launch).
+- **Kit unit tests** (no signing): set `scheme` = `IPAKeyboardKit`, then `test_sim` with `extraArgs: ["CODE_SIGNING_ALLOWED=NO"]`; scope with `-only-testing:<Target>/<Class>/<method>` in `extraArgs`.
 
-# Open in Xcode (preferred for running on simulator/device and SwiftUI previews)
-open IPAKeyboard.xcodeproj
-```
+`boot_sim` / `install_app_sim` / `launch_app_sim` / `screenshot` / `snapshot_ui` cover simulator driving; Xcode (`open IPAKeyboard.xcodeproj`) is still preferred for SwiftUI previews. The raw-`xcodebuild` fallback mirrors these: `-project IPAKeyboard.xcodeproj -scheme <scheme> -destination 'platform=iOS Simulator,name=iPhone 17' [CODE_SIGNING_ALLOWED=NO] build|test`.
 
-Run a single test with `-only-testing:<Target>/<Class>/<method>`. The test bundles (`IPAKeyboardKitTests` uses Swift Testing; `IPAKeyboardUITests` uses XCUITest) currently hold only the stock template tests — real coverage is still to be written. CI (`.github/workflows/ci.yml`, `macos-26`) does `build-for-testing` for all three targets plus the UI-test bundle with signing disabled, then runs the kit unit tests; it does not yet run the UI tests or any signed/device/archive build.
+The test bundles (`IPAKeyboardKitTests` uses Swift Testing; `IPAKeyboardUITests` uses XCUITest) currently hold only the stock template tests — real coverage is still to be written. CI (`.github/workflows/ci.yml`, `macos-26`) does `build-for-testing` for all three targets plus the UI-test bundle with signing disabled, then runs the kit unit tests; it does not yet run the UI tests or any signed/device/archive build.
 
 > **Signing is deferred.** The Apple developer account is mid-relocation, so the App Group is configured in the project but not yet provisioned with Apple. A full app/extension build fails at code-signing until that is resolved; the framework builds standalone without signing.
 

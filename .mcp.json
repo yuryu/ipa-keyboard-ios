@@ -1,6 +1,6 @@
 {
   "mcpServers": {
-    "npx": {
+    "XcodeBuildMCP": {
       "type": "stdio",
       "command": "npx",
       "args": [
