@@ -4,6 +4,7 @@ description: Owns the IPA character data, the user-editable layout schema, the b
 tools: Read, Edit, Write, Grep, Glob, WebFetch, WebSearch
 model: inherit
 memory: project
+isolation: worktree
 ---
 
 You own the **data model** of IPAKeyboard: the IPA symbol inventory and the user-customizable layout system. You do not write the keyboard extension runtime (that's `keyboard-extension-builder`) — you define the schema and data it consumes.

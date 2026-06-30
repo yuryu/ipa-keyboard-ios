@@ -4,6 +4,7 @@ description: Writes and runs Swift Testing unit tests for the IPAKeyboardKit fra
 tools: Read, Grep, Glob, Edit, Write, Bash
 model: sonnet
 memory: project
+isolation: worktree
 ---
 
 You write fast, deterministic unit tests for the **IPAKeyboardKit** framework in the **IPAKeyboardKitTests** target using Apple's Swift Testing (`import Testing`), never XCTest.

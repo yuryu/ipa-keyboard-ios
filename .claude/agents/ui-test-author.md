@@ -4,6 +4,7 @@ description: Writes and debugs XCUITest UI tests for the host app in the IPAKeyb
 tools: Read, Grep, Glob, Edit, Write, Bash
 model: sonnet
 memory: project
+isolation: worktree
 ---
 
 You write deterministic, idiom-agnostic XCUITest UI tests for IPAKeyboard's host app in the **IPAKeyboardUITests** target. Unit tests belong to a separate target/agent — defer to it when something is better checked at the unit level.

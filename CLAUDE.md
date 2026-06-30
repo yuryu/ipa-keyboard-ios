@@ -125,3 +125,5 @@ Five project subagents exist under `.claude/agents/`:
 - `layout-editor-ui` — SwiftUI for the host app: settings, onboarding, layout-management/editor screens.
 - `unit-test-author` — Swift Testing unit tests for `IPAKeyboardKit` (Codable round-trips, `LayoutStore`/`AppGroup`, migration, forking).
 - `ui-test-author` — XCUITest UI tests for the host app in `IPAKeyboardUITests`.
+
+Use these subagents proactively to offload and parallelize work — don't wait to be asked. When a task spans multiple areas (e.g. schema change + tests, or a new host screen + UI tests), dispatch the matching specialists, and run independent pieces concurrently by launching multiple agents in a single batch. Each is configured with `isolation: worktree`, so they work on isolated git worktrees that merge back cleanly; lean on this for anything that doesn't have to run on the main tree. Keep complex, narrowly-scoped, or context-heavy subtasks on the relevant specialist rather than doing everything inline.
