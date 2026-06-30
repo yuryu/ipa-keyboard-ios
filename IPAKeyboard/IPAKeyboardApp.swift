@@ -11,7 +11,7 @@ import SwiftUI
 struct IPAKeyboardApp: App {
     var body: some Scene {
         WindowGroup {
-            ContentView()
+            LayoutListView()
         }
     }
 }

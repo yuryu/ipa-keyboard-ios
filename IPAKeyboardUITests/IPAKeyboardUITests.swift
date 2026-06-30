@@ -2,10 +2,9 @@
 //  IPAKeyboardUITests.swift
 //  IPAKeyboardUITests
 //
-//  Baseline UI tests for the IPAKeyboard host app.
-//  These tests cover what actually renders today (the stock SwiftUI template)
-//  and are written to grow alongside the real settings / onboarding /
-//  layout-management UI.
+//  Functional UI tests for the IPAKeyboard host app.
+//  Covers the layout-library root screen (LayoutListView) and the
+//  layout-detail screen (LayoutDetailView).
 //
 //  Conventions
 //  -----------
@@ -68,44 +67,87 @@ final class IPAKeyboardUITests: XCTestCase {
         )
     }
 
-    // MARK: - ContentView smoke tests
+    // MARK: - Layout library
 
-    /// Verifies the "Hello, world!" placeholder text is present and on-screen
-    /// after launch.
+    /// Verifies the layout-library root screen shows the English (US) built-in
+    /// row after launch.  Uses the stable accessibility identifier backed by the
+    /// pinned UUID in `en-US.json` so this assertion is name-change-resilient.
     @MainActor
-    func test_contentView_helloWorldLabelVisible() throws {
+    func test_library_showsBuiltInLayout() throws {
         app.launch()
-        let screen = ContentScreen(app: app)
+        let screen = LibraryScreen(app: app)
         XCTAssertTrue(
-            screen.helloWorldLabel.waitForExistence(timeout: 5),
-            "Expected 'Hello, world!' label (identifier: content-view-hello-world-label)"
+            screen.waitForContent(timeout: 10),
+            "Layout library 'Layouts' navigation bar did not appear"
+        )
+        let row = screen.englishUSRow
+        XCTAssertTrue(
+            row.waitForExistence(timeout: 5),
+            "Built-in English (US) row not found — expected identifier "
+                + "'layout-row-\(LibraryScreen.englishUSLayoutID)'"
         )
         XCTAssertTrue(
-            screen.helloWorldLabel.isHittable,
-            "'Hello, world!' label exists but is not hittable (possibly off-screen or occluded)"
+            row.isHittable,
+            "Built-in English (US) row exists but is not hittable "
+                + "(possibly off-screen or occluded)"
+        )
+        // Cross-check: the human-readable name is also present on screen.
+        XCTAssertTrue(
+            screen.row(named: "English (US) — General American").exists,
+            "Expected visible text 'English (US) — General American' in the list"
         )
     }
 
-    /// Verifies the globe SF Symbol image is present after launch.
+    /// Verifies that tapping the English (US) built-in row pushes the detail
+    /// screen and renders the keyboard preview and "Duplicate to Edit" button.
     @MainActor
-    func test_contentView_globeImageVisible() throws {
+    func test_library_openDetail_showsPreview() throws {
         app.launch()
-        let screen = ContentScreen(app: app)
+        let library = LibraryScreen(app: app)
+        XCTAssertTrue(library.waitForContent(timeout: 10))
+
+        library.englishUSRow.tap()
+
+        let detail = LayoutDetailScreen(app: app)
         XCTAssertTrue(
-            screen.globeImage.waitForExistence(timeout: 5),
-            "Expected globe image (identifier: content-view-globe-image)"
+            detail.waitForContent(timeout: 10),
+            "'Duplicate to Edit' button did not appear on detail screen"
+        )
+        XCTAssertTrue(
+            detail.preview.exists,
+            "Keyboard preview (layout-detail-preview) missing on detail screen"
+        )
+        XCTAssertTrue(
+            detail.duplicateButton.exists,
+            "'Duplicate to Edit' button missing on detail screen"
         )
     }
 
-    /// Verifies both primary content elements are visible simultaneously —
-    /// i.e. neither is hidden behind the other or off-screen.
+    /// Verifies that tapping the back button on the detail screen returns to
+    /// the library list.  Does NOT assert that a new user layout was persisted,
+    /// because saving requires the App Group container which may be unavailable
+    /// on an unprovisioned simulator.
     @MainActor
-    func test_contentView_allPrimaryElementsVisible() throws {
+    func test_library_detail_backNavigatesToList() throws {
         app.launch()
-        let screen = ContentScreen(app: app)
-        XCTAssertTrue(screen.waitForContent(timeout: 5), "ContentView primary content did not appear")
-        XCTAssertTrue(screen.globeImage.exists, "Globe image missing after content loaded")
-        XCTAssertTrue(screen.helloWorldLabel.exists, "'Hello, world!' label missing after content loaded")
+        let library = LibraryScreen(app: app)
+        XCTAssertTrue(library.waitForContent(timeout: 10))
+
+        library.englishUSRow.tap()
+
+        let detail = LayoutDetailScreen(app: app)
+        XCTAssertTrue(detail.waitForContent(timeout: 10))
+
+        detail.backButton.tap()
+
+        XCTAssertTrue(
+            library.waitForContent(timeout: 10),
+            "Did not navigate back to the layout library"
+        )
+        XCTAssertTrue(
+            library.layoutList.exists,
+            "Layout list not visible after back navigation"
+        )
     }
 
     // MARK: - Launch performance

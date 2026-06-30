@@ -17,7 +17,9 @@ final class IPAKeyboardUITestsLaunchTests: XCTestCase {
         true
     }
 
-    override func setUpWithError() throws {
+    // Use the async variant for Swift 6 @MainActor compatibility.
+    override func setUp() async throws {
+        try await super.setUp()
         continueAfterFailure = false
     }
 
@@ -33,13 +35,12 @@ final class IPAKeyboardUITestsLaunchTests: XCTestCase {
             "Main window did not appear after launch"
         )
 
-        // Assert the primary placeholder content is present so we know the
-        // SwiftUI hierarchy rendered.  Update this assertion when ContentView
-        // is replaced by the real onboarding / settings UI.
-        let helloLabel = app.staticTexts["content-view-hello-world-label"]
+        // Assert the "Layouts" navigation bar is present so we know the
+        // SwiftUI layout-library hierarchy rendered.
+        let screen = LibraryScreen(app: app)
         XCTAssertTrue(
-            helloLabel.waitForExistence(timeout: 5),
-            "Expected 'Hello, world!' label (identifier: content-view-hello-world-label)"
+            screen.waitForContent(timeout: 10),
+            "Expected 'Layouts' navigation bar (LayoutListView) after launch"
         )
 
         let attachment = XCTAttachment(screenshot: app.screenshot())

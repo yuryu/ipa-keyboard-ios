@@ -1,0 +1,3 @@
+- [Host UI patterns](host_ui_patterns.md) — @Observable view model + value-based NavigationStack shape for the layout library/editor
+- [Accessibility IDs](accessibility_ids.md) — a11y identifiers on layout-library screens for ui-test-author
+- [Graceful degradation](graceful_degradation.md) — lazy flip-on-failure detection of nil App Group container in the host UI
