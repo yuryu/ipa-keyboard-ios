@@ -20,25 +20,29 @@ class KeyboardViewController: UIInputViewController {
     override func viewDidLoad() {
         super.viewDidLoad()
 
-        let layout = loadLayout()
+        let layout = displayLayout(loadLayout())
         installKeyboard(for: layout)
         // Size to the tallest panel plus the shared bottom bar so switching
-        // panels doesn't resize us.
+        // panels doesn't resize us. Derived from the fully-filtered layout, so
+        // hiding symbols (which can drop rows) doesn't reserve blank height.
         applyHeight(forRowCount: layout.primaryArrangement?.totalRowCount ?? 0)
     }
 
     // MARK: Layout loading
 
     /// The layout to render: the user's active selection (from the shared
-    /// `KeyboardPreferences`) resolved against all available layouts, falling
-    /// back to `en-US` → first → a minimal safe layout so it's never blank.
-    /// Read once at `viewDidLoad`; the extension is relaunched fresh each time,
-    /// so a selection change takes effect on the next keyboard appearance.
-    /// (Until the App Group is provisioned the preference is process-local, so
-    /// this still resolves to the bundled default on device today.)
+    /// `KeyboardPreferences`) resolved against all available layouts, with that
+    /// layout's hidden symbols applied. Falls back `en-US` → first → a minimal
+    /// safe layout so it's never blank. Read once at `viewDidLoad`; the extension
+    /// is relaunched fresh each time, so a selection or curation change takes
+    /// effect on the next keyboard appearance. (Until the App Group is
+    /// provisioned the preferences are process-local, so this resolves to the
+    /// bundled default on device today.)
     private func loadLayout() -> KeyboardLayout {
-        let activeID = KeyboardPreferences().activeLayoutID
-        return ActiveLayoutResolver.resolve(activeID: activeID, in: LayoutStore().allLayouts())
+        let prefs = KeyboardPreferences()
+        let resolved = ActiveLayoutResolver.resolve(
+            activeID: prefs.activeLayoutID, in: LayoutStore().allLayouts())
+        return resolved.applyingHiddenSymbols(prefs.hiddenSymbols(for: resolved.id))
     }
 
     /// Hide the globe key when the host doesn't need a keyboard-switch key
@@ -52,7 +56,7 @@ class KeyboardViewController: UIInputViewController {
     // MARK: View installation
 
     private func installKeyboard(for layout: KeyboardLayout) {
-        let root = KeyboardView(layout: displayLayout(layout), metrics: metrics) { [weak self] action in
+        let root = KeyboardView(layout: layout, metrics: metrics) { [weak self] action in
             self?.handle(action)
         }
 

@@ -68,4 +68,47 @@ struct KeyboardPreferencesTests {
         // sharedAvailable must track the container probe, not suite creation.
         #expect(AppGroup.sharedAvailable == (AppGroup.containerURL != nil))
     }
+
+    // MARK: Hidden symbols
+
+    @Test func hiddenSymbolsRoundTripPerLayoutAndInstance() {
+        let (defaults, suite) = makeDefaults()
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let prefs = KeyboardPreferences(defaults: defaults)
+        let a = UUID(); let b = UUID()
+        prefs.setHiddenSymbols(["p", "b"], for: a)
+        prefs.setHiddenSymbols(["t"], for: b)
+        #expect(prefs.hiddenSymbols(for: a) == ["p", "b"])
+        #expect(prefs.hiddenSymbols(for: b) == ["t"])
+        // A fresh instance over the same suite reads the same sets.
+        #expect(KeyboardPreferences(defaults: defaults).hiddenSymbols(for: a) == ["p", "b"])
+    }
+
+    @Test func absentHiddenSymbolsIsEmpty() {
+        let (defaults, suite) = makeDefaults()
+        defer { defaults.removePersistentDomain(forName: suite) }
+        #expect(KeyboardPreferences(defaults: defaults).hiddenSymbols(for: UUID()).isEmpty)
+    }
+
+    @Test func settingAnEmptyHiddenSetClearsIt() {
+        let (defaults, suite) = makeDefaults()
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let prefs = KeyboardPreferences(defaults: defaults)
+        let id = UUID()
+        prefs.setHiddenSymbols(["p"], for: id)
+        prefs.setHiddenSymbols([], for: id)
+        #expect(prefs.hiddenSymbols(for: id).isEmpty)
+    }
+
+    @Test func clearHiddenSymbolsAffectsOnlyThatLayout() {
+        let (defaults, suite) = makeDefaults()
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let prefs = KeyboardPreferences(defaults: defaults)
+        let a = UUID(); let b = UUID()
+        prefs.setHiddenSymbols(["p"], for: a)
+        prefs.setHiddenSymbols(["t"], for: b)
+        prefs.clearHiddenSymbols(for: a)
+        #expect(prefs.hiddenSymbols(for: a).isEmpty)
+        #expect(prefs.hiddenSymbols(for: b) == ["t"])
+    }
 }

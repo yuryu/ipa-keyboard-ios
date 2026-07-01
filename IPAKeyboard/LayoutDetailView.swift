@@ -31,6 +31,7 @@ struct LayoutDetailView: View {
             metadataSection
             previewSection
             useSection
+            customizeSection
             actionSection
         }
         .navigationTitle(layout.name)
@@ -86,6 +87,20 @@ struct LayoutDetailView: View {
                 Text("Selecting a layout won’t reach the keyboard on your device "
                     + "until the extension’s shared storage is set up.")
             }
+        }
+    }
+
+    private var customizeSection: some View {
+        Section {
+            NavigationLink {
+                LayoutEditorView(layout: layout, library: library)
+            } label: {
+                Label("Customize symbols", systemImage: "slider.horizontal.3")
+            }
+            .accessibilityIdentifier("layout-detail-customize-link")
+        } footer: {
+            Text("Hide symbols you don’t use. This is a personal overlay — the "
+                + "layout’s data isn’t changed.")
         }
     }
 

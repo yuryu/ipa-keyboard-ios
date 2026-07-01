@@ -22,6 +22,7 @@ public final class KeyboardPreferences {
 
     private enum Keys {
         static let activeLayoutID = "activeLayoutID"
+        static let hiddenSymbols = "hiddenSymbols"
     }
 
     /// The id of the layout the keyboard should render, or nil to fall back to
@@ -45,5 +46,32 @@ public final class KeyboardPreferences {
     /// falls back to the default. No-op when `id` isn't the active one.
     public func clearActiveLayout(ifEquals id: UUID) {
         if activeLayoutID == id { activeLayoutID = nil }
+    }
+
+    // MARK: Hidden symbols (per-layout curation)
+
+    /// The inserted-symbol strings the user has hidden for `layoutID`. Stored as
+    /// a sidecar keyed by inserted string (layout JSON omits key ids, which
+    /// regenerate on decode), so the layout stays byte-identical and curation is
+    /// reversible.
+    public func hiddenSymbols(for layoutID: UUID) -> Set<String> {
+        let all = defaults.dictionary(forKey: Keys.hiddenSymbols) as? [String: [String]] ?? [:]
+        return Set(all[layoutID.uuidString] ?? [])
+    }
+
+    /// Replace the hidden set for `layoutID` (an empty set clears the entry).
+    public func setHiddenSymbols(_ symbols: Set<String>, for layoutID: UUID) {
+        var all = defaults.dictionary(forKey: Keys.hiddenSymbols) as? [String: [String]] ?? [:]
+        all[layoutID.uuidString] = symbols.isEmpty ? nil : symbols.sorted()
+        if all.isEmpty {
+            defaults.removeObject(forKey: Keys.hiddenSymbols)
+        } else {
+            defaults.set(all, forKey: Keys.hiddenSymbols)
+        }
+    }
+
+    /// Remove any curation stored for `layoutID` (e.g. when the layout is deleted).
+    public func clearHiddenSymbols(for layoutID: UUID) {
+        setHiddenSymbols([], for: layoutID)
     }
 }

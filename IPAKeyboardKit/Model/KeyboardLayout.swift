@@ -169,9 +169,10 @@ public struct KeyboardLayout: Codable, Sendable, Hashable, Identifiable {
     }
 
     /// A copy with every key matching `shouldRemove` dropped — across each
-    /// panel's rows, the shared `functionRow`, and per-panel `switchKey`s. The
-    /// single place that walks the whole arrangements→panels→rows→keys tree, so
-    /// callers (e.g. hiding the globe key, applying a user's enabled set) don't
+    /// panel's rows, the shared `functionRow`, and per-panel `switchKey`s, and
+    /// pruned from surviving keys' long-press `alternates`. The single place
+    /// that walks the whole arrangements→panels→rows→keys tree, so callers
+    /// (e.g. hiding the globe key, applying a user's enabled set) don't
     /// re-implement the traversal.
     public func filteringKeys(_ shouldRemove: (Key) -> Bool) -> KeyboardLayout {
         var copy = self
@@ -182,17 +183,53 @@ public struct KeyboardLayout: Codable, Sendable, Hashable, Identifiable {
                 if let key = panel.switchKey, shouldRemove(key) { panel.switchKey = nil }
                 panel.rows = panel.rows.map { row in
                     var row = row
-                    row.keys.removeAll(where: shouldRemove)
+                    row.keys = row.keys.compactMap { KeyboardLayout.pruning($0, shouldRemove) }
                     return row
                 }
                 return panel
             }
             if var functionRow = arrangement.functionRow {
-                functionRow.keys.removeAll(where: shouldRemove)
+                functionRow.keys = functionRow.keys.compactMap { KeyboardLayout.pruning($0, shouldRemove) }
                 arrangement.functionRow = functionRow
             }
             return arrangement
         }
         return copy
+    }
+
+    /// Drop `key` if it matches; otherwise keep it but prune matching keys from
+    /// its `alternates` (recursively), so hiding a symbol that appears only as a
+    /// long-press alternate actually removes it. A surviving key whose alternates
+    /// are all pruned still renders — just without a long-press popup.
+    private static func pruning(_ key: Key, _ shouldRemove: (Key) -> Bool) -> Key? {
+        guard !shouldRemove(key) else { return nil }
+        var key = key
+        key.alternates = key.alternates.compactMap { pruning($0, shouldRemove) }
+        return key
+    }
+
+    /// A copy with every `.insert` key whose text is in `hidden` removed — from
+    /// panel rows, the function row, switch keys, and long-press alternates —
+    /// and any row left with no interactive key dropped so hiding never reserves
+    /// blank rows. Only `.insert` keys are eligible, so required affordances
+    /// (space, return, backspace, the globe, spacers, panel switches) can never
+    /// be hidden and the keyboard is never blanked. `hidden` is keyed by
+    /// inserted string (see `KeyboardPreferences`); an empty set is a no-op.
+    public func applyingHiddenSymbols(_ hidden: Set<String>) -> KeyboardLayout {
+        guard !hidden.isEmpty else { return self }
+        var result = filteringKeys { key in
+            if case .insert(let text) = key.action { return hidden.contains(text) }
+            return false
+        }
+        result.arrangements = result.arrangements.map { arrangement in
+            var arrangement = arrangement
+            arrangement.panels = arrangement.panels.map { panel in
+                var panel = panel
+                panel.rows = panel.rows.filter { row in row.keys.contains { !$0.isSpacer } }
+                return panel
+            }
+            return arrangement
+        }
+        return result
     }
 }

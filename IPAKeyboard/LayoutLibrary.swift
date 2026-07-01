@@ -31,6 +31,11 @@ final class LayoutLibrary {
     /// or nil when none is chosen and the resolver falls back to a default.
     private(set) var activeLayoutID: UUID?
 
+    /// Per-layout hidden-symbol sets, keyed by layout id and mirrored from
+    /// `KeyboardPreferences` so SwiftUI observes curation changes (previews
+    /// refresh when a symbol is toggled).
+    private(set) var hiddenSymbolsByLayout: [UUID: Set<String>] = [:]
+
     /// Best-effort signal for whether writing user layouts will work. Starts
     /// true and flips false the first time the store reports the shared
     /// container is unavailable. We can't probe the container without a write,
@@ -49,18 +54,24 @@ final class LayoutLibrary {
         reload()
     }
 
-    /// Repopulate the layout arrays and the active selection from storage.
+    /// Repopulate the layout arrays, the active selection, and the per-layout
+    /// hidden-symbol sets from storage.
     func reload() {
         builtInLayouts = store.bundledLayouts()
         userLayouts = store.userLayouts()
         activeLayoutID = preferences.activeLayoutID
+        hiddenSymbolsByLayout = (builtInLayouts + userLayouts).reduce(into: [:]) { mirror, layout in
+            mirror[layout.id] = preferences.hiddenSymbols(for: layout.id)
+        }
     }
 
-    /// The layout the keyboard would actually render for the current selection,
-    /// resolved exactly the way the extension resolves it (never nil/blank) so
-    /// the host can preview it.
+    /// The layout the keyboard would actually render for the current selection —
+    /// resolved exactly the way the extension resolves it, with the active
+    /// layout's hidden symbols applied (never nil/blank) so the host preview
+    /// matches the keyboard.
     var activeLayout: KeyboardLayout {
-        ActiveLayoutResolver.resolve(activeID: activeLayoutID, in: builtInLayouts + userLayouts)
+        let resolved = ActiveLayoutResolver.resolve(activeID: activeLayoutID, in: builtInLayouts + userLayouts)
+        return resolved.applyingHiddenSymbols(hiddenSymbolsByLayout[resolved.id] ?? [])
     }
 
     /// Whether the active-layout choice actually reaches the keyboard extension.
@@ -72,6 +83,18 @@ final class LayoutLibrary {
     func setActive(_ layout: KeyboardLayout) {
         preferences.activeLayoutID = layout.id
         activeLayoutID = layout.id
+    }
+
+    /// The symbols the user has hidden for `layout` (empty when none).
+    func hiddenSymbols(for layout: KeyboardLayout) -> Set<String> {
+        hiddenSymbolsByLayout[layout.id] ?? []
+    }
+
+    /// Replace `layout`'s hidden set, persisting it and updating the observed
+    /// mirror so previews refresh.
+    func setHiddenSymbols(_ symbols: Set<String>, for layout: KeyboardLayout) {
+        preferences.setHiddenSymbols(symbols, for: layout.id)
+        hiddenSymbolsByLayout[layout.id] = symbols
     }
 
     /// Copy-on-write fork: save an editable copy of `layout`, then reload so the
@@ -88,6 +111,7 @@ final class LayoutLibrary {
         perform("Couldn’t delete this layout.") {
             try store.delete(id: layout.id)
             preferences.clearActiveLayout(ifEquals: layout.id)
+            preferences.clearHiddenSymbols(for: layout.id)
         }
     }
 

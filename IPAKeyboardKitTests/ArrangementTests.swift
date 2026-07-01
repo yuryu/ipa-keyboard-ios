@@ -300,4 +300,28 @@ struct KeyboardLayoutFilteringTests {
         let filtered = layout.filteringKeys { _ in false }
         #expect(filtered.primaryArrangement?.primaryPanel?.rows.first?.keys.count == 2)
     }
+
+    @Test func filteringKeysPrunesMatchingAlternatesButKeepsTheHostKey() {
+        let key = Key(action: .insert("p"), alternates: [
+            Key(action: .insert("pʰ")),
+            Key(action: .insert("b")),
+        ])
+        let layout = KeyboardLayout(
+            name: "Test", locale: "en-US", rows: [KeyRow(keys: [key])]
+        )
+        let filtered = layout.filteringKeys { $0.action == .insert("b") }
+        let survivor = filtered.primaryArrangement?.primaryPanel?.rows.first?.keys.first
+        #expect(survivor?.action == .insert("p"))
+        #expect(survivor?.alternates.map(\.action) == [.insert("pʰ")])
+    }
+
+    @Test func filteringKeysDroppingAKeyAlsoDropsItsAlternates() {
+        let key = Key(action: .insert("p"), alternates: [Key(action: .insert("pʰ"))])
+        let layout = KeyboardLayout(
+            name: "Test", locale: "en-US",
+            rows: [KeyRow(keys: [key, Key(action: .insert("t"))])]
+        )
+        let filtered = layout.filteringKeys { $0.action == .insert("p") }
+        #expect(filtered.primaryArrangement?.primaryPanel?.rows.first?.keys.map(\.action) == [.insert("t")])
+    }
 }
