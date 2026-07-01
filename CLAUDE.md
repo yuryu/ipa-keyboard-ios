@@ -30,7 +30,7 @@ before planning feature work. The headline goals:
   dialect* is deferred (the schema keeps `arrangements[]`, but no
   arrangement-picker is built).
 - **Multi-symbol keys** for allophones/variants (`pʰ` from `p`) — already in the
-  schema via `Key.alternates`; rendering the long-press popup is open.
+  schema via `Key.alternates`; the long-press popup is rendered by `KeyboardView`.
 - **One screen, no horizontal scrolling**; a **secondary symbols panel** (like
   iOS's `123`/`#+=`) for less-common symbols.
 - **Setup-screen selection** of the active layout, and per layout which
@@ -90,7 +90,7 @@ The core design decision is that keyboard layouts are versioned `Codable` JSON d
 - **Schema** (`IPAKeyboardKit/Model/`):
   - `KeyAction` — discriminated-union of what a key does, encoded as clean hand-editable JSON (`{ "type": "insert", "text": "ə" }`, `{ "type": "backspace" }`, also `space`, `return`, `nextKeyboard`). Plus `switchPanel(target)` (renderer-handled panel switch, never reaches the host document) and `spacer` (a non-interactive flexible gap that pushes following keys right, e.g. consonants left / vowels right).
   - `Key` — `action` plus optional `label`, `accessibilityLabel`, `alternates` (long-press keys), `widthFactor`. All fields except `action` are optional in JSON so defaults stay terse; `id` is generated on decode when omitted.
-  - `KeyboardLayout` → `Arrangement` → `Panel` → `KeyRow` (`IPAKeyboardKit/Model/Arrangement.swift`) — the document holds `arrangements`, **not** a flat `rows`. An `Arrangement` has `panels` plus an optional shared `functionRow` (the pinned bottom bar); a `Panel` has a `switchKey` (the affordance that leaves it) and its symbol `rows`. `KeyboardLayout` keeps a convenience `init(...rows:)` that wraps a flat grid in one default arrangement/panel (used by previews, the extension fallback, and the v1→v2 migration). `currentSchemaVersion` is `2`: v1 (flat `rows`) files migrate structurally on decode; a newer-than-supported version is rejected, not downgraded. `Arrangement.totalRowCount` (tallest panel + bottom bar) sizes the keyboard's constant height.
+  - `KeyboardLayout` → `Arrangement` → `Panel` → `KeyRow` (`KeyboardLayout` and `KeyRow` in `IPAKeyboardKit/Model/KeyboardLayout.swift`; `Arrangement` and `Panel` in `IPAKeyboardKit/Model/Arrangement.swift`) — the document holds `arrangements`, **not** a flat `rows`. An `Arrangement` has `panels` plus an optional shared `functionRow` (the pinned bottom bar); a `Panel` has a `switchKey` (the affordance that leaves it) and its symbol `rows`. `KeyboardLayout` keeps a convenience `init(...rows:)` that wraps a flat grid in one default arrangement/panel (used by previews, the extension fallback, and the v1→v2 migration). `currentSchemaVersion` is `2`: v1 (flat `rows`) files migrate structurally on decode; a newer-than-supported version is rejected, not downgraded. `Arrangement.totalRowCount` (tallest panel + bottom bar) sizes the keyboard's constant height.
 - **Copy-on-write forking**: built-ins are read-only. `KeyboardLayout.makeEditableCopy(named:)` produces a user-owned copy (new `id`, `isBuiltIn = false`, `derivedFrom = source.id`). **Never mutate a bundled layout in place.**
 - **Storage** (`IPAKeyboardKit/Store/`):
   - `LayoutStore` reads built-in defaults from the framework bundle (auto-discovering every `*.json`, so adding a locale needs no code change), reads/writes user layouts in the App Group container, and **degrades gracefully to bundled defaults when the container is nil** (i.e. before provisioning).
