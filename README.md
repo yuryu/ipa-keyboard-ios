@@ -7,9 +7,10 @@ IPAKeyboard is a system custom keyboard — a host container app plus a keyboard
 extension — that ships good default IPA layouts per language-dialect and lets
 you compose and edit the symbol set you actually use.
 
-> **Status: early-stage prototype.** The data model, layout store, and a
-> bundled `en-US` default exist; the keyboard extension and host UI are still
-> being built, and code signing is deferred (the Apple developer account is
+> **Status: early-stage prototype.** The data model, layout store, bundled
+> `en-US` default, the keyboard extension (renders the layout and types IPA),
+> and a host layout-library UI all exist; layout *selection* and *editing* are
+> next. Code signing is deferred (the Apple developer account is
 > mid-relocation), so the framework builds standalone but a full signed
 > app/extension build does not yet run.
 
@@ -19,9 +20,11 @@ you compose and edit the symbol set you actually use.
   editable JSON documents, not code — so you can add and fork them.
 - **Multi-symbol keys.** A key can surface related sounds (allophones and
   variants like `pʰ` from `p`) without a separate key.
-- **Multiple arrangements per dialect** (planned): a split consonants/vowels
-  layout and a QWERTY-style full layout, plus a secondary panel for less-common
-  symbols — all selectable from the setup screen.
+- **Dialect and generic layouts** (planned): curated per-dialect layouts (e.g.
+  `en-US`, a phonetic split of consonants and vowels) alongside generic,
+  dialect-independent layouts covering most of the IPA inventory (a
+  QWERTY-positioned "IPA — Full" layout; more to come) — each selectable from
+  the library, with a secondary panel for less-common symbols.
 
 See [`docs/ROADMAP.md`](docs/ROADMAP.md) for the full product direction and
 [`CLAUDE.md`](CLAUDE.md) for architecture, build/test commands, and constraints.
@@ -33,9 +36,9 @@ Requires Xcode with the iOS 26.5 SDK. Build the project directly (there is no
 
 ```sh
 # Framework only, no signing (validates the kit + bundled JSON)
-xcodebuild -project IPAKeyboard.xcodeproj -scheme IPAKeyboard \
+xcodebuild -project IPAKeyboard.xcodeproj -scheme IPAKeyboardKit \
   -destination 'platform=iOS Simulator,name=iPhone 17' \
-  -target IPAKeyboardKit CODE_SIGNING_ALLOWED=NO build
+  CODE_SIGNING_ALLOWED=NO build
 
 # IPAKeyboardKit unit tests
 xcodebuild -project IPAKeyboard.xcodeproj -scheme IPAKeyboardKit \

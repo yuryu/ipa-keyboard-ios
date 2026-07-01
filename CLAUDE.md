@@ -11,7 +11,7 @@ The defining requirement is **customizability**: the app ships read-only default
 - Language: Swift 6.0 on all three targets (app, extension, framework)
 - Deployment target: iOS 26.5, universal (`TARGETED_DEVICE_FAMILY = "1,2"`, iPhone + iPad)
 - No third-party dependencies, no Swift Package Manager manifest
-- Two test targets (`IPAKeyboardKitTests`, `IPAKeyboardUITests`) — currently stock template tests only
+- Two test targets (`IPAKeyboardKitTests` — Swift Testing; `IPAKeyboardUITests` — XCUITest) with real, if still partial, coverage
 - CI on GitHub Actions (`.github/workflows/ci.yml`); Dependabot keeps Actions current
 - Licensed under the MIT License (`LICENSE`)
 
@@ -21,19 +21,26 @@ The living feature wishlist and UX intent live in `docs/ROADMAP.md` (this file
 covers code structure; the roadmap covers what we're building and why). Read it
 before planning feature work. The headline goals:
 
-- **Multiple arrangements per dialect** — a dialect (e.g. `en-US`) offers more
-  than one arrangement of a shared symbol inventory: a split consonants/vowels
-  layout and a QWERTY-style full layout. Arrangements are *within* a dialect,
-  not separate dialects.
+- **Two kinds of layouts** — *dialect* layouts curated per language-dialect
+  (e.g. `en-US`, a phonetic split of consonants and vowels) and *generic*,
+  dialect-independent layouts covering most of the IPA inventory (first up:
+  a QWERTY-positioned "IPA — Full" layout; an IPA chart/table layout later).
+  Each is its own bundled `KeyboardLayout` the user selects from the library,
+  and there can be several generic ones. Multiple *arrangements within one
+  dialect* is deferred (the schema keeps `arrangements[]`, but no
+  arrangement-picker is built).
 - **Multi-symbol keys** for allophones/variants (`pʰ` from `p`) — already in the
   schema via `Key.alternates`; rendering the long-press popup is open.
 - **One screen, no horizontal scrolling**; a **secondary symbols panel** (like
   iOS's `123`/`#+=`) for less-common symbols.
-- **Setup-screen selection** of which arrangements/symbols are enabled.
+- **Setup-screen selection** of the active layout, and per layout which
+  symbols are enabled.
 
-Build order: render spine first (wire `KeyboardViewController` to `LayoutStore`
-for a single grid), *then* evolve the schema for arrangements + panels with a
-migration. Don't generalize the schema before a real keyboard renders.
+The render spine and the arrangements + panels schema (v2) are both done; see
+`docs/ROADMAP.md` for what's next (active-layout selection + a generic
+"IPA — Full" layout, then per-layout symbol curation). The guiding rule still
+holds: don't generalize the schema before a real keyboard renders — generic
+layouts are just additional bundled JSON and need no schema change.
 
 ## Workflow
 
@@ -54,8 +61,8 @@ When you state a fact about the codebase, make clear whether you verified it or 
 
 Three targets in `IPAKeyboard.xcodeproj` (build the project directly — there is no `xcworkspace`):
 
-1. **IPAKeyboard** (app) — host/container app and the settings/editor UI for managing layouts. Currently still the stock template (`IPAKeyboardApp` → `ContentView`). Embeds the extension and the framework.
-2. **KeyboardExtension** (`.appex`, `UIInputViewController`) — the actual keyboard. `KeyboardExtension/KeyboardViewController.swift` is still the stock template (globe/Next-Keyboard button only); it has yet to be wired to render a `KeyboardLayout`. Links the framework as **Do Not Embed**.
+1. **IPAKeyboard** (app) — host/container app and layout-management UI. `IPAKeyboardApp` shows `LayoutListView` (browse built-in + user layouts, swipe-to-delete) → `LayoutDetailView` (metadata, live `KeyboardView` preview, "Duplicate to Edit" fork, delete), backed by the `LayoutLibrary` view model over `LayoutStore`. Layout selection and editing are not built yet. Embeds the extension and the framework.
+2. **KeyboardExtension** (`.appex`, `UIInputViewController`) — the actual keyboard. `KeyboardExtension/KeyboardViewController.swift` loads a bundled `KeyboardLayout` (pinned to `en-US` for now) through `LayoutStore`, renders it with the shared SwiftUI `KeyboardView`, and applies each emitted `KeyAction` to the document proxy (grapheme-cluster-aware backspace; globe key gated on `needsInputModeSwitchKey`). Links the framework as **Do Not Embed**.
 3. **IPAKeyboardKit** (framework) — shared model + data store, linked by both of the above. Holds the layout schema, the `LayoutStore`, and the bundled default layouts.
 
 Both app and extension carry the App Group entitlement `group.net.yuryu.IPAKeyboard` (`IPAKeyboard/IPAKeyboard.entitlements`, `KeyboardExtension/KeyboardExtension.entitlements`), which must match `AppGroup.identifier` in code.
@@ -72,7 +79,7 @@ Once per session, call `session_show_defaults` (don't assume defaults are set); 
 
 `boot_sim` / `install_app_sim` / `launch_app_sim` / `screenshot` / `snapshot_ui` cover simulator driving; Xcode (`open IPAKeyboard.xcodeproj`) is still preferred for SwiftUI previews. The raw-`xcodebuild` fallback mirrors these: `-project IPAKeyboard.xcodeproj -scheme <scheme> -destination 'platform=iOS Simulator,name=iPhone 17' [CODE_SIGNING_ALLOWED=NO] build|test`.
 
-The test bundles (`IPAKeyboardKitTests` uses Swift Testing; `IPAKeyboardUITests` uses XCUITest) currently hold only the stock template tests — real coverage is still to be written. CI (`.github/workflows/ci.yml`, `macos-26`) does `build-for-testing` for all three targets plus the UI-test bundle with signing disabled, then runs the kit unit tests; it does not yet run the UI tests or any signed/device/archive build.
+The test bundles (`IPAKeyboardKitTests` uses Swift Testing; `IPAKeyboardUITests` uses XCUITest) hold real, if still partial, coverage — kit Codable round-trips, `LayoutStore`, schema v2 + migration, grapheme deletion, and arrangement/bundled-layout checks, plus host library-UI flows. CI (`.github/workflows/ci.yml`, `macos-26`) does `build-for-testing` for all three targets plus the UI-test bundle with signing disabled, then runs the kit unit tests; it does not yet run the UI tests or any signed/device/archive build.
 
 > **Signing is deferred.** The Apple developer account is mid-relocation, so the App Group is configured in the project but not yet provisioned with Apple. A full app/extension build fails at code-signing until that is resolved; the framework builds standalone without signing.
 
@@ -88,7 +95,7 @@ The core design decision is that keyboard layouts are versioned `Codable` JSON d
 - **Storage** (`IPAKeyboardKit/Store/`):
   - `LayoutStore` reads built-in defaults from the framework bundle (auto-discovering every `*.json`, so adding a locale needs no code change), reads/writes user layouts in the App Group container, and **degrades gracefully to bundled defaults when the container is nil** (i.e. before provisioning).
   - `AppGroup` exposes the shared `containerURL`; the host app writes layouts, the extension reads them.
-- **Default layouts** (`IPAKeyboardKit/Resources/`): one JSON per locale. `en-US.json` is General American, schema v2: one "Split" arrangement with an "IPA" main panel and a "More" panel, a shared bottom bar (globe/space/⌫), and rows that group consonants left + vowels right via a `spacer`. It uses precise code points — `ɡ` U+0261 (not ASCII `g`), `ː` U+02D0 (not colon), `ɹ` U+0279 as the primary rhotic with `r` as an alternate. Preserve exact Unicode when editing.
+- **Default layouts** (`IPAKeyboardKit/Resources/`): one JSON per locale. `en-US.json` is General American, schema v2: one "Split" arrangement with an "IPA" main panel and a "More" panel, a shared bottom bar (globe/space/⌫), and rows that group consonants left + vowels right via a `spacer`. It uses precise code points — `ɡ` U+0261 (not ASCII `g`), `ː` U+02D0 (not colon), `ɹ` U+0279 as the primary rhotic with `r` as an alternate. Preserve exact Unicode when editing. Generic, dialect-independent layouts (e.g. the planned `und`-locale "IPA — Full (QWERTY)") are just additional `*.json` here — `LayoutStore` auto-discovers them, no code change.
 
 ### Resource bundle access
 

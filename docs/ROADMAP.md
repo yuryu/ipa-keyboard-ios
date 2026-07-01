@@ -13,28 +13,38 @@ of toggling through dozens of fixed layouts.
 
 ## Feature wishlist
 
-### 1. Two render arrangements per dialect
+### 1. Two kinds of layouts: dialect + generic
 
-A single dialect (e.g. `en-US`) can offer **multiple arrangements** of largely
-the same symbol inventory. Two to support first:
+Keyboards come in two flavors, each a self-contained layout document the user
+selects from the library:
 
-- **Split (consonants ↔ vowels)** — phonetically organized, vowels on one side,
-  consonants on the other.
-- **QWERTY-style full mode** — symbols placed to mirror familiar physical-
-  keyboard positions.
+- **Dialect layouts** — curated per language-dialect (e.g. `en-US`), organized
+  phonetically. The `en-US` default is a *split* arrangement: consonants
+  grouped left, vowels right.
+- **Generic layouts** — dialect-independent and comprehensive, covering *most*
+  of the IPA inventory. The first is **"IPA — Full (QWERTY)"** (locale `und`),
+  its symbols placed to mirror familiar physical-keyboard positions; an IPA
+  consonant/vowel *chart/table* layout is a likely future one. There can be
+  several generic layouts.
 
-These are *arrangements within one dialect*, not separate dialects: the user
-picks an arrangement, and the symbol set is shared. (Schema implication: a
-layout document for a dialect holds more than one arrangement, each with its
-own rows. See "Schema evolution" below.)
+Both render on the existing engine (panels + a pinned bottom bar), so a generic
+layout is just another bundled JSON — **no schema change**. Because "most of
+IPA" can't fit one screen with no horizontal scroll, generic layouts lean on
+the secondary-panel mechanism (§4).
+
+> **Deferred:** *multiple arrangements within a single dialect* (e.g. giving
+> `en-US` both a split and a QWERTY arrangement). The schema still carries
+> `arrangements[]`, but there's no arrangement-picker UI, and we may revisit
+> this later. For now "QWERTY" is a **generic layout**, not an `en-US`
+> arrangement.
 
 ### 2. Multi-symbol keys (allophones & variations)
 
 Each key can surface more than one symbol — like a normal/flick keyboard — so
 related sounds are reachable without a separate key: `pʰ` from `p`, `ɝ` from
-`ɜ`, length/aspiration variants, etc. The schema already supports this via
-`Key.alternates` (long-press); `en-US.json` uses it today. Rendering it (the
-long-press popup) is the open part.
+`ɜ`, length/aspiration variants, etc. The schema supports this via
+`Key.alternates` (long-press), `en-US.json` uses it today (e.g. `ɹ`→`r`,
+schwa→`ɚ`/`ɝ`), and `KeyboardView` renders the long-press popup — **delivered**.
 
 ### 3. Everything on one screen — no horizontal scrolling
 
@@ -58,18 +68,19 @@ a per-panel `switchKey` toggles between them while the bottom bar stays pinned.
 
 ### 5. Setup-screen selection
 
-In the host app's setup/settings screen the user chooses which arrangements and
-symbols they want enabled, so the keyboard shows their curated set rather than
-forcing them to cycle through many layouts.
+In the host app the user picks the **active layout** (which keyboard the
+extension shows) and, per layout, **which symbols are enabled**, so the keyboard
+shows their curated set rather than forcing them to cycle through many layouts.
+Not built yet — this is the next increment (see the build order).
 
 ## Schema evolution
 
 **Arrangements + panels — delivered (schema v2).** The document is now
 `KeyboardLayout.arrangements` → `Arrangement` → `Panel`:
 
-- **Arrangements**: a dialect's layout holds one or more named arrangements
-  (e.g. "Split"; QWERTY-style still to author), each sharing the symbol
-  inventory. Index 0 is shown by default until arrangement selection lands.
+- **Arrangements**: a layout holds one or more named arrangements (e.g. `en-US`
+  ships a single "Split" arrangement), each sharing the symbol inventory. Index
+  0 renders; per-dialect arrangement *selection* is deferred (see the wishlist).
 - **Panels**: each `Arrangement` has a primary panel plus optional secondary
   panels and a shared `functionRow` (the pinned bottom bar). A per-`Panel`
   `switchKey` (a `KeyAction.switchPanel(target)`) moves between panels.
@@ -79,8 +90,15 @@ forcing them to cycle through many layouts.
 
 Still deferred:
 
-- **Enabled set**: user selection of arrangements/symbols, stored with the
-  user's layouts in the App Group container.
+- **Enabled set**: per-layout user selection of which symbols are enabled,
+  stored alongside the user's layouts / preferences in the App Group.
+- **Multiple arrangements within one dialect**: the schema keeps
+  `arrangements[]`, but there's no arrangement-picker UI and we're not building
+  one yet.
+
+Note: **generic layouts need no schema work** — they're additional bundled
+`KeyboardLayout` documents (a generic `locale`, e.g. `und`), auto-discovered by
+`LayoutStore`.
 
 ## Suggested build order
 
@@ -91,5 +109,17 @@ Still deferred:
 2. ~~**Schema: arrangements + panels**, with migration and updated defaults.~~
    **Done** (v2: arrangements → panels, shared bottom bar, `switchPanel`,
    flexible `spacer`; `en-US` migrated).
-3. **Host-app setup screen**: browse/select arrangements and symbols; fork/edit.
-4. **More dialect defaults** once the format has settled.
+3. ~~**Layout library** (host): browse built-in + user layouts, fork
+   ("Duplicate to Edit"), delete, live preview.~~ **Done.**
+4. **Active-layout selection + a first generic layout.** A cross-target
+   "active layout" preference plus a never-blank resolver the extension
+   consumes; host UI to pick the active layout; and author the generic
+   **"IPA — Full (QWERTY)"** layout, so selecting is a real choice (dialect
+   Split vs. Full IPA). *Nothing reaches the on-device keyboard until the App
+   Group is provisioned — the payoff is host-side (live preview) until signing
+   lands.*
+5. **Per-layout symbol curation.** A reversible "hide symbols" overlay stored
+   per layout and applied via `KeyboardLayout.filteringKeys`, with an in-app
+   scratchpad to type with the curated set.
+6. **More layouts** once the format has settled — additional dialect defaults
+   and generic layouts (e.g. an IPA chart/table layout).
