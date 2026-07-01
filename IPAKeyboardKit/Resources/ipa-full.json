@@ -1,0 +1,370 @@
+{
+  "schemaVersion": 2,
+  "id": "7E5A1C00-0000-4000-8000-000000667531",
+  "name": "IPA — Full (QWERTY)",
+  "locale": "und",
+  "isBuiltIn": true,
+  "arrangements": [
+    {
+      "name": "QWERTY",
+      "functionRow": {
+        "keys": [
+          { "action": { "type": "nextKeyboard" }, "label": "🌐", "accessibilityLabel": "next keyboard", "widthFactor": 1.5 },
+          { "action": { "type": "space" }, "label": "space", "accessibilityLabel": "space", "widthFactor": 3.0 },
+          { "action": { "type": "backspace" }, "label": "⌫", "accessibilityLabel": "delete", "widthFactor": 1.5 }
+        ]
+      },
+      "panels": [
+        {
+          "name": "QWERTY",
+          "switchKey": { "action": { "type": "switchPanel", "target": "Vowels" }, "label": "vowels", "accessibilityLabel": "vowel symbols", "widthFactor": 1.5 },
+          "rows": [
+            {
+              "keys": [
+                {
+                  "action": { "type": "insert", "text": "q" },
+                  "accessibilityLabel": "voiceless uvular plosive",
+                  "alternates": [
+                    { "action": { "type": "insert", "text": "ɢ" }, "accessibilityLabel": "voiced uvular plosive" }
+                  ]
+                },
+                {
+                  "action": { "type": "insert", "text": "w" },
+                  "accessibilityLabel": "voiced labial-velar approximant",
+                  "alternates": [
+                    { "action": { "type": "insert", "text": "ʍ" }, "accessibilityLabel": "voiceless labial-velar fricative" },
+                    { "action": { "type": "insert", "text": "ɰ" }, "accessibilityLabel": "velar approximant" }
+                  ]
+                },
+                {
+                  "action": { "type": "insert", "text": "e" },
+                  "accessibilityLabel": "close-mid front unrounded vowel",
+                  "alternates": [
+                    { "action": { "type": "insert", "text": "ɛ" }, "accessibilityLabel": "open-mid front unrounded vowel" },
+                    { "action": { "type": "insert", "text": "ə" }, "accessibilityLabel": "mid central vowel (schwa)" }
+                  ]
+                },
+                {
+                  "action": { "type": "insert", "text": "r" },
+                  "accessibilityLabel": "alveolar trill",
+                  "alternates": [
+                    { "action": { "type": "insert", "text": "ɹ" }, "accessibilityLabel": "alveolar approximant" },
+                    { "action": { "type": "insert", "text": "ɾ" }, "accessibilityLabel": "alveolar tap" },
+                    { "action": { "type": "insert", "text": "ɽ" }, "accessibilityLabel": "retroflex flap" },
+                    { "action": { "type": "insert", "text": "ɻ" }, "accessibilityLabel": "retroflex approximant" },
+                    { "action": { "type": "insert", "text": "ʀ" }, "accessibilityLabel": "uvular trill" },
+                    { "action": { "type": "insert", "text": "ʁ" }, "accessibilityLabel": "voiced uvular fricative" }
+                  ]
+                },
+                {
+                  "action": { "type": "insert", "text": "t" },
+                  "accessibilityLabel": "voiceless alveolar plosive",
+                  "alternates": [
+                    { "action": { "type": "insert", "text": "ʈ" }, "accessibilityLabel": "voiceless retroflex plosive" },
+                    { "action": { "type": "insert", "text": "tʃ" }, "accessibilityLabel": "voiceless postalveolar affricate" }
+                  ]
+                },
+                {
+                  "action": { "type": "insert", "text": "y" },
+                  "accessibilityLabel": "close front rounded vowel",
+                  "alternates": [
+                    { "action": { "type": "insert", "text": "ɥ" }, "accessibilityLabel": "labial-palatal approximant" },
+                    { "action": { "type": "insert", "text": "ʏ" }, "accessibilityLabel": "near-close near-front rounded vowel" }
+                  ]
+                },
+                {
+                  "action": { "type": "insert", "text": "u" },
+                  "accessibilityLabel": "close back rounded vowel",
+                  "alternates": [
+                    { "action": { "type": "insert", "text": "ʊ" }, "accessibilityLabel": "near-close near-back rounded vowel" },
+                    { "action": { "type": "insert", "text": "ʉ" }, "accessibilityLabel": "close central rounded vowel" }
+                  ]
+                },
+                {
+                  "action": { "type": "insert", "text": "i" },
+                  "accessibilityLabel": "close front unrounded vowel",
+                  "alternates": [
+                    { "action": { "type": "insert", "text": "ɪ" }, "accessibilityLabel": "near-close near-front unrounded vowel" },
+                    { "action": { "type": "insert", "text": "ɨ" }, "accessibilityLabel": "close central unrounded vowel" }
+                  ]
+                },
+                {
+                  "action": { "type": "insert", "text": "o" },
+                  "accessibilityLabel": "close-mid back rounded vowel",
+                  "alternates": [
+                    { "action": { "type": "insert", "text": "ɔ" }, "accessibilityLabel": "open-mid back rounded vowel" },
+                    { "action": { "type": "insert", "text": "ø" }, "accessibilityLabel": "close-mid front rounded vowel" }
+                  ]
+                },
+                {
+                  "action": { "type": "insert", "text": "p" },
+                  "accessibilityLabel": "voiceless bilabial plosive",
+                  "alternates": [
+                    { "action": { "type": "insert", "text": "ɸ" }, "accessibilityLabel": "voiceless bilabial fricative" }
+                  ]
+                }
+              ]
+            },
+            {
+              "keys": [
+                {
+                  "action": { "type": "insert", "text": "a" },
+                  "accessibilityLabel": "open front unrounded vowel",
+                  "alternates": [
+                    { "action": { "type": "insert", "text": "ɑ" }, "accessibilityLabel": "open back unrounded vowel" },
+                    { "action": { "type": "insert", "text": "æ" }, "accessibilityLabel": "near-open front unrounded vowel" },
+                    { "action": { "type": "insert", "text": "ɐ" }, "accessibilityLabel": "near-open central vowel" }
+                  ]
+                },
+                {
+                  "action": { "type": "insert", "text": "s" },
+                  "accessibilityLabel": "voiceless alveolar fricative",
+                  "alternates": [
+                    { "action": { "type": "insert", "text": "ʃ" }, "accessibilityLabel": "voiceless postalveolar fricative" },
+                    { "action": { "type": "insert", "text": "ʂ" }, "accessibilityLabel": "voiceless retroflex fricative" },
+                    { "action": { "type": "insert", "text": "ɕ" }, "accessibilityLabel": "voiceless alveolo-palatal fricative" }
+                  ]
+                },
+                {
+                  "action": { "type": "insert", "text": "d" },
+                  "accessibilityLabel": "voiced alveolar plosive",
+                  "alternates": [
+                    { "action": { "type": "insert", "text": "ɖ" }, "accessibilityLabel": "voiced retroflex plosive" },
+                    { "action": { "type": "insert", "text": "dʒ" }, "accessibilityLabel": "voiced postalveolar affricate" },
+                    { "action": { "type": "insert", "text": "ð" }, "accessibilityLabel": "voiced dental fricative" }
+                  ]
+                },
+                {
+                  "action": { "type": "insert", "text": "f" },
+                  "accessibilityLabel": "voiceless labiodental fricative",
+                  "alternates": [
+                    { "action": { "type": "insert", "text": "θ" }, "accessibilityLabel": "voiceless dental fricative" }
+                  ]
+                },
+                {
+                  "action": { "type": "insert", "text": "ɡ" },
+                  "accessibilityLabel": "voiced velar plosive",
+                  "alternates": [
+                    { "action": { "type": "insert", "text": "ɣ" }, "accessibilityLabel": "voiced velar fricative" },
+                    { "action": { "type": "insert", "text": "ɟ" }, "accessibilityLabel": "voiced palatal plosive" }
+                  ]
+                },
+                {
+                  "action": { "type": "insert", "text": "h" },
+                  "accessibilityLabel": "voiceless glottal fricative",
+                  "alternates": [
+                    { "action": { "type": "insert", "text": "ɦ" }, "accessibilityLabel": "voiced glottal fricative" },
+                    { "action": { "type": "insert", "text": "ħ" }, "accessibilityLabel": "voiceless pharyngeal fricative" },
+                    { "action": { "type": "insert", "text": "ʕ" }, "accessibilityLabel": "voiced pharyngeal fricative" }
+                  ]
+                },
+                {
+                  "action": { "type": "insert", "text": "j" },
+                  "accessibilityLabel": "voiced palatal approximant",
+                  "alternates": [
+                    { "action": { "type": "insert", "text": "ʝ" }, "accessibilityLabel": "voiced palatal fricative" },
+                    { "action": { "type": "insert", "text": "ʎ" }, "accessibilityLabel": "palatal lateral approximant" }
+                  ]
+                },
+                {
+                  "action": { "type": "insert", "text": "k" },
+                  "accessibilityLabel": "voiceless velar plosive",
+                  "alternates": [
+                    { "action": { "type": "insert", "text": "x" }, "accessibilityLabel": "voiceless velar fricative" }
+                  ]
+                },
+                {
+                  "action": { "type": "insert", "text": "l" },
+                  "accessibilityLabel": "alveolar lateral approximant",
+                  "alternates": [
+                    { "action": { "type": "insert", "text": "ɭ" }, "accessibilityLabel": "retroflex lateral approximant" },
+                    { "action": { "type": "insert", "text": "ʎ" }, "accessibilityLabel": "palatal lateral approximant" },
+                    { "action": { "type": "insert", "text": "ʟ" }, "accessibilityLabel": "velar lateral approximant" },
+                    { "action": { "type": "insert", "text": "ɫ" }, "accessibilityLabel": "velarized alveolar lateral approximant" },
+                    { "action": { "type": "insert", "text": "ɬ" }, "accessibilityLabel": "voiceless alveolar lateral fricative" }
+                  ]
+                }
+              ]
+            },
+            {
+              "keys": [
+                {
+                  "action": { "type": "insert", "text": "z" },
+                  "accessibilityLabel": "voiced alveolar fricative",
+                  "alternates": [
+                    { "action": { "type": "insert", "text": "ʒ" }, "accessibilityLabel": "voiced postalveolar fricative" },
+                    { "action": { "type": "insert", "text": "ʐ" }, "accessibilityLabel": "voiced retroflex fricative" },
+                    { "action": { "type": "insert", "text": "ʑ" }, "accessibilityLabel": "voiced alveolo-palatal fricative" }
+                  ]
+                },
+                {
+                  "action": { "type": "insert", "text": "x" },
+                  "accessibilityLabel": "voiceless velar fricative",
+                  "alternates": [
+                    { "action": { "type": "insert", "text": "ɣ" }, "accessibilityLabel": "voiced velar fricative" },
+                    { "action": { "type": "insert", "text": "χ" }, "accessibilityLabel": "voiceless uvular fricative" }
+                  ]
+                },
+                {
+                  "action": { "type": "insert", "text": "c" },
+                  "accessibilityLabel": "voiceless palatal plosive",
+                  "alternates": [
+                    { "action": { "type": "insert", "text": "ç" }, "accessibilityLabel": "voiceless palatal fricative" },
+                    { "action": { "type": "insert", "text": "ɟ" }, "accessibilityLabel": "voiced palatal plosive" }
+                  ]
+                },
+                {
+                  "action": { "type": "insert", "text": "v" },
+                  "accessibilityLabel": "voiced labiodental fricative",
+                  "alternates": [
+                    { "action": { "type": "insert", "text": "ʋ" }, "accessibilityLabel": "labiodental approximant" },
+                    { "action": { "type": "insert", "text": "β" }, "accessibilityLabel": "voiced bilabial fricative" }
+                  ]
+                },
+                {
+                  "action": { "type": "insert", "text": "b" },
+                  "accessibilityLabel": "voiced bilabial plosive",
+                  "alternates": [
+                    { "action": { "type": "insert", "text": "β" }, "accessibilityLabel": "voiced bilabial fricative" },
+                    { "action": { "type": "insert", "text": "ɓ" }, "accessibilityLabel": "voiced bilabial implosive" }
+                  ]
+                },
+                {
+                  "action": { "type": "insert", "text": "n" },
+                  "accessibilityLabel": "alveolar nasal",
+                  "alternates": [
+                    { "action": { "type": "insert", "text": "ŋ" }, "accessibilityLabel": "velar nasal" },
+                    { "action": { "type": "insert", "text": "ɲ" }, "accessibilityLabel": "palatal nasal" },
+                    { "action": { "type": "insert", "text": "ɳ" }, "accessibilityLabel": "retroflex nasal" },
+                    { "action": { "type": "insert", "text": "ɱ" }, "accessibilityLabel": "labiodental nasal" },
+                    { "action": { "type": "insert", "text": "ɴ" }, "accessibilityLabel": "uvular nasal" }
+                  ]
+                },
+                {
+                  "action": { "type": "insert", "text": "m" },
+                  "accessibilityLabel": "bilabial nasal",
+                  "alternates": [
+                    { "action": { "type": "insert", "text": "ɱ" }, "accessibilityLabel": "labiodental nasal" }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "name": "Vowels",
+          "switchKey": { "action": { "type": "switchPanel", "target": "More" }, "label": "more", "accessibilityLabel": "more symbols", "widthFactor": 1.5 },
+          "rows": [
+            {
+              "keys": [
+                { "action": { "type": "insert", "text": "i" }, "accessibilityLabel": "close front unrounded vowel" },
+                { "action": { "type": "insert", "text": "y" }, "accessibilityLabel": "close front rounded vowel" },
+                { "action": { "type": "insert", "text": "ɨ" }, "accessibilityLabel": "close central unrounded vowel" },
+                { "action": { "type": "insert", "text": "ʉ" }, "accessibilityLabel": "close central rounded vowel" },
+                { "action": { "type": "insert", "text": "ɯ" }, "accessibilityLabel": "close back unrounded vowel" },
+                { "action": { "type": "insert", "text": "u" }, "accessibilityLabel": "close back rounded vowel" },
+                {
+                  "action": { "type": "insert", "text": "ɪ" },
+                  "accessibilityLabel": "near-close near-front unrounded vowel",
+                  "alternates": [
+                    { "action": { "type": "insert", "text": "ʏ" }, "accessibilityLabel": "near-close near-front rounded vowel" }
+                  ]
+                },
+                { "action": { "type": "insert", "text": "ʊ" }, "accessibilityLabel": "near-close near-back rounded vowel" }
+              ]
+            },
+            {
+              "keys": [
+                { "action": { "type": "insert", "text": "e" }, "accessibilityLabel": "close-mid front unrounded vowel" },
+                { "action": { "type": "insert", "text": "ø" }, "accessibilityLabel": "close-mid front rounded vowel" },
+                { "action": { "type": "insert", "text": "ɘ" }, "accessibilityLabel": "close-mid central unrounded vowel" },
+                { "action": { "type": "insert", "text": "ɵ" }, "accessibilityLabel": "close-mid central rounded vowel" },
+                { "action": { "type": "insert", "text": "ɤ" }, "accessibilityLabel": "close-mid back unrounded vowel" },
+                { "action": { "type": "insert", "text": "o" }, "accessibilityLabel": "close-mid back rounded vowel" },
+                {
+                  "action": { "type": "insert", "text": "ə" },
+                  "accessibilityLabel": "mid central vowel (schwa)",
+                  "alternates": [
+                    { "action": { "type": "insert", "text": "ɜ" }, "accessibilityLabel": "open-mid central unrounded vowel" },
+                    { "action": { "type": "insert", "text": "ɞ" }, "accessibilityLabel": "open-mid central rounded vowel" }
+                  ]
+                },
+                {
+                  "action": { "type": "insert", "text": "ɚ" },
+                  "accessibilityLabel": "r-colored schwa",
+                  "alternates": [
+                    { "action": { "type": "insert", "text": "ɝ" }, "accessibilityLabel": "r-colored open-mid central vowel" }
+                  ]
+                }
+              ]
+            },
+            {
+              "keys": [
+                { "action": { "type": "insert", "text": "ɛ" }, "accessibilityLabel": "open-mid front unrounded vowel" },
+                { "action": { "type": "insert", "text": "œ" }, "accessibilityLabel": "open-mid front rounded vowel" },
+                { "action": { "type": "insert", "text": "ʌ" }, "accessibilityLabel": "open-mid back unrounded vowel" },
+                { "action": { "type": "insert", "text": "ɔ" }, "accessibilityLabel": "open-mid back rounded vowel" },
+                { "action": { "type": "insert", "text": "æ" }, "accessibilityLabel": "near-open front unrounded vowel" },
+                { "action": { "type": "insert", "text": "ɐ" }, "accessibilityLabel": "near-open central vowel" },
+                {
+                  "action": { "type": "insert", "text": "a" },
+                  "accessibilityLabel": "open front unrounded vowel",
+                  "alternates": [
+                    { "action": { "type": "insert", "text": "ɶ" }, "accessibilityLabel": "open front rounded vowel" }
+                  ]
+                },
+                { "action": { "type": "insert", "text": "ɑ" }, "accessibilityLabel": "open back unrounded vowel" },
+                { "action": { "type": "insert", "text": "ɒ" }, "accessibilityLabel": "open back rounded vowel" }
+              ]
+            }
+          ]
+        },
+        {
+          "name": "More",
+          "switchKey": { "action": { "type": "switchPanel", "target": "QWERTY" }, "label": "abc", "accessibilityLabel": "letter keys", "widthFactor": 1.5 },
+          "rows": [
+            {
+              "keys": [
+                { "action": { "type": "insert", "text": "θ" }, "accessibilityLabel": "voiceless dental fricative" },
+                { "action": { "type": "insert", "text": "ð" }, "accessibilityLabel": "voiced dental fricative" },
+                { "action": { "type": "insert", "text": "ʔ" }, "accessibilityLabel": "glottal stop" },
+                { "action": { "type": "insert", "text": "tʃ" }, "accessibilityLabel": "voiceless postalveolar affricate" },
+                { "action": { "type": "insert", "text": "dʒ" }, "accessibilityLabel": "voiced postalveolar affricate" },
+                { "action": { "type": "insert", "text": "ts" }, "accessibilityLabel": "voiceless alveolar affricate" },
+                { "action": { "type": "insert", "text": "dz" }, "accessibilityLabel": "voiced alveolar affricate" },
+                { "action": { "type": "insert", "text": "ɬ" }, "accessibilityLabel": "voiceless alveolar lateral fricative" },
+                { "action": { "type": "insert", "text": "ɮ" }, "accessibilityLabel": "voiced alveolar lateral fricative" }
+              ]
+            },
+            {
+              "keys": [
+                { "action": { "type": "insert", "text": "ˈ" }, "label": "ˈ", "accessibilityLabel": "primary stress mark" },
+                { "action": { "type": "insert", "text": "ˌ" }, "label": "ˌ", "accessibilityLabel": "secondary stress mark" },
+                { "action": { "type": "insert", "text": "ː" }, "label": "ː", "accessibilityLabel": "length mark (long)" },
+                { "action": { "type": "insert", "text": "ˑ" }, "label": "ˑ", "accessibilityLabel": "half-long mark" },
+                { "action": { "type": "insert", "text": "." }, "label": ".", "accessibilityLabel": "syllable break" },
+                { "action": { "type": "insert", "text": "‿" }, "label": "‿", "accessibilityLabel": "linking (absence of a break)" },
+                { "action": { "type": "insert", "text": "͡" }, "label": "◌͡◌", "accessibilityLabel": "tie bar (affricate or double articulation)" },
+                { "action": { "type": "insert", "text": "ʼ" }, "label": "ʼ", "accessibilityLabel": "ejective mark" }
+              ]
+            },
+            {
+              "keys": [
+                { "action": { "type": "insert", "text": "̃" }, "label": "◌̃", "accessibilityLabel": "nasalized" },
+                { "action": { "type": "insert", "text": "̥" }, "label": "◌̥", "accessibilityLabel": "voiceless" },
+                { "action": { "type": "insert", "text": "̬" }, "label": "◌̬", "accessibilityLabel": "voiced" },
+                { "action": { "type": "insert", "text": "̩" }, "label": "◌̩", "accessibilityLabel": "syllabic" },
+                { "action": { "type": "insert", "text": "̯" }, "label": "◌̯", "accessibilityLabel": "non-syllabic" },
+                { "action": { "type": "insert", "text": "̚" }, "label": "◌̚", "accessibilityLabel": "no audible release" },
+                { "action": { "type": "insert", "text": "ʰ" }, "label": "ʰ", "accessibilityLabel": "aspirated" },
+                { "action": { "type": "insert", "text": "ʲ" }, "label": "ʲ", "accessibilityLabel": "palatalized" },
+                { "action": { "type": "insert", "text": "ʷ" }, "label": "ʷ", "accessibilityLabel": "labialized" },
+                { "action": { "type": "insert", "text": "˞" }, "label": "˞", "accessibilityLabel": "rhoticity" }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

@@ -20,10 +20,12 @@ import IPAKeyboardKit
 
 struct LayoutListView: View {
     @State private var library = LayoutLibrary()
+    private let metrics = KeyboardMetrics()
 
     var body: some View {
         NavigationStack {
             List {
+                activeSection
                 builtInSection
                 userSection
             }
@@ -42,6 +44,34 @@ struct LayoutListView: View {
             actions: { Button("OK", role: .cancel) { library.errorMessage = nil } },
             message: { Text(library.errorMessage ?? "") }
         )
+    }
+
+    private var activeSection: some View {
+        Section {
+            let active = library.activeLayout
+            VStack(alignment: .leading, spacing: 8) {
+                Text(active.name)
+                    .font(.headline)
+                KeyboardView(layout: active) { _ in }
+                    .frame(height: metrics.totalHeight(for: active.primaryArrangement))
+                    .frame(maxWidth: .infinity)
+                    .accessibilityIdentifier("layout-list-active-preview")
+            }
+            .listRowInsets(EdgeInsets(top: 8, leading: 12, bottom: 8, trailing: 12))
+        } header: {
+            Text("Active")
+        } footer: {
+            if library.selectionReachesKeyboard {
+                Text("The layout the keyboard shows. Open any layout and tap "
+                    + "“Use this Layout” to change it.")
+            } else {
+                Text("The layout the keyboard will show. It won’t reach the "
+                    + "keyboard on your device until the extension’s shared "
+                    + "storage is set up.")
+                    .accessibilityIdentifier("layout-list-selection-unavailable")
+            }
+        }
+        .accessibilityIdentifier("layout-list-active-section")
     }
 
     private var builtInSection: some View {
@@ -85,7 +115,7 @@ struct LayoutListView: View {
 
     private func layoutRow(_ layout: KeyboardLayout) -> some View {
         NavigationLink(value: layout) {
-            LayoutRow(layout: layout)
+            LayoutRow(layout: layout, isActive: layout.id == library.activeLayoutID)
         }
         .accessibilityIdentifier("layout-row-\(layout.id.uuidString)")
         .swipeActions(edge: .trailing, allowsFullSwipe: false) {
@@ -110,12 +140,19 @@ struct LayoutListView: View {
     }
 }
 
-/// One row in the layout list: name, locale, and a lock badge for built-ins.
+/// One row in the layout list: an active checkmark, name, locale, and a lock
+/// badge for built-ins.
 private struct LayoutRow: View {
     let layout: KeyboardLayout
+    let isActive: Bool
 
     var body: some View {
         HStack {
+            Image(systemName: "checkmark.circle.fill")
+                .foregroundStyle(.tint)
+                .opacity(isActive ? 1 : 0)
+                .accessibilityHidden(!isActive)
+                .accessibilityLabel("Active")
             VStack(alignment: .leading, spacing: 2) {
                 Text(layout.name)
                     .font(.body)

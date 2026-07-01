@@ -27,6 +27,10 @@ final class LayoutLibrary {
     /// container is unavailable.
     private(set) var userLayouts: [KeyboardLayout] = []
 
+    /// Id of the layout the keyboard will render (the user's active selection),
+    /// or nil when none is chosen and the resolver falls back to a default.
+    private(set) var activeLayoutID: UUID?
+
     /// Best-effort signal for whether writing user layouts will work. Starts
     /// true and flips false the first time the store reports the shared
     /// container is unavailable. We can't probe the container without a write,
@@ -37,16 +41,37 @@ final class LayoutLibrary {
     var errorMessage: String?
 
     private let store: LayoutStore
+    private let preferences: KeyboardPreferences
 
-    init(store: LayoutStore = LayoutStore()) {
+    init(store: LayoutStore = LayoutStore(), preferences: KeyboardPreferences = KeyboardPreferences()) {
         self.store = store
+        self.preferences = preferences
         reload()
     }
 
-    /// Repopulate both layout arrays from the store.
+    /// Repopulate the layout arrays and the active selection from storage.
     func reload() {
         builtInLayouts = store.bundledLayouts()
         userLayouts = store.userLayouts()
+        activeLayoutID = preferences.activeLayoutID
+    }
+
+    /// The layout the keyboard would actually render for the current selection,
+    /// resolved exactly the way the extension resolves it (never nil/blank) so
+    /// the host can preview it.
+    var activeLayout: KeyboardLayout {
+        ActiveLayoutResolver.resolve(activeID: activeLayoutID, in: builtInLayouts + userLayouts)
+    }
+
+    /// Whether the active-layout choice actually reaches the keyboard extension.
+    /// False until the App Group is provisioned (the preference is process-local
+    /// until then), so the UI can say so honestly.
+    var selectionReachesKeyboard: Bool { AppGroup.sharedAvailable }
+
+    /// Mark `layout` as the active layout the keyboard should render.
+    func setActive(_ layout: KeyboardLayout) {
+        preferences.activeLayoutID = layout.id
+        activeLayoutID = layout.id
     }
 
     /// Copy-on-write fork: save an editable copy of `layout`, then reload so the
@@ -62,6 +87,7 @@ final class LayoutLibrary {
     func delete(_ layout: KeyboardLayout) {
         perform("Couldn’t delete this layout.") {
             try store.delete(id: layout.id)
+            preferences.clearActiveLayout(ifEquals: layout.id)
         }
     }
 

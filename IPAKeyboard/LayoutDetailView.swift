@@ -30,6 +30,7 @@ struct LayoutDetailView: View {
         List {
             metadataSection
             previewSection
+            useSection
             actionSection
         }
         .navigationTitle(layout.name)
@@ -62,6 +63,29 @@ struct LayoutDetailView: View {
                 .accessibilityIdentifier("layout-detail-preview")
                 .listRowInsets(EdgeInsets())
                 .background(Color(uiColor: .systemBackground))
+        }
+    }
+
+    @ViewBuilder
+    private var useSection: some View {
+        Section {
+            if layout.id == library.activeLayoutID {
+                Label("Active layout", systemImage: "checkmark.circle.fill")
+                    .foregroundStyle(.tint)
+                    .accessibilityIdentifier("layout-detail-active-label")
+            } else {
+                Button {
+                    library.setActive(layout)
+                } label: {
+                    Label("Use this Layout", systemImage: "keyboard")
+                }
+                .accessibilityIdentifier("layout-detail-use-button")
+            }
+        } footer: {
+            if !library.selectionReachesKeyboard {
+                Text("Selecting a layout won’t reach the keyboard on your device "
+                    + "until the extension’s shared storage is set up.")
+            }
         }
     }
 

@@ -29,24 +29,16 @@ class KeyboardViewController: UIInputViewController {
 
     // MARK: Layout loading
 
-    /// The layout to render. For the render-spine step we pin to the `en-US`
-    /// bundled default (any bundled layout as a backstop); arrangement/
-    /// selection comes later in the roadmap. Falls back to a minimal safe
-    /// layout so the keyboard never renders blank.
+    /// The layout to render: the user's active selection (from the shared
+    /// `KeyboardPreferences`) resolved against all available layouts, falling
+    /// back to `en-US` → first → a minimal safe layout so it's never blank.
+    /// Read once at `viewDidLoad`; the extension is relaunched fresh each time,
+    /// so a selection change takes effect on the next keyboard appearance.
+    /// (Until the App Group is provisioned the preference is process-local, so
+    /// this still resolves to the bundled default on device today.)
     private func loadLayout() -> KeyboardLayout {
-        let bundled = LayoutStore().bundledLayouts()
-        if let layout = bundled.first(where: { $0.locale == "en-US" }) ?? bundled.first {
-            return layout
-        }
-        return KeyboardLayout(
-            name: "Fallback",
-            locale: "en-US",
-            rows: [KeyRow(keys: [
-                .insert("ə"),
-                Key(action: .space, label: "space", widthFactor: 3.0),
-                Key(action: .backspace, label: "⌫", widthFactor: 1.5),
-            ])]
-        )
+        let activeID = KeyboardPreferences().activeLayoutID
+        return ActiveLayoutResolver.resolve(activeID: activeID, in: LayoutStore().allLayouts())
     }
 
     /// Hide the globe key when the host doesn't need a keyboard-switch key

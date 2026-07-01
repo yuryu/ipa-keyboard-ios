@@ -72,4 +72,71 @@ struct BundledLayoutTests {
             }
         }
     }
+
+    // MARK: Generic "IPA — Full (QWERTY)" layout
+
+    private func genericFullLayout() throws -> KeyboardLayout {
+        let layouts = LayoutStore().bundledLayouts()
+        return try #require(layouts.first { $0.locale == "und" },
+                            "the generic IPA — Full (QWERTY) layout should be bundled")
+    }
+
+    @Test func atLeastTwoBundledLayouts() {
+        // en-US plus the generic Full layout — selection is a real choice.
+        #expect(LayoutStore().bundledLayouts().count >= 2)
+    }
+
+    @Test func genericFullLayoutIsAReadOnlyUndLayout() throws {
+        let full = try genericFullLayout()
+        #expect(full.isBuiltIn)
+        #expect(full.name == "IPA — Full (QWERTY)")
+        #expect(full.schemaVersion == KeyboardLayout.currentSchemaVersion)
+    }
+
+    @Test func genericFullLayoutSplitsSymbolsAcrossSwitchablePanels() throws {
+        let arrangement = try #require(try genericFullLayout().primaryArrangement)
+        // "Most of IPA" can't fit one screen, so it uses multiple panels...
+        #expect(arrangement.panels.count >= 2)
+        // ...each reachable via a panel-switch key.
+        let primary = try #require(arrangement.primaryPanel)
+        guard case .switchPanel = try #require(primary.switchKey).action else {
+            Issue.record("generic Full primary panel switchKey is not a switchPanel action")
+            return
+        }
+        // A shared bottom bar carries the globe key.
+        let functionRow = try #require(arrangement.functionRow)
+        #expect(functionRow.keys.contains { $0.action == .nextKeyboard })
+    }
+
+    @Test func genericFullLayoutFitsOneScreenPerPanel() throws {
+        let arrangement = try #require(try genericFullLayout().primaryArrangement)
+        // Legibility/one-screen heuristic: keep rows near a QWERTY row's density
+        // so keys don't shrink to unusable widths (en-US tops out around 13).
+        for panel in arrangement.panels {
+            for row in panel.rows {
+                let width = row.keys.reduce(0.0) { $0 + $1.widthFactor }
+                #expect(width <= 12.0, "row too dense in generic Full panel \(panel.name)")
+            }
+        }
+    }
+
+    @Test func bundledLayoutsUseIPAUnicodeNotASCIILookalikes() {
+        // The velar plosive is ɡ (U+0261) not g, length is ː (U+02D0) not ':',
+        // glottal stop is ʔ (U+0294) not '?', stress is ˈ (U+02C8) not "'".
+        let forbidden: Set<String> = ["g", ":", "?", "'"]
+        for layout in LayoutStore().bundledLayouts() {
+            let panels = layout.arrangements.flatMap(\.panels)
+            let allKeys = panels.flatMap(\.rows).flatMap(\.keys)
+                + layout.arrangements.compactMap(\.functionRow).flatMap(\.keys)
+                + panels.compactMap(\.switchKey)
+            for key in allKeys {
+                for candidate in [key] + key.alternates {
+                    if case .insert(let text) = candidate.action {
+                        #expect(!forbidden.contains(text),
+                                "ASCII lookalike \"\(text)\" in \(layout.locale); use the IPA code point")
+                    }
+                }
+            }
+        }
+    }
 }
