@@ -33,8 +33,12 @@ final class IPAKeyboardUITests: XCTestCase {
         try await super.setUp()
         continueAfterFailure = false
         app = XCUIApplication()
-        // Launch arguments / environment can be appended here as the app grows:
-        //   app.launchArguments += ["--uitesting"]
+        // None of these tests exercise onboarding (see OnboardingUITests.swift),
+        // and on a fresh/first-run simulator the onboarding sheet would
+        // auto-present and occlude the layout list these tests assert on.
+        // Force-skip so this suite is hermetic and order-independent
+        // regardless of prior runs' first-run state.
+        app.launchArguments += [OnboardingScreen.forceSkipArgument]
     }
 
     @MainActor
@@ -153,7 +157,12 @@ final class IPAKeyboardUITests: XCTestCase {
     @MainActor
     func testLaunchPerformance() throws {
         measure(metrics: [XCTApplicationLaunchMetric()]) {
-            XCUIApplication().launch()
+            let perfApp = XCUIApplication()
+            // Keep the measured launch free of the first-run onboarding
+            // sheet's extra view-hierarchy work, matching the rest of this
+            // suite (see setUp).
+            perfApp.launchArguments += [OnboardingScreen.forceSkipArgument]
+            perfApp.launch()
         }
     }
 }

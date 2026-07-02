@@ -26,6 +26,12 @@ final class IPAKeyboardUITestsLaunchTests: XCTestCase {
     @MainActor
     func testLaunch() throws {
         let app = XCUIApplication()
+        // This test asserts on the 'Layouts' navigation bar, which the
+        // first-run onboarding sheet would occlude on a fresh simulator.
+        // Force-skip so the assertion is hermetic regardless of prior runs'
+        // first-run state (see OnboardingUITests.swift for onboarding
+        // coverage).
+        app.launchArguments += [OnboardingScreen.forceSkipArgument]
         app.launch()
 
         // Assert the main window is present — catches silent crashes and black
