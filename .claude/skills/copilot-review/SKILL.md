@@ -5,7 +5,7 @@ description: Fetch GitHub Copilot auto-review comments on a PR of this repo, add
 
 # Handle a PR's Copilot review
 
-Input: a PR number (default: the current branch's PR, `gh pr view --json number`).
+Input: a PR number (default: the current branch's PR, `gh pr view --json number --jq .number`).
 Check out the PR's branch; all commands run inside the repo, against
 `yuryu/ipa-keyboard-ios`.
 
@@ -24,10 +24,13 @@ above). Top-level comments have `in_reply_to_id == null`; `line` can be null
 for file-level comments; bodies may contain fenced `suggestion` blocks:
 
 ```sh
-gh api repos/yuryu/ipa-keyboard-ios/pulls/<PR>/comments \
-  --jq '[.[] | select(.user.login == "Copilot" and .in_reply_to_id == null)
-        | {id, path, line, body}]'
+gh api --paginate repos/yuryu/ipa-keyboard-ios/pulls/<PR>/comments \
+  --jq '.[] | select(.user.login == "Copilot" and .in_reply_to_id == null)
+        | {id, path, line, body}'
 ```
+
+(`--paginate`, or comments past the first 30 are silently missed; it emits one
+object per comment because the jq filter runs per page.)
 
 Both empty? Copilot hasn't reviewed this push yet — wait a couple of minutes,
 or re-request (step 3).
