@@ -70,8 +70,10 @@ The user journey the host app builds toward:
 Delivered: the render spine (extension renders layouts, grapheme-cluster-aware
 editing), schema v2 (arrangements → panels, v1 migration), the host layout
 library (browse/fork/delete/preview), active-layout selection shared across
-targets, two generic layouts ("IPA — Full (QWERTY)" and "IPA — Chart"), and
-per-layout symbol curation with an in-app scratchpad.
+targets, two generic layouts ("IPA — Full (QWERTY)" and "IPA — Chart"),
+per-layout symbol curation with an in-app scratchpad, and key-level editing
+of forked layouts (rows, keys, alternates, widths — with live draft preview
+and reset-to-default).
 
 The big external blocker is **signing/App Group provisioning**
 ([#3](https://github.com/yuryu/ipa-keyboard-ios/issues/3)) — until it lands,
