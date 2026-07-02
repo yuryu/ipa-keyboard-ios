@@ -124,6 +124,32 @@ final class LayoutLibrary {
         }
     }
 
+    /// Errors from `update` beyond what the store itself throws.
+    enum UpdateError: Error {
+        /// Attempted to write a built-in layout; built-ins are read-only
+        /// (copy-on-write is enforced here as well as in the UI).
+        case builtInIsReadOnly
+    }
+
+    /// Persist edits to an existing user layout (the key editor's Save) and
+    /// reload. Unlike `fork`/`delete` this throws instead of setting
+    /// `errorMessage`: the editor runs in a sheet and presents its own error
+    /// alert (the root list's alert can't present while the sheet is up).
+    /// Still flips `containerAvailable` on a missing-container failure so the
+    /// rest of the UI reflects the degraded state.
+    func update(_ layout: KeyboardLayout) throws {
+        guard !layout.isBuiltIn else { throw UpdateError.builtInIsReadOnly }
+        do {
+            try store.save(layout)
+            reload()
+        } catch {
+            if case LayoutStore.StoreError.sharedContainerUnavailable = error {
+                containerAvailable = false
+            }
+            throw error
+        }
+    }
+
     /// Run a store mutation, translating a missing-container failure into a
     /// graceful, user-readable state and reloading on success.
     private func perform(_ failureSummary: String, _ work: () throws -> Void) {
