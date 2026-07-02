@@ -21,18 +21,81 @@ import IPAKeyboardKit
 
 class KeyboardViewController: UIInputViewController {
 
-    private let metrics = KeyboardMetrics()
+    /// Sizing for the current environment: the regular set in portrait/iPad,
+    /// the shorter compact set in iPhone landscape (kept in sync with the
+    /// vertical size class via the trait-change registration below).
+    private var metrics = KeyboardMetrics()
     private var heightConstraint: NSLayoutConstraint?
+    /// The rendered (already filtered) layout, kept so the root view can be
+    /// rebuilt when the metrics or return-key type change.
+    private var renderedLayout: KeyboardLayout?
+    private var hostingController: UIHostingController<KeyboardView>?
+    /// The host field's return-key type as last rendered; `.return` keycaps
+    /// are relabeled (Go/Search/Done…) to match, like the system keyboard.
+    private var returnKeyType: UIReturnKeyType = .default
 
     override func viewDidLoad() {
         super.viewDidLoad()
 
+        metrics = .metrics(forCompactHeight: traitCollection.verticalSizeClass == .compact)
+        returnKeyType = textDocumentProxy.returnKeyType ?? .default
+        applyProxyAppearance()
+
         let layout = displayLayout(loadLayout())
+        renderedLayout = layout
         installKeyboard(for: layout)
         // Size to the tallest panel plus the shared bottom bar so switching
         // panels doesn't resize us. Derived from the fully-filtered layout, so
         // hiding symbols (which can drop rows) doesn't reserve blank height.
         applyHeight(forRowCount: layout.primaryArrangement?.totalRowCount ?? 0)
+
+        // Rotation moves iPhones between regular and compact vertical size
+        // classes; re-derive the metrics (and the height constraint) so the
+        // landscape keyboard is shorter, like the system keyboard.
+        registerForTraitChanges([UITraitVerticalSizeClass.self]) {
+            (self: KeyboardViewController, _: UITraitCollection) in
+            self.verticalSizeClassDidChange()
+        }
+    }
+
+    override func textDidChange(_ textInput: UITextInput?) {
+        super.textDidChange(textInput)
+        // Moving between fields (or apps) can change both the requested
+        // appearance and the return-key type without relaunching us.
+        applyProxyAppearance()
+        let type = textDocumentProxy.returnKeyType ?? .default
+        if type != returnKeyType {
+            returnKeyType = type
+            refreshRootView()
+        }
+    }
+
+    // MARK: Appearance
+
+    /// Match the host field's requested keyboard appearance: overriding the
+    /// input view's interface style makes the `UIInputView` material and every
+    /// dynamic color in the shared `KeyboardView` resolve dark or light, so a
+    /// dark text field gets a dark keyboard even inside a light-mode app.
+    /// `.default` defers to the ambient trait (system light/dark mode).
+    private func applyProxyAppearance() {
+        switch textDocumentProxy.keyboardAppearance ?? .default {
+        case .dark:
+            view.overrideUserInterfaceStyle = .dark
+        case .light:
+            view.overrideUserInterfaceStyle = .light
+        default:
+            view.overrideUserInterfaceStyle = .unspecified
+        }
+    }
+
+    private func verticalSizeClassDidChange() {
+        let updated = KeyboardMetrics.metrics(
+            forCompactHeight: traitCollection.verticalSizeClass == .compact)
+        guard updated != metrics else { return }
+        metrics = updated
+        refreshRootView()
+        heightConstraint?.constant = metrics.totalHeight(
+            rowCount: renderedLayout?.primaryArrangement?.totalRowCount ?? 0)
     }
 
     // MARK: Layout loading
@@ -63,22 +126,7 @@ class KeyboardViewController: UIInputViewController {
     // MARK: View installation
 
     private func installKeyboard(for layout: KeyboardLayout) {
-        // Lay a UIKit control wired to `handleInputModeList(from:with:)` over
-        // the globe keycap so the system provides both tap-to-switch and the
-        // long-press keyboard picker. Skipped when the key isn't shown at all
-        // (see `displayLayout`).
-        let globeOverlay: AnyView? = needsInputModeSwitchKey
-            ? AnyView(NextKeyboardKeyOverlay(controller: self))
-            : nil
-        let root = KeyboardView(
-            layout: layout,
-            metrics: metrics,
-            nextKeyboardOverlay: globeOverlay
-        ) { [weak self] action in
-            self?.handle(action)
-        }
-
-        let host = UIHostingController(rootView: root)
+        let host = UIHostingController(rootView: makeRootView(for: layout))
         host.view.backgroundColor = .clear
         host.view.translatesAutoresizingMaskIntoConstraints = false
 
@@ -91,6 +139,33 @@ class KeyboardViewController: UIInputViewController {
             host.view.bottomAnchor.constraint(equalTo: view.bottomAnchor),
         ])
         host.didMove(toParent: self)
+        hostingController = host
+    }
+
+    /// The shared SwiftUI keyboard for the current metrics and return-key
+    /// type. Rebuilt (cheaply — it's a value) whenever either changes.
+    private func makeRootView(for layout: KeyboardLayout) -> KeyboardView {
+        // Lay a UIKit control wired to `handleInputModeList(from:with:)` over
+        // the globe keycap so the system provides both tap-to-switch and the
+        // long-press keyboard picker. Skipped when the key isn't shown at all
+        // (see `displayLayout`).
+        let globeOverlay: AnyView? = needsInputModeSwitchKey
+            ? AnyView(NextKeyboardKeyOverlay(controller: self))
+            : nil
+        return KeyboardView(
+            layout: layout,
+            metrics: metrics,
+            returnKeyType: returnKeyType,
+            nextKeyboardOverlay: globeOverlay
+        ) { [weak self] action in
+            self?.handle(action)
+        }
+    }
+
+    /// Re-render in place after a metrics or return-key-type change.
+    private func refreshRootView() {
+        guard let renderedLayout, let hostingController else { return }
+        hostingController.rootView = makeRootView(for: renderedLayout)
     }
 
     private func applyHeight(forRowCount rowCount: Int) {

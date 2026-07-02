@@ -29,7 +29,13 @@ struct LayoutEditorView: View {
     @State private var hidden: Set<String> = []
     @State private var scratch = ""
 
-    private let metrics = KeyboardMetrics()
+    @Environment(\.verticalSizeClass) private var verticalSizeClass
+
+    /// Same size selection as the extension (compact rows in iPhone
+    /// landscape), so the preview mirrors what the keyboard will render.
+    private var metrics: KeyboardMetrics {
+        .metrics(forCompactHeight: verticalSizeClass == .compact)
+    }
 
     private var curated: KeyboardLayout { layout.applyingHiddenSymbols(hidden) }
 
@@ -46,12 +52,13 @@ struct LayoutEditorView: View {
 
     private var previewSection: some View {
         Section("Preview") {
-            KeyboardView(layout: curated) { handleScratch($0) }
+            KeyboardView(layout: curated, metrics: metrics) { handleScratch($0) }
                 .frame(height: metrics.totalHeight(for: curated.primaryArrangement))
                 .frame(maxWidth: .infinity)
                 .accessibilityIdentifier("layout-editor-preview")
                 .listRowInsets(EdgeInsets())
-                .background(Color(uiColor: .systemBackground))
+                // Keyboard-chrome color so white keycaps stay visible in light.
+                .background(Color(uiColor: KeyboardChrome.background))
         }
     }
 

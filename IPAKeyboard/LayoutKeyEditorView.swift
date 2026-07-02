@@ -38,7 +38,13 @@ struct LayoutKeyEditorView: View {
     @State private var showingDiscardConfirmation = false
     @State private var showingResetConfirmation = false
 
-    private let metrics = KeyboardMetrics()
+    @Environment(\.verticalSizeClass) private var verticalSizeClass
+
+    /// Same size selection as the extension (compact rows in iPhone
+    /// landscape), so the preview mirrors what the keyboard will render.
+    private var metrics: KeyboardMetrics {
+        .metrics(forCompactHeight: verticalSizeClass == .compact)
+    }
 
     init(layout: KeyboardLayout, library: LayoutLibrary) {
         _draft = State(initialValue: LayoutDraft(layout: layout, library: library))
@@ -108,12 +114,13 @@ struct LayoutKeyEditorView: View {
             // Live render of the working copy; actions are dropped (panel
             // switches are handled inside KeyboardView), same as the other
             // host previews.
-            KeyboardView(layout: draft.workingCopy) { _ in }
+            KeyboardView(layout: draft.workingCopy, metrics: metrics) { _ in }
                 .frame(height: metrics.totalHeight(for: draft.workingCopy.primaryArrangement))
                 .frame(maxWidth: .infinity)
                 .accessibilityIdentifier("key-editor-preview")
                 .listRowInsets(EdgeInsets())
-                .background(Color(uiColor: .systemBackground))
+                // Keyboard-chrome color so white keycaps stay visible in light.
+                .background(Color(uiColor: KeyboardChrome.background))
         }
     }
 

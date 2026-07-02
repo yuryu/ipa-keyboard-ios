@@ -23,10 +23,15 @@ struct LayoutDetailView: View {
     let library: LayoutLibrary
 
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.verticalSizeClass) private var verticalSizeClass
     @State private var showingDeleteConfirmation = false
     @State private var showingKeyEditor = false
 
-    private let metrics = KeyboardMetrics()
+    /// Same size selection as the extension (compact rows in iPhone
+    /// landscape), so the preview mirrors what the keyboard will render.
+    private var metrics: KeyboardMetrics {
+        .metrics(forCompactHeight: verticalSizeClass == .compact)
+    }
 
     /// The up-to-date copy of this layout. The navigation value we were
     /// pushed with is a snapshot; after the key editor saves, the library
@@ -72,12 +77,14 @@ struct LayoutDetailView: View {
             // Live render via the shared kit view. There is no host document
             // here, so actions are intentionally dropped; panel-switch keys are
             // handled inside KeyboardView and never reach this closure.
-            KeyboardView(layout: current) { _ in }
+            KeyboardView(layout: current, metrics: metrics) { _ in }
                 .frame(height: metrics.totalHeight(for: current.primaryArrangement))
                 .frame(maxWidth: .infinity)
                 .accessibilityIdentifier("layout-detail-preview")
                 .listRowInsets(EdgeInsets())
-                .background(Color(uiColor: .systemBackground))
+                // The keyboard-chrome color (adapts light/dark) instead of the
+                // plain background, so white keycaps stay visible in light mode.
+                .background(Color(uiColor: KeyboardChrome.background))
         }
     }
 

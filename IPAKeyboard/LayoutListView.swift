@@ -28,7 +28,13 @@ import IPAKeyboardKit
 struct LayoutListView: View {
     @State private var library = LayoutLibrary()
     @State private var onboarding = OnboardingState()
-    private let metrics = KeyboardMetrics()
+    @Environment(\.verticalSizeClass) private var verticalSizeClass
+
+    /// Same size selection as the extension (compact rows in iPhone
+    /// landscape), so the preview mirrors what the keyboard will render.
+    private var metrics: KeyboardMetrics {
+        .metrics(forCompactHeight: verticalSizeClass == .compact)
+    }
 
     var body: some View {
         NavigationStack {
@@ -74,10 +80,17 @@ struct LayoutListView: View {
             VStack(alignment: .leading, spacing: 8) {
                 Text(active.name)
                     .font(.headline)
-                KeyboardView(layout: active) { _ in }
+                KeyboardView(layout: active, metrics: metrics) { _ in }
                     .frame(height: metrics.totalHeight(for: active.primaryArrangement))
                     .frame(maxWidth: .infinity)
                     .accessibilityIdentifier("layout-list-active-preview")
+                    // Keyboard-chrome backdrop (adapts light/dark) so the
+                    // white light-mode keycaps don't vanish into the row. A
+                    // shaped background, not a clip: long-press popups may
+                    // extend past the preview's bounds.
+                    .background(
+                        Color(uiColor: KeyboardChrome.background),
+                        in: RoundedRectangle(cornerRadius: 8, style: .continuous))
             }
             .listRowInsets(EdgeInsets(top: 8, leading: 12, bottom: 8, trailing: 12))
         } header: {
