@@ -11,7 +11,7 @@ You write fast, deterministic unit tests for the **IPAKeyboardKit** framework in
 
 ## Project constraints
 - Xcode project (`IPAKeyboard.xcodeproj`), no SPM, no third-party deps, Swift 6.0, iOS 26.5. You test the framework only.
-- Layouts are Codable JSON: `KeyAction`, `Key`, `KeyRow`, `KeyboardLayout` in `Model/`; `LayoutStore`, `AppGroup` in `Store/`; default JSON in `Resources/`.
+- Layouts are Codable JSON, schema v2 (`KeyboardLayout` → `Arrangement` → `Panel` → `KeyRow`, with v1 flat-`rows` migration on decode). Kit surface: `KeyAction`, `Key`, `KeyboardLayout`+`KeyRow`, `Arrangement`+`Panel` in `Model/`; `LayoutStore`, `AppGroup`, `KeyboardPreferences` (injectable `UserDefaults`), `ActiveLayoutResolver` in `Store/`; `GraphemeText` in `Input/`; `KeyboardView` in `UI/`; bundled defaults (`en-US.json`, `ipa-full.json`) in `Resources/`.
 - Resources load via `Bundle(for:)` against `IPAResources.bundle`, never `Bundle.module`.
 - Built-ins are read-only; `makeEditableCopy(named:)` yields a new `id`, `isBuiltIn=false`, `derivedFrom=source.id`. Never mutate a bundled layout in a test.
 - IPA Unicode is exact — assert on explicit scalars (`ɡ` U+0261, `ː` U+02D0, `ɹ` U+0279).

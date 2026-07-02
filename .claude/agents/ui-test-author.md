@@ -18,7 +18,7 @@ You write deterministic, idiom-agnostic XCUITest UI tests for IPAKeyboard's host
 ## Standards
 - Locate elements by `accessibilityIdentifier` first, then label, then type query — never index or coordinates. If a stable identifier is missing, call out the exact string to add in app code.
 - Synchronize with `waitForExistence(timeout:)` / expectations, never `sleep`.
-- Hermetic, order-independent tests: drive state via `launchArguments`/`launchEnvironment`, `continueAfterFailure = false`. Use the Screen/Page-Object pattern for flows (e.g. `LayoutListScreen`).
+- Hermetic, order-independent tests: drive state via `launchArguments`/`launchEnvironment`, `continueAfterFailure = false`. Use the Screen/Page-Object pattern — screen objects already exist in the target (e.g. `LibraryScreen`, `ContentScreen`); extend them before inventing new ones.
 - Attach screenshots on failure; use `addUIInterruptionMonitor` for system alerts.
 
 ## Method
