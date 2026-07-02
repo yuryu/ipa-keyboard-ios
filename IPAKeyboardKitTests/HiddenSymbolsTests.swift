@@ -117,9 +117,10 @@ struct HiddenSymbolsTests {
 
     @Test func curatingTheBundledGenericLayoutNeverBlanksIt() {
         // End-to-end against real data: hide a handful from ipa-full and confirm
-        // the bottom bar and panel switching survive.
+        // the bottom bar and panel switching survive. (By name — several
+        // bundled layouts share the `und` locale.)
         let layouts = LayoutStore().bundledLayouts()
-        guard let full = layouts.first(where: { $0.locale == "und" }) else { return }
+        guard let full = layouts.first(where: { $0.name == "IPA — Full (QWERTY)" }) else { return }
         let curated = full.applyingHiddenSymbols(["p", "t", "k", "i", "u"])
         #expect(curated.primaryArrangement?.functionRow?.keys.contains { $0.action == .nextKeyboard } == true)
         #expect(curated.primaryArrangement?.primaryPanel?.switchKey != nil)

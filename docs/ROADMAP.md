@@ -27,10 +27,11 @@ selects from the library:
   The `en-US` default (General American) is a *split* arrangement: consonants
   grouped left, vowels right. More dialects to come ([#5](https://github.com/yuryu/ipa-keyboard-ios/issues/5)).
 - **Generic layouts** — dialect-independent and comprehensive, covering *most*
-  of the IPA inventory. **"IPA — Full (QWERTY)"** (locale `und`) ships today,
-  its symbols mirroring familiar physical-keyboard positions; an IPA
-  chart/table layout is the likely next one ([#4](https://github.com/yuryu/ipa-keyboard-ios/issues/4)).
-  There can be several generic layouts.
+  of the IPA inventory. Two ship today (both locale `und`): **"IPA — Full
+  (QWERTY)"**, its symbols mirroring familiar physical-keyboard positions, and
+  **"IPA — Chart"**, organized the way the official IPA chart is (pulmonic
+  consonants by place/manner, the vowel quadrilateral, non-pulmonic symbols
+  and diacritics in a further panel). There can be several generic layouts.
 
 Both render on the same engine (panels + a pinned bottom bar), so a generic
 layout is just another bundled JSON — **no schema change**. Because "most of
@@ -69,10 +70,10 @@ The user journey the host app builds toward:
 Delivered: the render spine (extension renders layouts, grapheme-cluster-aware
 editing), schema v2 (arrangements → panels, v1 migration), the host layout
 library (browse/fork/delete/preview), active-layout selection shared across
-targets, the first generic layout ("IPA — Full (QWERTY)"), per-layout
-symbol curation with an in-app scratchpad, and key-level editing of forked
-layouts (rows, keys, alternates, widths — with live draft preview and
-reset-to-default).
+targets, two generic layouts ("IPA — Full (QWERTY)" and "IPA — Chart"),
+per-layout symbol curation with an in-app scratchpad, and key-level editing
+of forked layouts (rows, keys, alternates, widths — with live draft preview
+and reset-to-default).
 
 The big external blocker is **signing/App Group provisioning**
 ([#3](https://github.com/yuryu/ipa-keyboard-ios/issues/3)) — until it lands,
