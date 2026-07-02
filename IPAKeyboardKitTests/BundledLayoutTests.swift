@@ -192,10 +192,10 @@ struct BundledLayoutTests {
     }
 
     @Test func genericChartLayoutPanelSwitchKeysFormACycle() throws {
-        // Stops → Fricatives → Vowels → More → Stops, the way ipa-full cycles
-        // its panels: every panel is reachable and the cycle closes.
+        // Stops → Fricatives → Vowels → More → Tones → Stops, the way ipa-full
+        // cycles its panels: every panel is reachable and the cycle closes.
         let arrangement = try #require(try genericChartLayout().primaryArrangement)
-        #expect(arrangement.panels.count == 4)
+        #expect(arrangement.panels.count == 5)
         let start = try #require(arrangement.primaryPanel)
         var current = start
         var visited: Set<String> = []
