@@ -45,9 +45,9 @@ func waitForRevealed(
 ///
 /// Accessibility identifiers sourced from `LayoutListView.swift`:
 ///   `layout-list`                   — the `List`
-///   `layout-list-builtin-section`   — "Built-in" section
-///   `layout-list-user-section`      — "My Layouts" section
-///   `layout-row-<UUID>`             — each row cell
+///   `layout-list-builtin-section`   — "Built-in" section header
+///   `layout-list-user-section`      — "My Layouts" section header
+///   `layout-row-<UUID>`             — each row (a Button inside the cell)
 @MainActor
 struct LibraryScreen {
     let app: XCUIApplication
@@ -76,8 +76,11 @@ struct LibraryScreen {
 
     /// The built-in English (US) row, located by its stable accessibility
     /// identifier (`layout-row-7E5A1C00-0000-4000-8000-00656E2D5553`).
+    /// On the iOS 26 SDK a SwiftUI `NavigationLink` row surfaces as a
+    /// `Button` inside the `Cell` — the identifier lands on the Button, so
+    /// query `buttons`, not `cells`.
     var englishUSRow: XCUIElement {
-        app.cells["layout-row-\(LibraryScreen.englishUSLayoutID)"]
+        app.buttons["layout-row-\(LibraryScreen.englishUSLayoutID)"]
     }
 
     // MARK: Convenience lookup
@@ -167,13 +170,13 @@ struct LayoutDetailScreen {
     /// The live `KeyboardView` preview area. `.accessibilityIdentifier(
     /// "layout-detail-preview")` is applied to the `KeyboardView` container,
     /// but (confirmed via the runtime accessibility snapshot) it bleeds down
-    /// the same way the `LayoutListView` Section identifiers do: there is no
+    /// the same way the `LayoutListView` Section identifiers did: there is no
     /// single element carrying that identifier — instead *every rendered
     /// key* becomes its own `StaticText` with `identifier ==
     /// "layout-detail-preview"` and `label` equal to that key's spoken name
     /// (`key.accessibilityLabel ?? key.displayLabel`). So this resolves to
-    /// the *first* such element (any match proves the preview rendered);
-    /// use `previewElements(withLabel:)` to find one specific key.
+    /// the *first* such element, any type (any match proves the preview
+    /// rendered); use `previewElements(withLabel:)` to find one specific key.
     var preview: XCUIElement {
         app.descendants(matching: .any).matching(identifier: "layout-detail-preview").firstMatch
     }
@@ -215,6 +218,23 @@ struct LayoutDetailScreen {
         app.collectionViews.firstMatch
     }
 
+    // MARK: Scrolling
+
+    /// Scrolls the detail list until `element` exists, swiping up at most
+    /// `maxSwipes` times. Needed because SwiftUI lists are lazy: the action
+    /// section ("Duplicate to Edit" / "Edit Keys" / "Delete") sits below the
+    /// fold on iPhone-sized screens and is absent from the accessibility
+    /// hierarchy until scrolled into view.
+    @discardableResult
+    func scrollTo(_ element: XCUIElement, maxSwipes: Int = 4) -> Bool {
+        var swipes = 0
+        while !element.exists && swipes < maxSwipes {
+            app.swipeUp()
+            swipes += 1
+        }
+        return element.waitForExistence(timeout: 2)
+    }
+
     // MARK: Synchronised wait
 
     /// Blocks until the "Duplicate to Edit" button appears (the sentinel for
@@ -225,7 +245,9 @@ struct LayoutDetailScreen {
     /// via the runtime accessibility snapshot for "IPA — Full (QWERTY)"
     /// (whose preview has more rows than English (US)'s): the action section
     /// simply doesn't exist yet in the lazily-composed List until scrolled
-    /// into the loaded range.
+    /// into the loaded range. Because the action section is the last section,
+    /// success also implies the preview rendered; callers that only need the
+    /// preview can wait on `preview` directly.
     @discardableResult
     func waitForContent(timeout: TimeInterval = 10) -> Bool {
         waitForRevealed(duplicateButton, scrollingIn: list, timeout: timeout)

@@ -17,7 +17,9 @@ permissions:
 
 env:
   # Named simulator; OS is omitted so xcodebuild picks the newest eligible
-  # runtime on the runner. Update the device if the runner image drops it.
+  # runtime on the runner. Keep SIMULATOR_NAME and DESTINATION in sync, and
+  # update the device if the runner image drops it.
+  SIMULATOR_NAME: iPhone 17
   DESTINATION: platform=iOS Simulator,name=iPhone 17
 
 jobs:
@@ -38,7 +40,9 @@ jobs:
       # Signing is deferred until the Apple developer account is provisioned, so
       # everything runs against a simulator with code signing disabled (CLAUDE.md).
       # Compile-checks all three targets (app, extension, framework) plus the
-      # UI-test bundle. A signed device/archive build is out of scope for now.
+      # UI-test bundle; the UI tests themselves run in the separate ui-test job.
+      # A signed device/archive lane stays out of scope until provisioning
+      # lands (issue #3).
       - name: Build app + extension for testing
         run: |
           xcodebuild \
@@ -75,4 +79,82 @@ jobs:
         with:
           name: unit-test-results
           path: TestResults.xcresult
+          if-no-files-found: ignore
+
+  # Runs the XCUITest bundle against the unsigned simulator build. Kept as a
+  # separate job so the unit lane's fast feedback stays fast.
+  ui-test:
+    name: UI tests (unsigned simulator)
+    runs-on: macos-26
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Select Xcode
+        uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: latest-stable
+
+      - name: Show toolchain
+        run: xcodebuild -version
+
+      - name: Build app + extension for testing
+        run: |
+          xcodebuild \
+            -project IPAKeyboard.xcodeproj \
+            -scheme IPAKeyboard \
+            -destination "$DESTINATION" \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY="" \
+            build-for-testing
+
+      # Launching the XCUITest runner on a still-booting simulator fails with
+      # "Busy (Application failed preflight checks)", so resolve the device
+      # xcodebuild would pick for $DESTINATION (newest iOS runtime with that
+      # name), boot it to completion, and pin the test run to it by UDID.
+      - name: Boot simulator
+        run: |
+          UDID=$(xcrun simctl list devices available --json | python3 -c "
+          import json, os, sys
+          name = os.environ['SIMULATOR_NAME']
+          devices = json.load(sys.stdin)['devices']
+          def ios_version(runtime_id):
+              # '...SimRuntime.iOS-26-5' -> (26, 5)
+              return tuple(int(part) for part in runtime_id.rsplit('iOS-', 1)[1].split('-'))
+          candidates = [
+              (ios_version(runtime_id), device['udid'])
+              for runtime_id, devs in devices.items() if '.iOS-' in runtime_id
+              for device in devs if device['name'] == name
+          ]
+          if not candidates:
+              sys.exit(f'no available simulator named {name!r}')
+          print(max(candidates)[1])
+          ")
+          xcrun simctl bootstatus "$UDID" -b
+          echo "SIMULATOR_UDID=$UDID" >> "$GITHUB_ENV"
+
+      # Sequential (-parallel-testing-enabled NO): with clone-based parallel
+      # testing, xcodebuild also launches the runner on the original device
+      # and that launch races the boot, failing the run even when every test
+      # passes on the clones.
+      - name: Run IPAKeyboardUITests
+        run: |
+          xcodebuild \
+            -project IPAKeyboard.xcodeproj \
+            -scheme IPAKeyboard \
+            -destination "platform=iOS Simulator,id=$SIMULATOR_UDID" \
+            -resultBundlePath UITestResults.xcresult \
+            -parallel-testing-enabled NO \
+            -only-testing:IPAKeyboardUITests \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY="" \
+            test-without-building
+
+      - name: Upload UI test results
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: ui-test-results
+          path: UITestResults.xcresult
           if-no-files-found: ignore

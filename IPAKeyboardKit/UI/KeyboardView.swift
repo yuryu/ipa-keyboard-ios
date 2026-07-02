@@ -12,8 +12,17 @@
 //  independently fills the available width, with per-key widths derived
 //  from `Key.widthFactor`.
 //
+//  Key feedback: keycaps highlight while pressed and play the system input
+//  click on key-down (`UIDevice.playInputClick()` is a no-op unless the
+//  active input view adopts `UIInputViewAudioFeedback`, so host previews
+//  stay silent); backspace acts on key-down and autorepeats while held,
+//  timed by the unit-tested `KeyRepeatCadence`. The extension can overlay
+//  the globe keycap with a UIKit control (`nextKeyboardOverlay`) so the
+//  system drives keyboard switching, including the long-press picker.
+//
 
 import SwiftUI
+import UIKit
 
 /// Sizing constants for the rendered keyboard, shared so the hosting
 /// controller can compute the keyboard's overall height from the same
@@ -63,6 +72,7 @@ public struct KeyboardMetrics: Sendable {
 public struct KeyboardView: View {
     private let layout: KeyboardLayout
     private let metrics: KeyboardMetrics
+    private let nextKeyboardOverlay: AnyView?
     private let onAction: (KeyAction) -> Void
 
     /// Name of the panel currently shown within the primary arrangement.
@@ -70,13 +80,20 @@ public struct KeyboardView: View {
     /// in place; the action never escapes to the host document.
     @State private var activePanelName: String?
 
+    /// - Parameter nextKeyboardOverlay: an optional UIKit control the
+    ///   keyboard extension lays over every `.nextKeyboard` keycap so the
+    ///   system handles switching (tap advances; long-press shows the
+    ///   input-mode list). nil — the host app and previews — leaves the plain
+    ///   SwiftUI key, whose tap emits `KeyAction.nextKeyboard`.
     public init(
         layout: KeyboardLayout,
         metrics: KeyboardMetrics = KeyboardMetrics(),
+        nextKeyboardOverlay: AnyView? = nil,
         onAction: @escaping (KeyAction) -> Void
     ) {
         self.layout = layout
         self.metrics = metrics
+        self.nextKeyboardOverlay = nextKeyboardOverlay
         self.onAction = onAction
     }
 
@@ -120,6 +137,7 @@ public struct KeyboardView: View {
                         metrics: metrics,
                         gridReferenceFactor: reference,
                         popupEdge: index == 0 ? .bottom : .top,
+                        nextKeyboardOverlay: nextKeyboardOverlay,
                         onAction: handle)
                 }
             }
@@ -130,6 +148,7 @@ public struct KeyboardView: View {
                     metrics: metrics,
                     gridReferenceFactor: reference,
                     popupEdge: .top,
+                    nextKeyboardOverlay: nextKeyboardOverlay,
                     onAction: handle)
             }
         }
@@ -164,6 +183,7 @@ private struct KeyRowView: View {
     /// stretching to fill the width.
     let gridReferenceFactor: Double
     let popupEdge: VerticalEdge
+    let nextKeyboardOverlay: AnyView?
     let onAction: (KeyAction) -> Void
 
     var body: some View {
@@ -184,7 +204,11 @@ private struct KeyRowView: View {
                         // keys that follow when the row is short.
                         Spacer(minLength: max(unit * key.widthFactor, 0))
                     } else {
-                        KeyButton(key: key, popupEdge: popupEdge, onAction: onAction)
+                        KeyButton(
+                            key: key,
+                            popupEdge: popupEdge,
+                            nextKeyboardOverlay: nextKeyboardOverlay,
+                            onAction: onAction)
                             .frame(width: max(unit * key.widthFactor, 0))
                     }
                 }
@@ -194,20 +218,41 @@ private struct KeyRowView: View {
     }
 }
 
-/// A single key cap. Tap inserts; long-press (when the key has
-/// `alternates`) surfaces a popup of the alternate glyphs.
+/// A single key cap. Tap emits the key's action on release, like the system
+/// keyboard's character keys; press feedback is a highlighted cap plus the
+/// standard input click on key-down. Keys with `alternates` surface a popup
+/// of the alternate glyphs on a 0.3 s long-press. Backspace instead acts on
+/// key-down and autorepeats while held — one `.backspace` per tick, which
+/// the extension applies grapheme-cluster-aware.
+@MainActor
 private struct KeyButton: View {
     let key: Key
     let popupEdge: VerticalEdge
+    let nextKeyboardOverlay: AnyView?
     let onAction: (KeyAction) -> Void
 
+    @State private var isPressed = false
     @State private var showingAlternates = false
+    /// Set when the key-down handler already emitted the action (backspace),
+    /// so the tap that fires on release doesn't emit it a second time.
+    @State private var pressDidFireAction = false
+    @State private var repeatTask: Task<Void, Never>?
 
     private var hasAlternates: Bool { !key.alternates.isEmpty }
 
+    /// Autorepeat timing for a held backspace (pure kit policy, unit-tested;
+    /// the actual clock lives here in the view).
+    private static let backspaceCadence = KeyRepeatCadence.backspace
+
+    /// `minimumDuration` used for keys without alternates: long enough that
+    /// the long-press never completes, so the gesture serves purely as the
+    /// press tracker (`onPressingChanged`) and `isPressed` survives an
+    /// arbitrarily long hold (a completed long-press ends press tracking).
+    private static let pressTrackingOnlyDuration: TimeInterval = 86_400
+
     var body: some View {
         RoundedRectangle(cornerRadius: 6, style: .continuous)
-            .fill(Color(uiColor: .systemGray4))
+            .fill(Color(uiColor: isPressed ? .systemGray2 : .systemGray4))
             .overlay(
                 Text(key.displayLabel)
                     .font(.title3)
@@ -225,19 +270,31 @@ private struct KeyButton: View {
                 }
             }
             .contentShape(Rectangle())
-            .onTapGesture {
-                if showingAlternates {
-                    showingAlternates = false
-                } else {
-                    onAction(key.action)
+            .onTapGesture { tapped() }
+            // One long-press gesture per key does double duty: its
+            // `onPressingChanged` is the key-down/key-up signal (highlight,
+            // click, backspace autorepeat), and when the key has alternates
+            // its `perform` opens the popup after 0.3 s — same threshold as
+            // before. `maximumDistance` is generous so a rolling fingertip
+            // doesn't cancel a held backspace.
+            .onLongPressGesture(
+                minimumDuration: hasAlternates ? 0.3 : Self.pressTrackingOnlyDuration,
+                maximumDistance: 40,
+                perform: { if hasAlternates { showingAlternates = true } },
+                onPressingChanged: { pressingChanged($0) }
+            )
+            .overlay {
+                if key.action == .nextKeyboard, let nextKeyboardOverlay {
+                    // The extension's UIKit globe control sits on top and
+                    // captures all touches on this key, so the system provides
+                    // tap-to-switch and the long-press input-mode list.
+                    nextKeyboardOverlay
                 }
             }
-            .modifier(LongPressAlternates(enabled: hasAlternates) {
-                showingAlternates = true
-            })
             .overlay(alignment: popupEdge == .top ? .top : .bottom) {
                 if showingAlternates {
                     AlternatesPopup(alternates: key.alternates, edge: popupEdge) { action in
+                        UIDevice.current.playInputClick()
                         onAction(action)
                         showingAlternates = false
                     }
@@ -245,21 +302,66 @@ private struct KeyButton: View {
             }
             .accessibilityLabel(key.accessibilityLabel ?? key.displayLabel)
             .accessibilityAddTraits(.isKeyboardKey)
+            .onDisappear { stopRepeat() }
     }
-}
 
-/// Attaches a long-press gesture only when the key actually has alternates,
-/// so plain keys keep their snappy tap behavior.
-private struct LongPressAlternates: ViewModifier {
-    let enabled: Bool
-    let onTrigger: () -> Void
+    // MARK: Press handling
 
-    func body(content: Content) -> some View {
-        if enabled {
-            content.onLongPressGesture(minimumDuration: 0.3, perform: onTrigger)
-        } else {
-            content
+    private func tapped() {
+        if showingAlternates {
+            showingAlternates = false
+            return
         }
+        if pressDidFireAction {
+            pressDidFireAction = false
+            return
+        }
+        onAction(key.action)
+    }
+
+    /// Key-down / key-up. Down: highlight, input click, and — for backspace —
+    /// emit immediately and start the autorepeat. Up (or cancellation, e.g. a
+    /// scrolling host preview list): clear the highlight and stop repeating,
+    /// emitting nothing.
+    private func pressingChanged(_ pressing: Bool) {
+        isPressed = pressing
+        if pressing {
+            pressDidFireAction = false
+            UIDevice.current.playInputClick()
+            if key.action == .backspace {
+                onAction(.backspace)
+                pressDidFireAction = true
+                startRepeat()
+            }
+        } else {
+            stopRepeat()
+        }
+    }
+
+    /// Emit `.backspace` on the kit cadence until cancelled. Each tick is one
+    /// action, so held deletion removes exactly one user-perceived character
+    /// per tick through the extension's grapheme-cluster-aware path.
+    private func startRepeat() {
+        repeatTask?.cancel()
+        repeatTask = Task {
+            var tick = 0
+            while !Task.isCancelled {
+                let wait = Self.backspaceCadence.interval(beforeTick: tick)
+                do {
+                    try await Task.sleep(for: .seconds(wait))
+                } catch {
+                    return // cancelled mid-wait
+                }
+                UIDevice.current.playInputClick()
+                onAction(.backspace)
+                tick += 1
+            }
+        }
+    }
+
+    private func stopRepeat() {
+        repeatTask?.cancel()
+        repeatTask = nil
     }
 }
 

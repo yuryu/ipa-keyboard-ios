@@ -37,4 +37,61 @@ struct GraphemeTextTests {
         #expect(family.count == 1)
         #expect(GraphemeText.deletionScalarCount(before: "hi \(family)") == family.unicodeScalars.count)
     }
+
+    @Test func syllabicConsonantDiacriticDeletesAsOneCluster() {
+        // "n" + combining vertical line below U+0329 marks a syllabic
+        // consonant (IPA syllabic n, "n̩") — one grapheme, two scalars.
+        let context = "n\u{0329}"
+        #expect(context.count == 1)
+        #expect(GraphemeText.deletionScalarCount(before: context) == 2)
+    }
+
+    @Test func autorepeatTicksDeleteSyllabicConsonantClusterOneAtATime() {
+        // Simulate holding backspace over "bɪtn̩" ("bitten" in IPA, ending in
+        // a syllabic n formed from "n" + combining vertical line below
+        // U+0329). Each autorepeat tick must remove exactly one
+        // user-perceived character, and the two-scalar syllabic cluster must
+        // come off in a single tick rather than leaving a bare diacritic.
+        var context = "bɪtn\u{0329}"
+        #expect(context.count == 4)
+
+        var scalarCountsPerTick: [Int] = []
+        while !context.isEmpty {
+            let before = context.count
+            let n = GraphemeText.deletionScalarCount(before: context)
+            scalarCountsPerTick.append(n)
+            var scalars = Array(context.unicodeScalars)
+            scalars.removeLast(n)
+            context = String(String.UnicodeScalarView(scalars))
+            #expect(context.count == before - 1)
+        }
+
+        // Four ticks for four graphemes; the first tick removes the
+        // two-scalar syllabic n from the end, the rest are single scalars.
+        #expect(scalarCountsPerTick == [2, 1, 1, 1])
+    }
+
+    @Test func autorepeatTicksDeleteOneClusterEach() {
+        // Backspace autorepeat emits one `.backspace` per tick; the extension
+        // turns each into `deletionScalarCount` scalar deletions. Simulate
+        // that loop over "pə̃t" — p, then ə U+0259 + combining tilde U+0303
+        // (one grapheme, two scalars: a nasalized schwa), then t — and verify
+        // every tick removes exactly one user-perceived character.
+        var context = "pə\u{0303}t"
+        #expect(context.count == 3)
+
+        var scalarCountsPerTick: [Int] = []
+        while !context.isEmpty {
+            let before = context.count
+            let n = GraphemeText.deletionScalarCount(before: context)
+            scalarCountsPerTick.append(n)
+            var scalars = Array(context.unicodeScalars)
+            scalars.removeLast(n)
+            context = String(String.UnicodeScalarView(scalars))
+            #expect(context.count == before - 1)
+        }
+
+        // Three ticks for three graphemes; the middle one spans two scalars.
+        #expect(scalarCountsPerTick == [1, 2, 1])
+    }
 }
