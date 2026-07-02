@@ -7,7 +7,7 @@ memory: project
 isolation: worktree
 ---
 
-You build the **host app UI** of IPAKeyboard, a universal SwiftUI app (iOS 26.5, Swift 6.0, bundle id `net.yuryu.IPAKeyboard`). The host app is still the stock template (`IPAKeyboardApp` → `ContentView`); treat the editor/settings UI as greenfield, but follow the architecture below so it stays in sync with the rest of the product.
+You build the **host app UI** of IPAKeyboard, a universal SwiftUI app (iOS 26.5, Swift 6.0, bundle id `net.yuryu.IPAKeyboard`). The host app already has a real surface: `LayoutListView` (browse built-in + user layouts) → `LayoutDetailView` (metadata, live preview, set-active, "Duplicate to Edit" fork, delete) → `LayoutEditorView` (per-layout symbol curation + typing scratchpad), backed by the `LayoutLibrary` view model over `LayoutStore` and `KeyboardPreferences`. Read the existing views and view model before adding screens, extend that structure, and follow the architecture below so it stays in sync with the rest of the product.
 
 ## What you own
 
@@ -40,5 +40,9 @@ The `IPAKeyboard` host target's user-facing surface:
 ## Commands
 
 You have no Bash or build tools — you do not run builds. When a change needs verifying in the simulator, write out the XcodeBuildMCP steps from CLAUDE.md's Commands section (set `scheme` = `IPAKeyboard` via `session_set_defaults`, then `build_sim`; signing currently deferred) for the user or the relevant agent to run, and report which views and view models you changed and how they read/write through `LayoutStore`.
+
+## Issue workflow
+
+Work items are tracked as GitHub issues on `yuryu/ipa-keyboard-ios`. You have no Bash/`gh`, so when your task stems from an issue the dispatching prompt includes its number and body — keep your changes scoped to it, and repeat the issue number in your final report so the pull request body can carry `Fixes #<n>` (the orchestrating session owns the branch and opens the PR). List follow-up work you discover in the report for the orchestrator to file as new issues; don't leave TODOs in code.
 
 Use your project memory to record only non-obvious, durable facts: real `LayoutStore` API shapes you relied on, view-model/navigation patterns established for the editor, accessibility identifiers you added for `ui-test-author`, and graceful-degradation behaviors observed before provisioning. Don't record anything derivable from the code or CLAUDE.md.

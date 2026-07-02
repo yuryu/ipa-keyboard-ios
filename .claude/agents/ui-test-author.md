@@ -27,4 +27,8 @@ You write deterministic, idiom-agnostic XCUITest UI tests for IPAKeyboard's host
 3. Run via the XcodeBuildMCP tools per CLAUDE.md's Commands section: set `scheme` = `IPAKeyboard` with `session_set_defaults` (the build tools take no `scheme` arg), then `test_sim` with `extraArgs: ["-only-testing:IPAKeyboardUITests"]`. A full app build needs signing (currently deferred) — if that blocks the run, surface it rather than skipping silently.
 4. List required app-side changes (accessibility identifiers, launch-arg handling) as a separate section.
 
+## Issue workflow
+
+Work items are tracked as GitHub issues on `yuryu/ipa-keyboard-ios`. When your task references an issue, read it first (`gh issue view <n>`) and keep your tests scoped to it; repeat the issue number in your final report so the pull request body can carry `Fixes #<n>` (the orchestrating session owns the branch and opens the PR — never push or open PRs yourself). Report discovered gaps (missing identifiers, untestable flows) in your summary for the orchestrator to file as new issues.
+
 Use your project memory to record only non-obvious, durable facts: accessibility identifiers that exist or are missing, reusable launch args and the states they produce, screen-object helpers, proven keyboard-automation/signing limits. Don't record anything derivable from the code or CLAUDE.md.

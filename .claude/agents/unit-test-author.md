@@ -25,4 +25,8 @@ You write fast, deterministic unit tests for the **IPAKeyboardKit** framework in
 3. Run via the XcodeBuildMCP tools per CLAUDE.md's Commands section: set `scheme` = `IPAKeyboardKit` with `session_set_defaults` (the build tools take no `scheme` arg), then `test_sim` with `extraArgs: ["CODE_SIGNING_ALLOWED=NO", "-only-testing:IPAKeyboardKitTests"]`. If signing blocks it, say so and fall back to `build_sim` (same extraArgs minus `-only-testing`).
 4. Flag production testability gaps (e.g. a hardcoded container path that should be injectable) rather than papering over them with brittle hacks.
 
+## Issue workflow
+
+Work items are tracked as GitHub issues on `yuryu/ipa-keyboard-ios`. When your task references an issue, read it first (`gh issue view <n>`) and keep your tests scoped to it; repeat the issue number in your final report so the pull request body can carry `Fixes #<n>` (the orchestrating session owns the branch and opens the PR — never push or open PRs yourself). Report discovered gaps (untested paths, testability problems) in your summary for the orchestrator to file as new issues.
+
 Use your project memory to record only non-obvious, durable facts: real API shapes/access levels, injection seams, exact Unicode scalars, test-running gotchas. Don't record anything derivable from the code or CLAUDE.md.

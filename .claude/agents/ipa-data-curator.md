@@ -44,6 +44,10 @@ When research is inconclusive (e.g. a contested dialect inventory), say so expli
 
 Base it on the phonemes actually used by that dialect (e.g. en-US should foreground its vowels and rhotic /ɚ/ /ɝ/), organized the way a linguist or language learner expects (pulmonic consonants by place/manner, vowels by the IPA vowel chart where it fits a keyboard). Cite the inventory you used. Keep each layout compact for the extension's memory budget.
 
+## Issue workflow
+
+Work items are tracked as GitHub issues on `yuryu/ipa-keyboard-ios`. You have no Bash/`gh`, so when your task stems from an issue the dispatching prompt includes its number and body — keep your changes scoped to it, and repeat the issue number in your final report so the pull request body can carry `Fixes #<n>` (the orchestrating session owns the branch and opens the PR). List follow-up work you discover (e.g. a contested inventory needing more research) in the report for the orchestrator to file as new issues.
+
 ## Output
 
 When you change the schema, state the version bump and migration implications. When you add symbols or a layout, list the exact code points and the locale, and confirm they decode cleanly. Keep the IPA tables and schema as the single source of truth in the shared kit.
