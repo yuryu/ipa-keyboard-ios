@@ -346,7 +346,28 @@
                 { "action": { "type": "insert", "text": "." }, "label": ".", "accessibilityLabel": "syllable break" },
                 { "action": { "type": "insert", "text": "‿" }, "label": "‿", "accessibilityLabel": "linking (absence of a break)" },
                 { "action": { "type": "insert", "text": "͡" }, "label": "◌͡◌", "accessibilityLabel": "tie bar (affricate or double articulation)" },
-                { "action": { "type": "insert", "text": "ʼ" }, "label": "ʼ", "accessibilityLabel": "ejective mark" }
+                { "action": { "type": "insert", "text": "ʼ" }, "label": "ʼ", "accessibilityLabel": "ejective mark" },
+                {
+                  "action": { "type": "insert", "text": "˥" },
+                  "label": "˥",
+                  "accessibilityLabel": "extra-high tone bar",
+                  "alternates": [
+                    { "action": { "type": "insert", "text": "˦" }, "label": "˦", "accessibilityLabel": "high tone bar" },
+                    { "action": { "type": "insert", "text": "˧" }, "label": "˧", "accessibilityLabel": "mid tone bar" },
+                    { "action": { "type": "insert", "text": "˨" }, "label": "˨", "accessibilityLabel": "low tone bar" },
+                    { "action": { "type": "insert", "text": "˩" }, "label": "˩", "accessibilityLabel": "extra-low tone bar" }
+                  ]
+                },
+                {
+                  "action": { "type": "insert", "text": "ꜜ" },
+                  "label": "ꜜ",
+                  "accessibilityLabel": "downstep",
+                  "alternates": [
+                    { "action": { "type": "insert", "text": "ꜛ" }, "label": "ꜛ", "accessibilityLabel": "upstep" },
+                    { "action": { "type": "insert", "text": "↗" }, "label": "↗", "accessibilityLabel": "global rise" },
+                    { "action": { "type": "insert", "text": "↘" }, "label": "↘", "accessibilityLabel": "global fall" }
+                  ]
+                }
               ]
             },
             {

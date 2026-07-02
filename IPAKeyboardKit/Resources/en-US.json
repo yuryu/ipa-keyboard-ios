@@ -113,7 +113,11 @@
                 { "action": { "type": "insert", "text": "̥" }, "label": "◌̥", "accessibilityLabel": "voiceless" },
                 { "action": { "type": "insert", "text": "̩" }, "label": "◌̩", "accessibilityLabel": "syllabic" },
                 { "action": { "type": "insert", "text": "̪" }, "label": "◌̪", "accessibilityLabel": "dental" },
-                { "action": { "type": "insert", "text": "̚" }, "label": "◌̚", "accessibilityLabel": "no audible release" }
+                { "action": { "type": "insert", "text": "̚" }, "label": "◌̚", "accessibilityLabel": "no audible release" },
+                { "action": { "type": "insert", "text": "ʰ" }, "label": "ʰ", "accessibilityLabel": "aspirated" },
+                { "action": { "type": "insert", "text": "ʷ" }, "label": "ʷ", "accessibilityLabel": "labialized" },
+                { "action": { "type": "insert", "text": "ˡ" }, "label": "ˡ", "accessibilityLabel": "lateral release" },
+                { "action": { "type": "insert", "text": "ⁿ" }, "label": "ⁿ", "accessibilityLabel": "nasal release" }
               ]
             }
           ]

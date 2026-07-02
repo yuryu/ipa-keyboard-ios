@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  Privacy manifest for the KeyboardExtension appex.
+
+  Belt-and-braces companion to the IPAKeyboardKit manifest: all
+  required-reason API call sites (UserDefaults via `AppGroup.sharedDefaults`
+  and the `.standard` fallback in `KeyboardPreferences`) live in the
+  framework, which carries its own declarations. This appex-root manifest
+  repeats them so tooling that attributes the extension process's behavior
+  to the extension bundle finds a declaration either way:
+    1C8F.1 - defaults shared only within our own App Group
+             (host app writes, keyboard extension reads).
+    CA92.1 - the process-local `.standard` fallback.
+  Nothing is tracked or collected; the extension has no network code and
+  does not request Full Access.
+-->
+<plist version="1.0">
+<dict>
+	<key>NSPrivacyTracking</key>
+	<false/>
+	<key>NSPrivacyTrackingDomains</key>
+	<array/>
+	<key>NSPrivacyCollectedDataTypes</key>
+	<array/>
+	<key>NSPrivacyAccessedAPITypes</key>
+	<array>
+		<dict>
+			<key>NSPrivacyAccessedAPIType</key>
+			<string>NSPrivacyAccessedAPICategoryUserDefaults</string>
+			<key>NSPrivacyAccessedAPITypeReasons</key>
+			<array>
+				<string>1C8F.1</string>
+				<string>CA92.1</string>
+			</array>
+		</dict>
+	</array>
+</dict>
+</plist>

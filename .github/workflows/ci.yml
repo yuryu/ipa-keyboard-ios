@@ -16,11 +16,10 @@ permissions:
   contents: read
 
 env:
-  # Named simulator; OS is omitted so xcodebuild picks the newest eligible
-  # runtime on the runner. Keep SIMULATOR_NAME and DESTINATION in sync, and
-  # update the device if the runner image drops it.
+  # Device model the test steps boot and run on; update if the runner image
+  # drops it. Build steps don't reference it — they target the generic
+  # simulator destination, which needs no concrete device (#40).
   SIMULATOR_NAME: iPhone 17
-  DESTINATION: platform=iOS Simulator,name=iPhone 17
 
 jobs:
   build-and-test:
@@ -33,9 +32,7 @@ jobs:
       # Xcode, whose simulator devices are pre-provisioned. Selecting any other
       # Xcode restarts CoreSimulatorService against a device set provisioned by
       # a different version, and its first device queries can transiently
-      # return zero devices — xcodebuild then intermittently fails with
-      # "Unable to find a device matching the provided destination specifier"
-      # (#40).
+      # return zero devices (#40).
       - name: Show toolchain
         run: xcodebuild -version
 
@@ -45,12 +42,17 @@ jobs:
       # UI-test bundle; the UI tests themselves run in the separate ui-test job.
       # A signed device/archive lane stays out of scope until provisioning
       # lands (issue #3).
+      #
+      # build-for-testing needs only the SDK, not a device, so it targets
+      # generic/platform=iOS Simulator: that skips simulator-device resolution
+      # entirely, which can transiently see zero devices while
+      # CoreSimulatorService is (re)starting and then fails the step (#40).
       - name: Build app + extension for testing
         run: |
           xcodebuild \
             -project IPAKeyboard.xcodeproj \
             -scheme IPAKeyboard \
-            -destination "$DESTINATION" \
+            -destination "generic/platform=iOS Simulator" \
             CODE_SIGNING_ALLOWED=NO \
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGN_IDENTITY="" \
@@ -61,16 +63,26 @@ jobs:
           xcodebuild \
             -project IPAKeyboard.xcodeproj \
             -scheme IPAKeyboardKit \
-            -destination "$DESTINATION" \
+            -destination "generic/platform=iOS Simulator" \
             CODE_SIGNING_ALLOWED=NO \
             build-for-testing
+
+      # Running tests does need a concrete device: boot one by name, to
+      # completion, and pass its UDID to the test step so both agree on the
+      # device. No OS version spec — the deployment target (26.0) accepts any
+      # runtime the image ships.
+      - name: Boot simulator
+        id: boot-simulator
+        uses: ./.github/actions/boot-simulator
+        with:
+          simulator-name: ${{ env.SIMULATOR_NAME }}
 
       - name: Run IPAKeyboardKit unit tests
         run: |
           xcodebuild \
             -project IPAKeyboard.xcodeproj \
             -scheme IPAKeyboardKit \
-            -destination "$DESTINATION" \
+            -destination "platform=iOS Simulator,id=${{ steps.boot-simulator.outputs.udid }}" \
             -resultBundlePath TestResults.xcresult \
             CODE_SIGNING_ALLOWED=NO \
             test-without-building
@@ -95,52 +107,45 @@ jobs:
       - name: Show toolchain
         run: xcodebuild -version
 
+      # Generic destination for the same reason as in build-and-test (#40).
       - name: Build app + extension for testing
         run: |
           xcodebuild \
             -project IPAKeyboard.xcodeproj \
             -scheme IPAKeyboard \
-            -destination "$DESTINATION" \
+            -destination "generic/platform=iOS Simulator" \
             CODE_SIGNING_ALLOWED=NO \
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGN_IDENTITY="" \
             build-for-testing
 
       # Launching the XCUITest runner on a still-booting simulator fails with
-      # "Busy (Application failed preflight checks)", so resolve the device
-      # xcodebuild would pick for $DESTINATION (newest iOS runtime with that
-      # name), boot it to completion, and pin the test run to it by UDID.
+      # "Busy (Application failed preflight checks)", so boot the device to
+      # completion and hand the test step its UDID (#40).
       - name: Boot simulator
-        run: |
-          UDID=$(xcrun simctl list devices available --json | python3 -c "
-          import json, os, sys
-          name = os.environ['SIMULATOR_NAME']
-          devices = json.load(sys.stdin)['devices']
-          def ios_version(runtime_id):
-              # '...SimRuntime.iOS-26-5' -> (26, 5)
-              return tuple(int(part) for part in runtime_id.rsplit('iOS-', 1)[1].split('-'))
-          candidates = [
-              (ios_version(runtime_id), device['udid'])
-              for runtime_id, devs in devices.items() if '.iOS-' in runtime_id
-              for device in devs if device['name'] == name
-          ]
-          if not candidates:
-              sys.exit(f'no available simulator named {name!r}')
-          print(max(candidates)[1])
-          ")
-          xcrun simctl bootstatus "$UDID" -b
-          echo "SIMULATOR_UDID=$UDID" >> "$GITHUB_ENV"
+        id: boot-simulator
+        uses: ./.github/actions/boot-simulator
+        with:
+          simulator-name: ${{ env.SIMULATOR_NAME }}
 
       # Sequential (-parallel-testing-enabled NO): with clone-based parallel
       # testing, xcodebuild also launches the runner on the original device
       # and that launch races the boot, failing the run even when every test
       # passes on the clones.
+      #
+      # TEST_RUNNER_CI: xcodebuild strips the TEST_RUNNER_ prefix and forwards
+      # CI=1 into the test-runner process, where testLaunchPerformance skips
+      # itself (five measured launches whose numbers are noise on a shared
+      # runner). GitHub's own CI=true job variable does not cross the
+      # xcodebuild → runner boundary, hence the explicit prefix.
       - name: Run IPAKeyboardUITests
+        env:
+          TEST_RUNNER_CI: "1"
         run: |
           xcodebuild \
             -project IPAKeyboard.xcodeproj \
             -scheme IPAKeyboard \
-            -destination "platform=iOS Simulator,id=$SIMULATOR_UDID" \
+            -destination "platform=iOS Simulator,id=${{ steps.boot-simulator.outputs.udid }}" \
             -resultBundlePath UITestResults.xcresult \
             -parallel-testing-enabled NO \
             -only-testing:IPAKeyboardUITests \
