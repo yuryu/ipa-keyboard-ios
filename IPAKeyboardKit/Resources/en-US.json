@@ -106,6 +106,15 @@
                 { "action": { "type": "insert", "text": "ʔ" }, "accessibilityLabel": "glottal stop" },
                 { "action": { "type": "insert", "text": "ɾ" }, "accessibilityLabel": "alveolar tap" }
               ]
+            },
+            {
+              "keys": [
+                { "action": { "type": "insert", "text": "̃" }, "label": "◌̃", "accessibilityLabel": "nasalized" },
+                { "action": { "type": "insert", "text": "̥" }, "label": "◌̥", "accessibilityLabel": "voiceless" },
+                { "action": { "type": "insert", "text": "̩" }, "label": "◌̩", "accessibilityLabel": "syllabic" },
+                { "action": { "type": "insert", "text": "̪" }, "label": "◌̪", "accessibilityLabel": "dental" },
+                { "action": { "type": "insert", "text": "̚" }, "label": "◌̚", "accessibilityLabel": "no audible release" }
+              ]
             }
           ]
         }
