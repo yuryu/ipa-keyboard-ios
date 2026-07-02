@@ -73,6 +73,9 @@ final class KeyEditorUITests: XCTestCase {
         try await super.setUp()
         continueAfterFailure = false
         app = XCUIApplication()
+        // Onboarding (#34) appears on a fresh install and covers the library
+        // list; skip it like every other non-onboarding suite does.
+        app.launchArguments += [OnboardingScreen.forceSkipArgument]
     }
 
     @MainActor

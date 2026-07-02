@@ -32,6 +32,12 @@ final class IPAKeyboardUITests: XCTestCase {
     override func setUp() async throws {
         try await super.setUp()
         continueAfterFailure = false
+        // Portrait, always: in landscape the active-layout preview card fills
+        // the viewport and the built-in layout row falls below the fold —
+        // SwiftUI's lazy list keeps off-screen cells out of the accessibility
+        // tree entirely, so row queries fail. CI simulators boot in portrait;
+        // a developer's simulator may be left in landscape.
+        XCUIDevice.shared.orientation = .portrait
         app = XCUIApplication()
         // None of these tests exercise onboarding (see OnboardingUITests.swift),
         // and on a fresh/first-run simulator the onboarding sheet would
@@ -56,22 +62,13 @@ final class IPAKeyboardUITests: XCTestCase {
         try await super.tearDown()
     }
 
-    // MARK: - Launch
-
-    /// Verifies the app starts and exposes at least one window within a
-    /// reasonable timeout.  This is the most fundamental smoke test — if it
-    /// fails, every other test is meaningless.
-    @MainActor
-    func test_launch_mainWindowExists() throws {
-        app.launch()
-        let window = app.windows.firstMatch
-        XCTAssertTrue(
-            window.waitForExistence(timeout: 10),
-            "Expected the app's main window to appear within 10 s"
-        )
-    }
-
     // MARK: - Layout library
+
+    // A bare launch/window smoke test used to live here; it was subsumed by
+    // IPAKeyboardUITestsLaunchTests.testLaunch (window + nav-bar assertions,
+    // per UI configuration) and by every test below waiting on library
+    // content. Each XCUITest costs a full cold app launch in CI, so tests
+    // whose assertions are a subset of another's are deleted, not kept.
 
     /// Verifies the layout-library root screen shows the English (US) built-in
     /// row after launch.  Uses the stable accessibility identifier backed by the
@@ -102,10 +99,16 @@ final class IPAKeyboardUITests: XCTestCase {
         )
     }
 
-    /// Verifies that tapping the English (US) built-in row pushes the detail
-    /// screen and renders the keyboard preview and "Duplicate to Edit" button.
+    /// Verifies the round trip through the detail screen in one launch:
+    /// tapping the English (US) built-in row pushes the detail screen with
+    /// the keyboard preview and "Duplicate to Edit" button, and the back
+    /// button returns to the library list.  (Previously two tests whose
+    /// launch → tap-row → wait-for-detail prefix was identical.)
+    /// Does NOT assert that a new user layout was persisted, because saving
+    /// requires the App Group container which may be unavailable on an
+    /// unprovisioned simulator.
     @MainActor
-    func test_library_openDetail_showsPreview() throws {
+    func test_library_openDetail_showsPreview_andBackNavigatesToList() throws {
         app.launch()
         let library = LibraryScreen(app: app)
         XCTAssertTrue(library.waitForContent(timeout: 10))
@@ -121,22 +124,6 @@ final class IPAKeyboardUITests: XCTestCase {
             detail.scrollTo(detail.duplicateButton),
             "'Duplicate to Edit' button missing on detail screen (after scrolling)"
         )
-    }
-
-    /// Verifies that tapping the back button on the detail screen returns to
-    /// the library list.  Does NOT assert that a new user layout was persisted,
-    /// because saving requires the App Group container which may be unavailable
-    /// on an unprovisioned simulator.
-    @MainActor
-    func test_library_detail_backNavigatesToList() throws {
-        app.launch()
-        let library = LibraryScreen(app: app)
-        XCTAssertTrue(library.waitForContent(timeout: 10))
-
-        library.englishUSRow.tap()
-
-        let detail = LayoutDetailScreen(app: app)
-        XCTAssertTrue(detail.waitForContent(timeout: 10))
 
         detail.backButton.tap()
 
@@ -154,8 +141,18 @@ final class IPAKeyboardUITests: XCTestCase {
 
     /// Measures cold-launch time.  Uses a local XCUIApplication instance so
     /// the measure loop is independent of the setUp-managed `app`.
+    ///
+    /// Local-only: the measure block performs five full app launches
+    /// (minutes of wall-clock in CI) and no baseline is recorded, so on a
+    /// shared runner it can never fail — it only produces noise.  CI sets
+    /// TEST_RUNNER_CI=1 on the xcodebuild invocation (xcodebuild strips the
+    /// TEST_RUNNER_ prefix and forwards CI=1 to the test-runner process).
     @MainActor
     func testLaunchPerformance() throws {
+        try XCTSkipIf(
+            ProcessInfo.processInfo.environment["CI"] != nil,
+            "Launch-performance measurement is local-only; see comment above"
+        )
         measure(metrics: [XCTApplicationLaunchMetric()]) {
             let perfApp = XCUIApplication()
             // Keep the measured launch free of the first-run onboarding
