@@ -44,18 +44,20 @@ $SKILL runs 47                     # runs on the PR's head branch
 $SKILL rerun 28607278304           # whole run; add --failed for failed jobs only
 ```
 
-6. **Wait for ready.** Run in background Bash; it polls (60 s default, `COPILOT_POLL_INTERVAL` to override) until checks are green **and** no Copilot re-review is pending **and** all Copilot threads are resolved. Exit 0 = ready → report to the user for final review/merge. Exit 2 = checks failed → investigate (`runs`, then fix or `rerun` per the safety rule) and wait again. Exit 3 = timeout (arg 2, default 1800 s) → look at what's stuck.
+6. **Wait for ready.** Run in background Bash; it polls (60 s default, `COPILOT_POLL_INTERVAL` to override) until checks are green **and** no Copilot re-review is pending **and** all Copilot threads are resolved. It exits the moment there is something for you to do:
+   - **0** = ready → report to the user for final review/merge.
+   - **2** = checks failed → investigate (`runs`, then fix or `rerun` per the safety rule) and wait again.
+   - **3** = timeout (arg 2, default 1800 s) → look at what's stuck.
+   - **4** = the Copilot review finished and left unresolved comments → the loop restarts at step 2 (this is normal, not a failure). Don't keep waiting past it — triage.
 
 ```bash
 $SKILL wait 47 1800
 ```
 
-Copilot's re-review may add new threads on your fixes — that's the loop restarting at step 2, not a failure.
-
 ## Gotchas
 
 - **Copilot has three different names.** REST comment author: `Copilot`. GraphQL login: `copilot-pull-request-reviewer`. Requesting a review needs the third: `reviewers[]=copilot-pull-request-reviewer[bot]` — the bare login gets HTTP 422 "Reviews may only be requested from collaborators", and `gh pr edit --add-reviewer Copilot` fails with "Could not resolve user". The driver's `rerequest` handles this.
-- **`claude.yml` runs on Copilot's review events** and lands as `skipped` or `action_required`. Neither attaches to the PR's check rollup, so they never block readiness — don't chase them, and don't `rerun` an `action_required` run (it awaits user-side approval, not a rerun).
+- **`claude.yml` runs on Copilot's review events** and lands as `skipped` or `action_required` (Copilot is an untrusted actor, so its runs need approval). Neither attaches to the PR's check rollup, so they never block readiness — don't chase them, and don't `rerun` an `action_required` run. They also **cannot be approved via API**: `POST …/actions/runs/<id>/approve` returns HTTP 403 "This run is not from a fork pull request". Only the user can approve them in the web UI — and they don't need to; the runs would immediately skip (the `@claude` gate isn't met).
 - **Another session may be working the same PR** (observed live on this repo). Before acting on a thread, check its existing replies — a `yuryu` reply means someone already triaged it. The `prs` sweep + thread replies are your coordination surface.
 - **Everything the driver does is reversible** except replies-once-seen: `unresolve <threadId>` undoes resolve; a reply can be deleted with `gh api -X DELETE repos/{owner}/{repo}/pulls/comments/<id>`.
 - Thread `isOutdated: true` means the commented lines changed since — usually your push already addressed it; still reply + resolve.

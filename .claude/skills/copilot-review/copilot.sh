@@ -26,7 +26,8 @@ Usage: copilot.sh <subcommand> [args]
                            Re-run a workflow run (--failed: only its failed jobs)
   wait <pr> [timeout-sec]  Poll until checks green + no pending Copilot re-review +
                            all Copilot threads resolved. Exit 0 ready, 2 checks failed,
-                           3 timeout. Interval via COPILOT_POLL_INTERVAL (default 60s).
+                           3 timeout, 4 Copilot left unresolved comments (triage them).
+                           Interval via COPILOT_POLL_INTERVAL (default 60s).
 EOF
   exit 1
 }
@@ -76,7 +77,9 @@ case "${1:-}" in
   summary)
     [ $# -eq 2 ] || usage
     gh pr view "$2" --json reviews \
-      --jq '[.reviews[] | select(.author.login == "'"$BOT"'")] | last | "── Copilot review (\(.submittedAt), \(.state)) ──\n\(.body)"' -R "$REPO"
+      --jq '[.reviews[] | select(.author.login == "'"$BOT"'")]
+            | if length == 0 then "no Copilot review on this PR yet"
+              else (last | "── Copilot review (\(.submittedAt), \(.state)) ──\n\(.body)") end' -R "$REPO"
     ;;
 
   threads)
@@ -172,6 +175,15 @@ print(f"{rollup} {str(pending).lower()} {unresolved}")
           echo "checks failed — inspect with: copilot.sh runs $pr" >&2
           exit 2
           ;;
+      esac
+      # No re-review in flight but threads are unresolved: Copilot's review
+      # produced actionable comments. Hand control back to the agent instead
+      # of polling until timeout.
+      if [ "$pending" = "false" ] && [ "$unresolved" != "0" ]; then
+        echo "Copilot left $unresolved unresolved thread(s) — triage with: copilot.sh threads $pr" >&2
+        exit 4
+      fi
+      case "$rollup" in
         SUCCESS|NONE)
           if [ "$pending" = "false" ] && [ "$unresolved" = "0" ]; then
             echo "PR #$pr is ready for final human review."
