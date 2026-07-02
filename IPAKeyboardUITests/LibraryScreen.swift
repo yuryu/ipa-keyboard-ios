@@ -25,6 +25,8 @@ import XCTest
 ///   `layout-list-builtin-section`   — "Built-in" section
 ///   `layout-list-user-section`      — "My Layouts" section
 ///   `layout-row-<UUID>`             — each row cell
+///   `layout-list-help-button`       — toolbar button reopening onboarding
+///                                     guidance (see OnboardingScreen.swift)
 @MainActor
 struct LibraryScreen {
     let app: XCUIApplication
@@ -43,6 +45,14 @@ struct LibraryScreen {
     /// surfaced as `.collectionViews` in XCUITest.
     var layoutList: XCUIElement {
         app.collectionViews["layout-list"]
+    }
+
+    // MARK: Toolbar
+
+    /// Toolbar button that (re)opens the "Enable the Keyboard" onboarding
+    /// sheet on demand. Always present, regardless of first-run state.
+    var helpButton: XCUIElement {
+        app.buttons["layout-list-help-button"]
     }
 
     // MARK: Built-in row (stable identifier)

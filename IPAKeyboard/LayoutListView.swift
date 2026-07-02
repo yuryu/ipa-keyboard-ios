@@ -13,6 +13,8 @@
 //    layout-list-user-section       — the "My Layouts" section
 //    layout-row-<layout.id>         — each row (stable UUID; name is mutable)
 //    layout-list-container-unavailable — the saving-unavailable notice
+//    layout-list-help-button        — toolbar button reopening the onboarding
+//                                     guidance (see OnboardingView.swift)
 //
 
 import SwiftUI
@@ -20,6 +22,7 @@ import IPAKeyboardKit
 
 struct LayoutListView: View {
     @State private var library = LayoutLibrary()
+    @State private var onboarding = OnboardingState()
     private let metrics = KeyboardMetrics()
 
     var body: some View {
@@ -34,7 +37,21 @@ struct LayoutListView: View {
             .navigationDestination(for: KeyboardLayout.self) { layout in
                 LayoutDetailView(layout: layout, library: library)
             }
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button {
+                        onboarding.presentManually()
+                    } label: {
+                        Label("Keyboard Setup Help", systemImage: "questionmark.circle")
+                    }
+                    .accessibilityIdentifier("layout-list-help-button")
+                }
+            }
         }
+        .sheet(isPresented: $onboarding.isPresented, onDismiss: { onboarding.markSeen() }) {
+            OnboardingView()
+        }
+        .onAppear { onboarding.presentIfFirstRun() }
         .alert(
             "Something went wrong",
             isPresented: Binding(
