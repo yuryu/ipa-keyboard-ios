@@ -87,10 +87,8 @@ public final class LayoutStore {
 
     private let decoder = JSONDecoder()
 
-    private let encoder: JSONEncoder = {
-        let encoder = JSONEncoder()
-        // Stable, diff-friendly output for layouts saved to the container.
-        encoder.outputFormatting = [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes]
-        return encoder
-    }()
+    // Stable, diff-friendly output for layouts saved to the container.
+    // Shared with `LayoutTransfer.exportData` so a saved document and an
+    // exported one are byte-for-byte the same format.
+    private let encoder = LayoutTransfer.makeDocumentEncoder()
 }

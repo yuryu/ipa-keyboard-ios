@@ -18,6 +18,7 @@ Layout library (`LayoutListView`):
   unavailable (App Group container nil)
 - `layout-list-help-button` — toolbar button that reopens the onboarding sheet
   anytime (issue #7)
+- `layout-list-import-button` — toolbar button opening `.fileImporter` (issue #8)
 - After PR #31 (issue #9): section identifiers live on the header `Text`s, not
   the `Section` (Section-level ids bleed onto every descendant on iOS 26), and
   rows surface as `Button`s inside cells — query `app.buttons`, not `app.cells`.
@@ -30,6 +31,9 @@ Detail (`LayoutDetailView`):
 - `layout-detail-customize-link` — symbol curation (all layouts)
 - `layout-detail-duplicate-button` — "Duplicate to Edit" (built-ins only)
 - `layout-detail-edit-keys-button` — "Edit Keys" sheet (user layouts only)
+- `layout-detail-export-button` — "Export Layout" ShareLink (all layouts, issue #8);
+  sits in its own section just above the action section, so
+  `LayoutDetailScreen.waitForContent` (scrolls to the duplicate button) loads it
 - `layout-detail-delete-button` — "Delete" (user layouts only)
 
 Symbol curation (`LayoutEditorView`):
@@ -63,6 +67,14 @@ Onboarding (issue #7, `OnboardingView.swift` + `OnboardingState.swift`):
 Onboarding launch-argument overrides (checked in `OnboardingState.init`):
 - `--uitest-show-onboarding` — always auto-present the sheet on launch
 - `--uitest-skip-onboarding` — never auto-present (skip wins if both passed)
+
+Import hook (issue #8, checked in `LayoutLibrary.init`, run one-shot from
+`LayoutListView.onAppear` via `performLaunchImportIfRequested()`):
+- launch *environment* `UITEST_IMPORT_JSON` = a layout JSON document — fed
+  through the real import pipeline (kit validation → store save → root error
+  alert). Exists because XCUITest can't drive the system document picker.
+  Error alert title "Something went wrong"; import messages start with
+  "Couldn’t import this layout." (curly apostrophe).
 The sheet auto-presents on FIRST launch of a fresh install, so pre-existing
 UI tests that interact with the list must pass `--uitest-skip-onboarding`.
 Seen-flag lives in standard (host-local) UserDefaults key

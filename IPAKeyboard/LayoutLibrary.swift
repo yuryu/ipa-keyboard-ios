@@ -48,9 +48,29 @@ final class LayoutLibrary {
     private let store: LayoutStore
     private let preferences: KeyboardPreferences
 
-    init(store: LayoutStore = LayoutStore(), preferences: KeyboardPreferences = KeyboardPreferences()) {
+    /// Launch-environment key (UI tests): when set, its value is treated as a
+    /// layout JSON document and run once through the real import pipeline via
+    /// `performLaunchImportIfRequested()` — the same validation, error
+    /// surfacing, and persistence a file picked in the Files UI gets. Exists
+    /// because XCUITest cannot drive the system document picker; see
+    /// `ImportExportUITests`.
+    static let uiTestImportEnvironmentKey = "UITEST_IMPORT_JSON"
+
+    /// Pending UI-test-injected import payload (see
+    /// `uiTestImportEnvironmentKey`); nil in normal launches.
+    private let launchImportJSON: String?
+    /// One-shot latch so the injected import runs at most once per process,
+    /// however many times the hosting view re-appears.
+    private var hasPerformedLaunchImport = false
+
+    init(
+        store: LayoutStore = LayoutStore(),
+        preferences: KeyboardPreferences = KeyboardPreferences(),
+        environment: [String: String] = ProcessInfo.processInfo.environment
+    ) {
         self.store = store
         self.preferences = preferences
+        self.launchImportJSON = environment[Self.uiTestImportEnvironmentKey]
         reload()
     }
 
@@ -122,6 +142,42 @@ final class LayoutLibrary {
             preferences.clearActiveLayout(ifEquals: layout.id)
             preferences.clearHiddenSymbols(for: layout.id)
         }
+    }
+
+    /// Import the layout document picked in the Files UI (`.fileImporter`'s
+    /// completion). Reads the security-scoped URL, then validates and saves
+    /// through the store (issue #8). Every failure — unreadable file,
+    /// malformed/newer-format document (`LayoutImportError`'s user-facing
+    /// descriptions), or the unprovisioned-container degraded state — lands
+    /// in `errorMessage` for the root alert; nothing is ever dropped silently.
+    func importLayout(from result: Result<URL, Error>) {
+        perform("Couldn’t import this layout.") {
+            let url = try result.get()
+            // fileImporter hands back a security-scoped URL; without
+            // start/stop accessing, reading it fails outside the sandbox.
+            let accessing = url.startAccessingSecurityScopedResource()
+            defer { if accessing { url.stopAccessingSecurityScopedResource() } }
+            try store.importLayout(from: Data(contentsOf: url))
+        }
+    }
+
+    /// Import a layout document's raw bytes — the shared tail of the file
+    /// path above and the UI-test launch hook below.
+    func importLayout(data: Data) {
+        perform("Couldn’t import this layout.") {
+            try store.importLayout(from: data)
+        }
+    }
+
+    /// One-shot: run the launch-environment-injected import, if any (see
+    /// `uiTestImportEnvironmentKey`). Called from the root view's `onAppear`
+    /// rather than `init` so the resulting error alert presents against a
+    /// fully attached view hierarchy.
+    func performLaunchImportIfRequested() {
+        guard !hasPerformedLaunchImport else { return }
+        hasPerformedLaunchImport = true
+        guard let launchImportJSON else { return }
+        importLayout(data: Data(launchImportJSON.utf8))
     }
 
     /// Errors from `update` beyond what the store itself throws.
