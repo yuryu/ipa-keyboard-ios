@@ -111,15 +111,11 @@ final class IPAKeyboardUITests: XCTestCase {
         let detail = LayoutDetailScreen(app: app)
         XCTAssertTrue(
             detail.waitForContent(timeout: 10),
-            "'Duplicate to Edit' button did not appear on detail screen"
+            "Keyboard preview (layout-detail-preview) did not appear on detail screen"
         )
         XCTAssertTrue(
-            detail.preview.exists,
-            "Keyboard preview (layout-detail-preview) missing on detail screen"
-        )
-        XCTAssertTrue(
-            detail.duplicateButton.exists,
-            "'Duplicate to Edit' button missing on detail screen"
+            detail.scrollTo(detail.duplicateButton),
+            "'Duplicate to Edit' button missing on detail screen (after scrolling)"
         )
     }
 
