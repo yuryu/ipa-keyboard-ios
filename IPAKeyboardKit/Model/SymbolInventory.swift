@@ -66,8 +66,8 @@ public struct SymbolEntry: Sendable, Hashable, Identifiable {
     /// computed) so it participates in Hashable — two entries whose texts are
     /// canonically equivalent but scalar-different never compare equal.
     public let codePointNotation: String
-    /// Every layout/panel the symbol appears in, in first-seen order,
-    /// de-duplicated.
+    /// Every layout/panel the symbol appears in, in first-seen order, one
+    /// occurrence per layout/panel.
     public let occurrences: [SymbolOccurrence]
 
     public var id: String { codePointNotation }
@@ -124,14 +124,14 @@ public enum SymbolInventory {
     /// recursively. Non-insert keys (space, return, backspace, globe, panel
     /// switches, spacers) are never symbols. Later occurrences of a known
     /// symbol back-fill a missing display label or spoken name and extend
-    /// `occurrences` (de-duplicated).
+    /// `occurrences` — at most one per layout/panel, with `isAlternate` true
+    /// only when every sighting there is a long-press alternate.
     public static func build(from layouts: [KeyboardLayout]) -> [SymbolEntry] {
         struct Builder {
             var text: String
             var explicitLabel: String?
             var spokenName: String?
             var occurrences: [SymbolOccurrence] = []
-            var seen: Set<SymbolOccurrence> = []
         }
 
         var order: [String] = []
@@ -152,7 +152,15 @@ public enum SymbolInventory {
                 }
                 let occurrence = SymbolOccurrence(
                     layoutName: layoutName, panelName: panelName, isAlternate: isAlternate)
-                if builders[identity]!.seen.insert(occurrence).inserted {
+                if let index = builders[identity]!.occurrences.firstIndex(where: {
+                    $0.layoutName == layoutName && $0.panelName == panelName
+                }) {
+                    // One occurrence per layout/panel: a primary sighting
+                    // clears an earlier alternate-only flag, in either order.
+                    if !isAlternate {
+                        builders[identity]!.occurrences[index] = occurrence
+                    }
+                } else {
                     builders[identity]!.occurrences.append(occurrence)
                 }
             }

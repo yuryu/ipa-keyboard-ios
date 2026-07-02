@@ -121,6 +121,27 @@ struct SymbolInventoryTests {
         #expect(plain?.occurrences.allSatisfy { !$0.isAlternate } == true)
     }
 
+    @Test func primaryAndAlternateInOnePanelCollapseToOnePrimaryOccurrence() {
+        // "x" is both a primary key and another key's long-press alternate in
+        // the same panel (as in the bundled ipa-full QWERTY panel). The entry
+        // must carry a single occurrence, not flagged alternate-only —
+        // regardless of whether the primary or the alternate is seen first.
+        func layout(primaryFirst: Bool) -> KeyboardLayout {
+            let primary = Key(action: .insert("x"))
+            let carrier = Key(action: .insert("\u{03C7}"), alternates: [Key(action: .insert("x"))])
+            return KeyboardLayout(
+                name: "Gamma", locale: "und",
+                rows: [KeyRow(keys: primaryFirst ? [primary, carrier] : [carrier, primary])])
+        }
+        for primaryFirst in [true, false] {
+            let entries = SymbolInventory.build(from: [layout(primaryFirst: primaryFirst)])
+            let x = entry("x", in: entries)
+            #expect(x?.occurrences == [
+                SymbolOccurrence(layoutName: "Gamma", panelName: "Main", isAlternate: false)
+            ])
+        }
+    }
+
     @Test func nonInsertKeysAreExcluded() {
         // Globe/space/backspace (function row), the panel switch keys, and the
         // spacer contribute no entries: only .insert keys are symbols.
