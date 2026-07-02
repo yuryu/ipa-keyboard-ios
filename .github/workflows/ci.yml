@@ -146,14 +146,7 @@ jobs:
       # and that launch races the boot, failing the run even when every test
       # passes on the clones.
       #
-      # TEST_RUNNER_CI: xcodebuild strips the TEST_RUNNER_ prefix and forwards
-      # CI=1 into the test-runner process, where testLaunchPerformance skips
-      # itself (five measured launches whose numbers are noise on a shared
-      # runner). GitHub's own CI=true job variable does not cross the
-      # xcodebuild → runner boundary, hence the explicit prefix.
       - name: Run IPAKeyboardUITests
-        env:
-          TEST_RUNNER_CI: "1"
         run: |
           xcodebuild \
             -project IPAKeyboard.xcodeproj \
@@ -162,6 +155,7 @@ jobs:
             -resultBundlePath UITestResults.xcresult \
             -parallel-testing-enabled NO \
             -only-testing:IPAKeyboardUITests \
+            -skip-testing:IPAKeyboardUITests/IPAKeyboardUITests/testLaunchPerformance \
             CODE_SIGNING_ALLOWED=NO \
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGN_IDENTITY="" \
