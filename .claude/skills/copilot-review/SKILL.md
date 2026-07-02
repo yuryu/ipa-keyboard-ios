@@ -5,7 +5,7 @@ description: Respond to GitHub Copilot auto-review comments on a pull request �
 
 # Handling Copilot auto-reviews
 
-Copilot auto-reviews every PR on this repo (`copilot-pull-request-reviewer`): one summary review plus inline review threads, some with ` ```suggestion ` blocks. The driver is `.claude/skills/copilot-review/copilot.sh` (paths relative to repo root) — bash over `gh` + `python3`, both already on the machine; no setup. Run `copilot.sh` with no args for the subcommand list.
+Copilot auto-reviews every PR on this repo (`copilot-pull-request-reviewer`): one summary review plus inline review threads, some carrying fenced `suggestion` blocks (GitHub's apply-able suggestion syntax). The driver is `.claude/skills/copilot-review/copilot.sh` (paths relative to repo root) — bash over `gh` + `python3`, both already on the machine; no setup. Run `copilot.sh` with no args for the subcommand list.
 
 The end state you are working toward: **checks green, no Copilot re-review pending, every Copilot thread replied-to and resolved** — then tell the user the PR is ready for their final review. **Never merge; the user merges.**
 

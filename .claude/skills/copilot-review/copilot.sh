@@ -41,6 +41,7 @@ pr_state() { # $1 = pr number
           reviewRequests(first: 20) { nodes { requestedReviewer { ... on Bot { login } ... on User { login } } } }
           commits(last: 1) { nodes { commit { statusCheckRollup { state } } } }
           reviewThreads(first: 100) {
+            pageInfo { hasNextPage }
             nodes {
               id isResolved isOutdated path line
               comments(first: 50) { nodes { databaseId author { login } body } }
@@ -61,7 +62,7 @@ case "${1:-}" in
               number title
               reviewRequests(first: 20) { nodes { requestedReviewer { ... on Bot { login } ... on User { login } } } }
               commits(last: 1) { nodes { commit { statusCheckRollup { state } } } }
-              reviewThreads(first: 100) { nodes { isResolved comments(first: 1) { nodes { author { login } } } } }
+              reviewThreads(first: 100) { pageInfo { hasNextPage } nodes { isResolved comments(first: 1) { nodes { author { login } } } } }
             }
           }
         }
@@ -70,7 +71,8 @@ case "${1:-}" in
           number, title,
           checks: (.commits.nodes[0].commit.statusCheckRollup.state // "NONE"),
           copilotReviewPending: ([.reviewRequests.nodes[].requestedReviewer.login] | contains(["'"$BOT"'"])),
-          unresolvedCopilotThreads: ([.reviewThreads.nodes[] | select((.comments.nodes[0].author.login == "'"$BOT"'") and (.isResolved | not))] | length)
+          unresolvedCopilotThreads: ([.reviewThreads.nodes[] | select((.comments.nodes[0].author.login == "'"$BOT"'") and (.isResolved | not))] | length),
+          threadsTruncated: .reviewThreads.pageInfo.hasNextPage
         }'
     ;;
 
@@ -86,7 +88,10 @@ case "${1:-}" in
     [ $# -ge 2 ] || usage
     pr_state "$2" | /usr/bin/env python3 -c '
 import json, sys
-data = json.load(sys.stdin)["data"]["repository"]["pullRequest"]["reviewThreads"]["nodes"]
+rt = json.load(sys.stdin)["data"]["repository"]["pullRequest"]["reviewThreads"]
+if rt["pageInfo"]["hasNextPage"]:
+    sys.exit("error: PR has more than 100 review threads; refusing to report a truncated list")
+data = rt["nodes"]
 bot = "'"$BOT"'"
 show_all = "'"${3:-}"'" == "--all"
 out = []
@@ -159,6 +164,8 @@ print(json.dumps(out, indent=2, ensure_ascii=False))
       state=$(pr_state "$pr" | /usr/bin/env python3 -c '
 import json, sys
 pr = json.load(sys.stdin)["data"]["repository"]["pullRequest"]
+if pr["reviewThreads"]["pageInfo"]["hasNextPage"]:
+    sys.exit("error: PR has more than 100 review threads; wait cannot judge readiness on a truncated list")
 bot = "'"$BOT"'"
 rollup = (pr["commits"]["nodes"][0]["commit"]["statusCheckRollup"] or {}).get("state", "NONE")
 pending = any((n["requestedReviewer"] or {}).get("login") == bot for n in pr["reviewRequests"]["nodes"])
