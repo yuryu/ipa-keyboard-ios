@@ -49,6 +49,25 @@ nothing is silently ignored:
 gh api repos/yuryu/ipa-keyboard-ios/pulls/<PR>/comments/<id>/replies -f body='...'
 ```
 
+Then resolve each addressed thread — replying does not resolve it, and that
+needs GraphQL (REST has no resolve endpoint). Map comment ids to thread ids,
+then resolve:
+
+```sh
+gh api graphql -f query='query {
+  repository(owner: "yuryu", name: "ipa-keyboard-ios") {
+    pullRequest(number: <PR>) {
+      reviewThreads(first: 100) { nodes {
+        id isResolved comments(first: 1) { nodes { databaseId } } } } } } }' \
+  --jq '.data.repository.pullRequest.reviewThreads.nodes[]
+        | select(.isResolved | not)
+        | {threadId: .id, commentId: .comments.nodes[0].databaseId}'
+
+gh api graphql -f query='mutation {
+  resolveReviewThread(input: {threadId: "<thread-id>"}) {
+    thread { isResolved } } }'
+```
+
 ## 3. Update the PR
 
 Commit and push to the PR branch, then re-request Copilot review — it does not
