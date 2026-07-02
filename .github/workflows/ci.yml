@@ -20,8 +20,6 @@ env:
   # drops it. Build steps don't reference it — they target the generic
   # simulator destination, which needs no concrete device (#40).
   SIMULATOR_NAME: iPhone 17
-  # The project deploys to iOS 26.5, so tests must not boot an older runtime.
-  SIMULATOR_OS_VERSION: "^26.5"
 
 jobs:
   build-and-test:
@@ -69,15 +67,14 @@ jobs:
             CODE_SIGNING_ALLOWED=NO \
             build-for-testing
 
-      # Running tests does need a concrete device: select it by model, boot it
-      # to completion, and pin the test run to its UDID so xcodebuild never
-      # does the racy name/OS-based destination resolution (#40).
+      # Running tests does need a concrete device: boot one by model, to
+      # completion, so the test step finds it running. No OS version spec and
+      # no UDID plumbing — the action's docs recommend selecting by model only,
+      # and the deployment target (26.0) accepts any runtime the image ships.
       - name: Boot simulator
-        id: sim
         uses: futureware-tech/simulator-action@v5
         with:
           model: ${{ env.SIMULATOR_NAME }}
-          os_version: ${{ env.SIMULATOR_OS_VERSION }}
           wait_for_boot: true
 
       - name: Run IPAKeyboardKit unit tests
@@ -85,7 +82,7 @@ jobs:
           xcodebuild \
             -project IPAKeyboard.xcodeproj \
             -scheme IPAKeyboardKit \
-            -destination "platform=iOS Simulator,id=${{ steps.sim.outputs.udid }}" \
+            -destination "platform=iOS Simulator,name=${{ env.SIMULATOR_NAME }}" \
             -resultBundlePath TestResults.xcresult \
             CODE_SIGNING_ALLOWED=NO \
             test-without-building
@@ -123,14 +120,12 @@ jobs:
             build-for-testing
 
       # Launching the XCUITest runner on a still-booting simulator fails with
-      # "Busy (Application failed preflight checks)", so wait for the boot to
-      # complete, then pin the test run to the booted device's UDID (#40).
+      # "Busy (Application failed preflight checks)", so boot the device to
+      # completion before the test step resolves it by name (#40).
       - name: Boot simulator
-        id: sim
         uses: futureware-tech/simulator-action@v5
         with:
           model: ${{ env.SIMULATOR_NAME }}
-          os_version: ${{ env.SIMULATOR_OS_VERSION }}
           wait_for_boot: true
 
       # Sequential (-parallel-testing-enabled NO): with clone-based parallel
@@ -142,7 +137,7 @@ jobs:
           xcodebuild \
             -project IPAKeyboard.xcodeproj \
             -scheme IPAKeyboard \
-            -destination "platform=iOS Simulator,id=${{ steps.sim.outputs.udid }}" \
+            -destination "platform=iOS Simulator,name=${{ env.SIMULATOR_NAME }}" \
             -resultBundlePath UITestResults.xcresult \
             -parallel-testing-enabled NO \
             -only-testing:IPAKeyboardUITests \
