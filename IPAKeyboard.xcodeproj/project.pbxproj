@@ -89,17 +89,9 @@
 		93118CD32FF20F0500FA84C3 /* Exceptions for "KeyboardExtension" folder in "KeyboardExtension" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
-				KeyboardViewController.swift,
+				Info.plist,
 			);
 			target = 931AFC7E2FF16D6200E0A44F /* KeyboardExtension */;
-		};
-		93118CD42FF20F0500FA84C3 /* Exceptions for "KeyboardExtension" folder in "IPAKeyboardKit" target */ = {
-			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
-			membershipExceptions = (
-				Info.plist,
-				KeyboardViewController.swift,
-			);
-			target = 931AFC902FF16DC000E0A44F /* IPAKeyboardKit */;
 		};
 /* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
 
@@ -108,7 +100,6 @@
 			isa = PBXFileSystemSynchronizedRootGroup;
 			exceptions = (
 				93118CD32FF20F0500FA84C3 /* Exceptions for "KeyboardExtension" folder in "KeyboardExtension" target */,
-				93118CD42FF20F0500FA84C3 /* Exceptions for "KeyboardExtension" folder in "IPAKeyboardKit" target */,
 			);
 			path = KeyboardExtension;
 			sourceTree = "<group>";
@@ -307,6 +298,9 @@
 			dependencies = (
 				93118CD92FF20F5E00FA84C3 /* PBXTargetDependency */,
 			);
+			fileSystemSynchronizedGroups = (
+				93118CD12FF20F0400FA84C3 /* KeyboardExtension */,
+			);
 			name = KeyboardExtension;
 			packageProductDependencies = (
 			);
@@ -328,7 +322,6 @@
 			dependencies = (
 			);
 			fileSystemSynchronizedGroups = (
-				93118CD12FF20F0400FA84C3 /* KeyboardExtension */,
 				931AFC922FF16DC000E0A44F /* IPAKeyboardKit */,
 			);
 			name = IPAKeyboardKit;
