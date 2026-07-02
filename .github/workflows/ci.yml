@@ -97,22 +97,16 @@ jobs:
       - name: Show toolchain
         run: xcodebuild -version
 
-      - name: Build app + extension for testing
-        run: |
-          xcodebuild \
-            -project IPAKeyboard.xcodeproj \
-            -scheme IPAKeyboard \
-            -destination "$DESTINATION" \
-            CODE_SIGNING_ALLOWED=NO \
-            CODE_SIGNING_REQUIRED=NO \
-            CODE_SIGN_IDENTITY="" \
-            build-for-testing
-
       # Launching the XCUITest runner on a still-booting simulator fails with
       # "Busy (Application failed preflight checks)", so resolve the device
       # xcodebuild would pick for $DESTINATION (newest iOS runtime with that
-      # name), boot it to completion, and pin the test run to it by UDID.
-      - name: Boot simulator
+      # name), pin the test run to it by UDID, and kick off its boot NOW —
+      # `simctl boot` returns after initiating the boot, so the ~2-minute
+      # boot overlaps the build below instead of following it. `|| true`
+      # tolerates an already-booted device, which `boot` treats as an error;
+      # the "Wait for simulator boot" step is the authoritative gate either
+      # way (`bootstatus -b` also boots if nothing did).
+      - name: Resolve simulator and start boot
         run: |
           UDID=$(xcrun simctl list devices available --json | python3 -c "
           import json, os, sys
@@ -130,14 +124,36 @@ jobs:
               sys.exit(f'no available simulator named {name!r}')
           print(max(candidates)[1])
           ")
-          xcrun simctl bootstatus "$UDID" -b
+          xcrun simctl boot "$UDID" || true
           echo "SIMULATOR_UDID=$UDID" >> "$GITHUB_ENV"
+
+      - name: Build app + extension for testing
+        run: |
+          xcodebuild \
+            -project IPAKeyboard.xcodeproj \
+            -scheme IPAKeyboard \
+            -destination "$DESTINATION" \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY="" \
+            build-for-testing
+
+      - name: Wait for simulator boot
+        run: xcrun simctl bootstatus "$SIMULATOR_UDID" -b
 
       # Sequential (-parallel-testing-enabled NO): with clone-based parallel
       # testing, xcodebuild also launches the runner on the original device
       # and that launch races the boot, failing the run even when every test
       # passes on the clones.
+      #
+      # TEST_RUNNER_CI: xcodebuild strips the TEST_RUNNER_ prefix and forwards
+      # CI=1 into the test-runner process, where testLaunchPerformance skips
+      # itself (five measured launches whose numbers are noise on a shared
+      # runner). GitHub's own CI=true job variable does not cross the
+      # xcodebuild → runner boundary, hence the explicit prefix.
       - name: Run IPAKeyboardUITests
+        env:
+          TEST_RUNNER_CI: "1"
         run: |
           xcodebuild \
             -project IPAKeyboard.xcodeproj \
