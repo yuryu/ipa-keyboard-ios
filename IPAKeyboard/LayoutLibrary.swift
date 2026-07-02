@@ -74,6 +74,15 @@ final class LayoutLibrary {
         return resolved.applyingHiddenSymbols(hiddenSymbolsByLayout[resolved.id] ?? [])
     }
 
+    /// Id of the layout the keyboard actually renders: the explicit selection
+    /// when set, otherwise the resolver's default (e.g. `en-US`). The list's
+    /// active checkmark and the detail's "Active" label key off this — rather
+    /// than the raw, nil-until-chosen `activeLayoutID` — so those indicators
+    /// agree with the previewed active layout even before an explicit pick.
+    var resolvedActiveLayoutID: UUID {
+        ActiveLayoutResolver.resolve(activeID: activeLayoutID, in: builtInLayouts + userLayouts).id
+    }
+
     /// Whether the active-layout choice actually reaches the keyboard extension.
     /// False until the App Group is provisioned (the preference is process-local
     /// until then), so the UI can say so honestly.

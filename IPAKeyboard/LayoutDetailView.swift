@@ -70,7 +70,7 @@ struct LayoutDetailView: View {
     @ViewBuilder
     private var useSection: some View {
         Section {
-            if layout.id == library.activeLayoutID {
+            if layout.id == library.resolvedActiveLayoutID {
                 Label("Active layout", systemImage: "checkmark.circle.fill")
                     .foregroundStyle(.tint)
                     .accessibilityIdentifier("layout-detail-active-label")

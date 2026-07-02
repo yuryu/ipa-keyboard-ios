@@ -73,11 +73,12 @@ struct LayoutEditorView: View {
     private var symbolsSection: some View {
         ForEach(curatablePanels, id: \.name) { panel in
             Section(panel.name) {
-                ForEach(panel.symbols, id: \.self) { symbol in
-                    Toggle(isOn: binding(for: symbol)) {
-                        Text(symbol).font(.title3)
+                ForEach(panel.symbols) { symbol in
+                    Toggle(isOn: binding(for: symbol.text)) {
+                        Text(symbol.display).font(.title3)
                     }
-                    .accessibilityIdentifier("layout-editor-toggle-\(symbol)")
+                    .accessibilityLabel(symbol.accessibilityLabel ?? symbol.display)
+                    .accessibilityIdentifier("layout-editor-toggle-\(symbol.text)")
                 }
             }
         }
@@ -85,7 +86,19 @@ struct LayoutEditorView: View {
 
     // MARK: Symbol collection
 
-    private struct PanelSymbols { let name: String; let symbols: [String] }
+    /// One curatable symbol. `text` is the inserted string — both the curation
+    /// key and the toggle identity — while `display`/`accessibilityLabel` carry
+    /// the key's presentation so a bare combining diacritic (e.g. U+0303) shows
+    /// as its label "◌̃" and VoiceOver says "nasalized" instead of reading the
+    /// raw mark.
+    private struct CuratableSymbol: Identifiable {
+        let text: String
+        let display: String
+        let accessibilityLabel: String?
+        var id: String { text }
+    }
+
+    private struct PanelSymbols { let name: String; let symbols: [CuratableSymbol] }
 
     /// Distinct inserted symbols grouped by panel (main keys then long-press
     /// alternates), first-seen order, de-duplicated across the whole layout so
@@ -94,11 +107,14 @@ struct LayoutEditorView: View {
         var seen = Set<String>()
         var panels: [PanelSymbols] = []
         for panel in layout.arrangements.flatMap(\.panels) {
-            var symbols: [String] = []
+            var symbols: [CuratableSymbol] = []
             for key in panel.rows.flatMap(\.keys) {
                 for candidate in [key] + key.alternates {
                     if case .insert(let text) = candidate.action, seen.insert(text).inserted {
-                        symbols.append(text)
+                        symbols.append(CuratableSymbol(
+                            text: text,
+                            display: candidate.displayLabel,
+                            accessibilityLabel: candidate.accessibilityLabel))
                     }
                 }
             }

@@ -170,20 +170,26 @@ public struct KeyboardLayout: Codable, Sendable, Hashable, Identifiable {
 
     /// A copy with every key matching `shouldRemove` dropped — across each
     /// panel's rows, the shared `functionRow`, and per-panel `switchKey`s, and
-    /// pruned from surviving keys' long-press `alternates`. The single place
-    /// that walks the whole arrangements→panels→rows→keys tree, so callers
-    /// (e.g. hiding the globe key, applying a user's enabled set) don't
-    /// re-implement the traversal.
-    public func filteringKeys(_ shouldRemove: (Key) -> Bool) -> KeyboardLayout {
+    /// pruned from surviving keys' long-press `alternates`. When `dropEmptyRows`
+    /// is true, a panel row left with no interactive (non-spacer) key is removed
+    /// too, so hiding never reserves blank rows; the shared `functionRow` is
+    /// always kept. The single place that walks the whole
+    /// arrangements→panels→rows→keys tree, so callers (e.g. hiding the globe key,
+    /// applying a user's enabled set) don't re-implement the traversal.
+    public func filteringKeys(
+        _ shouldRemove: (Key) -> Bool,
+        dropEmptyRows: Bool = false
+    ) -> KeyboardLayout {
         var copy = self
         copy.arrangements = arrangements.map { arrangement in
             var arrangement = arrangement
             arrangement.panels = arrangement.panels.map { panel in
                 var panel = panel
                 if let key = panel.switchKey, shouldRemove(key) { panel.switchKey = nil }
-                panel.rows = panel.rows.map { row in
+                panel.rows = panel.rows.compactMap { row in
                     var row = row
                     row.keys = row.keys.compactMap { KeyboardLayout.pruning($0, shouldRemove) }
+                    if dropEmptyRows && !row.keys.contains(where: { !$0.isSpacer }) { return nil }
                     return row
                 }
                 return panel
@@ -217,19 +223,11 @@ public struct KeyboardLayout: Codable, Sendable, Hashable, Identifiable {
     /// inserted string (see `KeyboardPreferences`); an empty set is a no-op.
     public func applyingHiddenSymbols(_ hidden: Set<String>) -> KeyboardLayout {
         guard !hidden.isEmpty else { return self }
-        var result = filteringKeys { key in
-            if case .insert(let text) = key.action { return hidden.contains(text) }
-            return false
-        }
-        result.arrangements = result.arrangements.map { arrangement in
-            var arrangement = arrangement
-            arrangement.panels = arrangement.panels.map { panel in
-                var panel = panel
-                panel.rows = panel.rows.filter { row in row.keys.contains { !$0.isSpacer } }
-                return panel
-            }
-            return arrangement
-        }
-        return result
+        return filteringKeys(
+            { key in
+                if case .insert(let text) = key.action { return hidden.contains(text) }
+                return false
+            },
+            dropEmptyRows: true)
     }
 }

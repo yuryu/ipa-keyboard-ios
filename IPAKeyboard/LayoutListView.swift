@@ -115,7 +115,7 @@ struct LayoutListView: View {
 
     private func layoutRow(_ layout: KeyboardLayout) -> some View {
         NavigationLink(value: layout) {
-            LayoutRow(layout: layout, isActive: layout.id == library.activeLayoutID)
+            LayoutRow(layout: layout, isActive: layout.id == library.resolvedActiveLayoutID)
         }
         .accessibilityIdentifier("layout-row-\(layout.id.uuidString)")
         .swipeActions(edge: .trailing, allowsFullSwipe: false) {
