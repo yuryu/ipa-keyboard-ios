@@ -1,26 +1,51 @@
 name: Boot iOS simulator
-description: Boot an available simulator by model name and wait for full boot
+description: Boot the available simulator exactly matching a device name and wait for full boot
 
 inputs:
   simulator-name:
-    description: Simulator model name (for example, "iPhone 17")
+    description: Exact simulator device name (for example, "iPhone 17")
     required: true
+
+outputs:
+  udid:
+    description: UDID of the booted simulator; point xcodebuild at it with -destination "platform=iOS Simulator,id=<udid>"
+    value: ${{ steps.boot.outputs.udid }}
 
 runs:
   using: composite
   steps:
     - name: Boot simulator and wait
+      id: boot
       shell: bash
+      # Passed via env, not spliced into the script, so the input can't be
+      # interpreted as shell source (GitHub script-injection hardening).
+      env:
+        SIMULATOR_NAME: ${{ inputs.simulator-name }}
       run: |
         set -euo pipefail
 
-        SIMULATOR_NAME="${{ inputs.simulator-name }}"
-        UDID="$(xcrun simctl list devices available | awk -v model="$SIMULATOR_NAME" -F '[()]' '$0 ~ model { print $2; exit }')"
+        # Exact-name match over the JSON device list — a substring match on the
+        # human-readable output picks "iPhone 17 Pro" for "iPhone 17". Newest
+        # iOS runtime first, matching what xcodebuild resolves for a name-only
+        # destination when several runtimes ship the same device.
+        UDID="$(xcrun simctl list devices available --json | jq -r --arg name "$SIMULATOR_NAME" '
+          .devices
+          | to_entries
+          | map(select(.key | test("SimRuntime\\.iOS-")))
+          | sort_by(.key | capture("iOS-(?<major>[0-9]+)-(?<minor>[0-9]+)") | [(.major | tonumber), (.minor | tonumber)])
+          | reverse
+          | map(.value[] | select(.name == $name) | .udid)
+          | first // empty
+        ')"
 
         if [[ -z "$UDID" ]]; then
-          echo "No available simulator found for model: $SIMULATOR_NAME" >&2
+          echo "No available simulator found named: $SIMULATOR_NAME" >&2
           exit 1
         fi
 
-        xcrun simctl boot "$UDID" || true
+        echo "udid=$UDID" >> "$GITHUB_OUTPUT"
+
+        # bootstatus -b boots the device if it isn't already booted and blocks
+        # until boot completes; no separate `simctl boot` needed, and a boot
+        # failure fails the step instead of being swallowed.
         xcrun simctl bootstatus "$UDID" -b
