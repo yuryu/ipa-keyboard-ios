@@ -58,6 +58,23 @@ struct BundledLayoutTests {
         #expect(grouped != nil)
     }
 
+    @Test func enUSKeepsTheFullVowelInventoryOnThePrimaryPanel() throws {
+        // Issue #39: the high-frequency diphthongs and the rhotic schwa must be
+        // visible by default, not parked behind the "More" panel switch.
+        let layouts = LayoutStore().bundledLayouts()
+        let enUS = try #require(layouts.first { $0.locale == "en-US" })
+        let primary = try #require(enUS.primaryArrangement?.primaryPanel)
+        let inserted = Set(primary.rows.flatMap(\.keys).compactMap { key -> String? in
+            if case .insert(let text) = key.action { return text }
+            return nil
+        })
+        let vowels: Set<String> = [
+            "i", "ɪ", "u", "ʊ", "ɛ", "æ", "ə", "ʌ", "ɑ", "ɔ",
+            "eɪ", "oʊ", "aɪ", "aʊ", "ɔɪ", "ɚ",
+        ]
+        #expect(vowels.isSubset(of: inserted))
+    }
+
     @Test func everyCharacterKeyHasADisplayLabel() {
         for layout in LayoutStore().bundledLayouts() {
             let panels = layout.arrangements.flatMap(\.panels)
