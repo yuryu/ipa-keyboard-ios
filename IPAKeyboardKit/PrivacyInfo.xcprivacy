@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  Privacy manifest for the IPAKeyboardKit framework.
+
+  This is the bundle whose code actually calls the required-reason
+  UserDefaults API: `AppGroup.sharedDefaults` opens the App Group suite
+  (`UserDefaults(suiteName: "group.net.yuryu.IPAKeyboard")`) and
+  `KeyboardPreferences` falls back to `UserDefaults.standard` while the
+  App Group is unprovisioned. Declared reasons:
+    1C8F.1 - defaults shared only within our own App Group
+             (host app writes, keyboard extension reads).
+    CA92.1 - the process-local `.standard` fallback, accessible to the
+             app itself only.
+  Nothing is tracked or collected; the framework has no network code.
+-->
+<plist version="1.0">
+<dict>
+	<key>NSPrivacyTracking</key>
+	<false/>
+	<key>NSPrivacyTrackingDomains</key>
+	<array/>
+	<key>NSPrivacyCollectedDataTypes</key>
+	<array/>
+	<key>NSPrivacyAccessedAPITypes</key>
+	<array>
+		<dict>
+			<key>NSPrivacyAccessedAPIType</key>
+			<string>NSPrivacyAccessedAPICategoryUserDefaults</string>
+			<key>NSPrivacyAccessedAPITypeReasons</key>
+			<array>
+				<string>1C8F.1</string>
+				<string>CA92.1</string>
+			</array>
+		</dict>
+	</array>
+</dict>
+</plist>

@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  Privacy manifest for the IPAKeyboard host app.
+
+  The app tracks nothing and collects nothing; all layouts and
+  preferences stay on-device in the App Group container. The app process
+  reads and writes UserDefaults through IPAKeyboardKit
+  (`KeyboardPreferences` over `AppGroup.sharedDefaults`), so the
+  UserDefaults required-reason category is declared here as well as in
+  the framework's own manifest. Declared reasons:
+    1C8F.1 - defaults shared only within our own App Group
+             (host app writes, keyboard extension reads).
+    CA92.1 - the process-local `.standard` fallback used while the
+             App Group is unprovisioned, accessible to the app only.
+-->
+<plist version="1.0">
+<dict>
+	<key>NSPrivacyTracking</key>
+	<false/>
+	<key>NSPrivacyTrackingDomains</key>
+	<array/>
+	<key>NSPrivacyCollectedDataTypes</key>
+	<array/>
+	<key>NSPrivacyAccessedAPITypes</key>
+	<array>
+		<dict>
+			<key>NSPrivacyAccessedAPIType</key>
+			<string>NSPrivacyAccessedAPICategoryUserDefaults</string>
+			<key>NSPrivacyAccessedAPITypeReasons</key>
+			<array>
+				<string>1C8F.1</string>
+				<string>CA92.1</string>
+			</array>
+		</dict>
+	</array>
+</dict>
+</plist>
