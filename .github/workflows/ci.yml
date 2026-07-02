@@ -20,6 +20,8 @@ env:
   # drops it. Build steps don't reference it — they target the generic
   # simulator destination, which needs no concrete device (#40).
   SIMULATOR_NAME: iPhone 17
+  # The project deploys to iOS 26.5, so tests must not boot an older runtime.
+  SIMULATOR_OS_VERSION: "^26.5"
 
 jobs:
   build-and-test:
@@ -75,6 +77,7 @@ jobs:
         uses: futureware-tech/simulator-action@v5
         with:
           model: ${{ env.SIMULATOR_NAME }}
+          os_version: ${{ env.SIMULATOR_OS_VERSION }}
           wait_for_boot: true
 
       - name: Run IPAKeyboardKit unit tests
@@ -127,6 +130,7 @@ jobs:
         uses: futureware-tech/simulator-action@v5
         with:
           model: ${{ env.SIMULATOR_NAME }}
+          os_version: ${{ env.SIMULATOR_OS_VERSION }}
           wait_for_boot: true
 
       # Sequential (-parallel-testing-enabled NO): with clone-based parallel
