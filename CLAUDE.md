@@ -17,9 +17,10 @@ The defining requirement is **customizability**: the app ships read-only default
 
 ## Product direction
 
-The living feature wishlist and UX intent live in `docs/ROADMAP.md` (this file
-covers code structure; the roadmap covers what we're building and why). Read it
-before planning feature work. The headline goals:
+Durable product intent and UX direction live in `docs/ROADMAP.md` (this file
+covers code structure; the roadmap covers what we're building and why —
+actionable work is GitHub issues, never a roadmap task list). Read it before
+planning feature work. The headline goals:
 
 - **Two kinds of layouts** — *dialect* layouts curated per language-dialect
   (e.g. `en-US`, a phonetic split of consonants and vowels) and *generic*,
@@ -34,15 +35,14 @@ before planning feature work. The headline goals:
 - **One screen, no horizontal scrolling**; a **secondary symbols panel** (like
   iOS's `123`/`#+=`) for less-common symbols.
 - **Setup-screen selection** of the active layout, and per layout which
-  symbols are enabled — both delivered (`KeyboardPreferences` +
-  `ActiveLayoutResolver`; reversible hidden-symbols curation).
+  symbols are enabled (`KeyboardPreferences` + `ActiveLayoutResolver`;
+  reversible hidden-symbols curation).
 
-The render spine, schema v2, the layout library, active-layout selection (with
-the first generic layout), and per-layout symbol curation are all delivered.
-Remaining and future work is tracked as GitHub issues (see Workflow). The
-guiding rule still holds: don't generalize the schema before a real keyboard
-renders — generic layouts are just additional bundled JSON and need no schema
-change.
+What's delivered versus what remains lives in one place — "Where we are" in
+`docs/ROADMAP.md` — with the remainder tracked as GitHub issues (see
+Workflow); don't restate that inventory here. The guiding rule still holds:
+don't generalize the schema before a real keyboard renders — generic layouts
+are just additional bundled JSON and need no schema change.
 
 ## Workflow
 

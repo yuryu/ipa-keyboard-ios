@@ -7,14 +7,12 @@ IPAKeyboard is a system custom keyboard — a host container app plus a keyboard
 extension — that ships good default IPA layouts per language-dialect and lets
 you compose and edit the symbol set you actually use.
 
-> **Status: early-stage prototype.** The data model, layout store, two bundled
-> layouts (`en-US` and the generic "IPA — Full (QWERTY)"), the keyboard
-> extension (renders the active layout and types IPA), and a host app with a
-> layout library, active-layout selection, and per-layout symbol curation all
-> exist; key-level layout *editing* is next. Code signing is deferred (the
-> Apple developer account is mid-relocation), so the framework builds
-> standalone but a full signed app/extension build does not yet run. Planned
-> work is tracked in
+> **Status: early-stage prototype.** The keyboard extension and the host app's
+> layout-management UI exist; key-level layout *editing* is next. Code signing
+> is deferred (the Apple developer account is mid-relocation), so the framework
+> builds standalone but a full signed app/extension build does not yet run.
+> For what's delivered and what's planned, see
+> ["Where we are"](docs/ROADMAP.md#where-we-are) and
 > [GitHub Issues](https://github.com/yuryu/ipa-keyboard-ios/issues).
 
 ## What makes it different

@@ -4,8 +4,10 @@ This file captures *what we're building and why* — the durable product intent.
 CLAUDE.md covers how the code is structured; **actionable work is tracked as
 [GitHub issues](https://github.com/yuryu/ipa-keyboard-ios/issues)**. When a
 direction below becomes current work it graduates to an issue; this file stays
-at the level of intent so the two don't drift. Don't add task lists or status
-tracking here — file an issue instead.
+at the level of intent so the two don't drift. Don't add task lists or
+per-item status tracking here — file an issue instead. The one narrative
+status snapshot is "Where we are" below; other docs link to it rather than
+restating it.
 
 ## The core idea
 
@@ -44,15 +46,15 @@ the secondary-panel mechanism.
 
 The user journey the host app builds toward:
 
-1. **Select** the active layout (which keyboard the extension shows) — *delivered*.
+1. **Select** the active layout (which keyboard the extension shows).
 2. **Curate** per-layout which symbols are enabled, as a reversible overlay
-   that never touches the layout document — *delivered*.
-3. **Fork** a built-in into a user-owned copy ("Duplicate to Edit") — *delivered*.
-4. **Edit** a forked layout's actual keys — rows, labels, alternates, widths —
-   not built yet ([#6](https://github.com/yuryu/ipa-keyboard-ios/issues/6)).
+   that never touches the layout document.
+3. **Fork** a built-in into a user-owned copy ("Duplicate to Edit").
+4. **Edit** a forked layout's actual keys — rows, labels, alternates, widths
+   ([#6](https://github.com/yuryu/ipa-keyboard-ios/issues/6)).
 5. **Share**: export/import a layout as a file ([#8](https://github.com/yuryu/ipa-keyboard-ios/issues/8)).
 
-### Interaction principles (all delivered)
+### Interaction principles
 
 - **Multi-symbol keys** — allophones/variants reachable from one key
   (`pʰ` from `p`, `ɚ`/`ɝ` from schwa) via long-press `alternates`.
