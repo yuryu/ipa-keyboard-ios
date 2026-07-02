@@ -89,14 +89,15 @@ show_all = "'"${3:-}"'" == "--all"
 out = []
 for t in data:
     cs = t["comments"]["nodes"]
-    if not cs or cs[0]["author"]["login"] != bot:
+    # author can be null for deleted/ghosted accounts
+    if not cs or ((cs[0].get("author") or {}).get("login")) != bot:
         continue
     if t["isResolved"] and not show_all:
         continue
     out.append({
         "threadId": t["id"], "isResolved": t["isResolved"], "isOutdated": t["isOutdated"],
         "path": t["path"], "line": t["line"],
-        "comments": [{"commentId": c["databaseId"], "author": c["author"]["login"], "body": c["body"]} for c in cs],
+        "comments": [{"commentId": c["databaseId"], "author": (c.get("author") or {}).get("login"), "body": c["body"]} for c in cs],
     })
 print(json.dumps(out, indent=2, ensure_ascii=False))
 '
@@ -159,7 +160,8 @@ bot = "'"$BOT"'"
 rollup = (pr["commits"]["nodes"][0]["commit"]["statusCheckRollup"] or {}).get("state", "NONE")
 pending = any((n["requestedReviewer"] or {}).get("login") == bot for n in pr["reviewRequests"]["nodes"])
 unresolved = sum(1 for t in pr["reviewThreads"]["nodes"]
-                 if t["comments"]["nodes"] and t["comments"]["nodes"][0]["author"]["login"] == bot
+                 if t["comments"]["nodes"]
+                 and ((t["comments"]["nodes"][0].get("author") or {}).get("login")) == bot
                  and not t["isResolved"])
 print(f"{rollup} {str(pending).lower()} {unresolved}")
 ')

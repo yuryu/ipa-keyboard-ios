@@ -27,7 +27,7 @@ $SKILL threads 47         # unresolved Copilot threads as JSON: threadId, commen
 3. **Reply to every thread, then resolve it.** Never resolve silently — the reply is the audit trail (say what you changed + the commit SHA, or why you declined):
 
 ```bash
-$SKILL reply 47 3514812939 'Accepted — restored in 8da42ef.'   # 2nd arg = commentId from `threads`
+$SKILL reply 47 3514812939 'Accepted — restored in 8da42ef.'   # 3rd arg = the thread's FIRST (Copilot) commentId — not a reply's id
 $SKILL resolve PRRT_kwDOTIIYJ86N-JVd                           # threadId from `threads`
 ```
 
@@ -59,7 +59,7 @@ Copilot's re-review may add new threads on your fixes — that's the loop restar
 - **Another session may be working the same PR** (observed live on this repo). Before acting on a thread, check its existing replies — a `yuryu` reply means someone already triaged it. The `prs` sweep + thread replies are your coordination surface.
 - **Everything the driver does is reversible** except replies-once-seen: `unresolve <threadId>` undoes resolve; a reply can be deleted with `gh api -X DELETE repos/{owner}/{repo}/pulls/comments/<id>`.
 - Thread `isOutdated: true` means the commented lines changed since — usually your push already addressed it; still reply + resolve.
-- `wait` treats rollup `SKIPPED` conclusions as passing (correct: skipped `claude` checks are normal) and a PR with no checks as green.
+- `wait` keys off the rollup *state* (`SUCCESS`/`PENDING`/`FAILURE`…). Individual checks with a `SKIPPED` conclusion roll up into `SUCCESS` (observed with the skipped `claude` checks), so they never block readiness; a PR with no checks at all counts as green.
 
 ## Troubleshooting
 
