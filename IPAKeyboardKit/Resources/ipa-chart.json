@@ -266,7 +266,7 @@
         },
         {
           "name": "More",
-          "switchKey": { "action": { "type": "switchPanel", "target": "Stops" }, "label": "stops", "accessibilityLabel": "plosive and nasal symbols", "widthFactor": 1.5 },
+          "switchKey": { "action": { "type": "switchPanel", "target": "Tones" }, "label": "tones", "accessibilityLabel": "tone and intonation symbols", "widthFactor": 1.5 },
           "rows": [
             {
               "keys": [
@@ -380,6 +380,81 @@
                 },
                 { "action": { "type": "insert", "text": "̚" }, "label": "◌̚", "accessibilityLabel": "no audible release" },
                 { "action": { "type": "insert", "text": "˞" }, "label": "˞", "accessibilityLabel": "rhoticity" }
+              ]
+            }
+          ]
+        },
+        {
+          "name": "Tones",
+          "switchKey": { "action": { "type": "switchPanel", "target": "Stops" }, "label": "stops", "accessibilityLabel": "plosive and nasal symbols", "widthFactor": 1.5 },
+          "rows": [
+            {
+              "keys": [
+                {
+                  "action": { "type": "insert", "text": "˥" },
+                  "label": "˥",
+                  "accessibilityLabel": "extra-high tone bar",
+                  "alternates": [
+                    { "action": { "type": "insert", "text": "̋" }, "label": "◌̋", "accessibilityLabel": "combining extra-high tone" }
+                  ]
+                },
+                {
+                  "action": { "type": "insert", "text": "˦" },
+                  "label": "˦",
+                  "accessibilityLabel": "high tone bar",
+                  "alternates": [
+                    { "action": { "type": "insert", "text": "́" }, "label": "◌́", "accessibilityLabel": "combining high tone" }
+                  ]
+                },
+                {
+                  "action": { "type": "insert", "text": "˧" },
+                  "label": "˧",
+                  "accessibilityLabel": "mid tone bar",
+                  "alternates": [
+                    { "action": { "type": "insert", "text": "̄" }, "label": "◌̄", "accessibilityLabel": "combining mid tone" }
+                  ]
+                },
+                {
+                  "action": { "type": "insert", "text": "˨" },
+                  "label": "˨",
+                  "accessibilityLabel": "low tone bar",
+                  "alternates": [
+                    { "action": { "type": "insert", "text": "̀" }, "label": "◌̀", "accessibilityLabel": "combining low tone" }
+                  ]
+                },
+                {
+                  "action": { "type": "insert", "text": "˩" },
+                  "label": "˩",
+                  "accessibilityLabel": "extra-low tone bar",
+                  "alternates": [
+                    { "action": { "type": "insert", "text": "̏" }, "label": "◌̏", "accessibilityLabel": "combining extra-low tone" }
+                  ]
+                }
+              ]
+            },
+            {
+              "keys": [
+                {
+                  "action": { "type": "insert", "text": "˩˥" },
+                  "label": "˩˥",
+                  "accessibilityLabel": "rising tone",
+                  "alternates": [
+                    { "action": { "type": "insert", "text": "̌" }, "label": "◌̌", "accessibilityLabel": "combining rising tone" }
+                  ]
+                },
+                {
+                  "action": { "type": "insert", "text": "˥˩" },
+                  "label": "˥˩",
+                  "accessibilityLabel": "falling tone",
+                  "alternates": [
+                    { "action": { "type": "insert", "text": "̂" }, "label": "◌̂", "accessibilityLabel": "combining falling tone" }
+                  ]
+                },
+                { "action": { "type": "insert", "text": "ꜜ" }, "label": "ꜜ", "accessibilityLabel": "downstep" },
+                { "action": { "type": "insert", "text": "ꜛ" }, "label": "ꜛ", "accessibilityLabel": "upstep" },
+                { "action": { "type": "insert", "text": "↗" }, "label": "↗", "accessibilityLabel": "global rise" },
+                { "action": { "type": "insert", "text": "↘" }, "label": "↘", "accessibilityLabel": "global fall" },
+                { "action": { "type": "insert", "text": "‖" }, "label": "‖", "accessibilityLabel": "major intonation group break" }
               ]
             }
           ]
