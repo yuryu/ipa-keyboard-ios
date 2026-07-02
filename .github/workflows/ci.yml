@@ -68,14 +68,12 @@ jobs:
             build-for-testing
 
       # Running tests does need a concrete device: boot one by model, to
-      # completion, so the test step finds it running. No OS version spec and
-      # no UDID plumbing — the action's docs recommend selecting by model only,
-      # and the deployment target (26.0) accepts any runtime the image ships.
+      # completion, so the test step finds it running. No OS version spec —
+      # the deployment target (26.0) accepts any runtime the image ships.
       - name: Boot simulator
-        uses: futureware-tech/simulator-action@v5
+        uses: ./.github/actions/boot-simulator
         with:
-          model: ${{ env.SIMULATOR_NAME }}
-          wait_for_boot: true
+          simulator-name: ${{ env.SIMULATOR_NAME }}
 
       - name: Run IPAKeyboardKit unit tests
         run: |
@@ -123,10 +121,9 @@ jobs:
       # "Busy (Application failed preflight checks)", so boot the device to
       # completion before the test step resolves it by name (#40).
       - name: Boot simulator
-        uses: futureware-tech/simulator-action@v5
+        uses: ./.github/actions/boot-simulator
         with:
-          model: ${{ env.SIMULATOR_NAME }}
-          wait_for_boot: true
+          simulator-name: ${{ env.SIMULATOR_NAME }}
 
       # Sequential (-parallel-testing-enabled NO): with clone-based parallel
       # testing, xcodebuild also launches the runner on the original device

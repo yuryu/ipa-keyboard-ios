@@ -1,0 +1,26 @@
+name: Boot iOS simulator
+description: Boot an available simulator by model name and wait for full boot
+
+inputs:
+  simulator-name:
+    description: Simulator model name (for example, "iPhone 17")
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - name: Boot simulator and wait
+      shell: bash
+      run: |
+        set -euo pipefail
+
+        SIMULATOR_NAME="${{ inputs.simulator-name }}"
+        UDID="$(xcrun simctl list devices available | awk -v model="$SIMULATOR_NAME" -F '[()]' '$0 ~ model { print $2; exit }')"
+
+        if [[ -z "$UDID" ]]; then
+          echo "No available simulator found for model: $SIMULATOR_NAME" >&2
+          exit 1
+        fi
+
+        xcrun simctl boot "$UDID" || true
+        xcrun simctl bootstatus "$UDID" -b
