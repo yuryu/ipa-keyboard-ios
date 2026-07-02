@@ -76,8 +76,9 @@ struct BundledLayoutTests {
     // MARK: Generic "IPA — Full (QWERTY)" layout
 
     private func genericFullLayout() throws -> KeyboardLayout {
+        // Selected by name: there are several bundled `und` layouts.
         let layouts = LayoutStore().bundledLayouts()
-        return try #require(layouts.first { $0.locale == "und" },
+        return try #require(layouts.first { $0.name == "IPA — Full (QWERTY)" },
                             "the generic IPA — Full (QWERTY) layout should be bundled")
     }
 
@@ -89,7 +90,7 @@ struct BundledLayoutTests {
     @Test func genericFullLayoutIsAReadOnlyUndLayout() throws {
         let full = try genericFullLayout()
         #expect(full.isBuiltIn)
-        #expect(full.name == "IPA — Full (QWERTY)")
+        #expect(full.locale == "und")
         #expect(full.schemaVersion == KeyboardLayout.currentSchemaVersion)
     }
 
@@ -122,8 +123,10 @@ struct BundledLayoutTests {
 
     @Test func bundledLayoutsUseIPAUnicodeNotASCIILookalikes() {
         // The velar plosive is ɡ (U+0261) not g, length is ː (U+02D0) not ':',
-        // glottal stop is ʔ (U+0294) not '?', stress is ˈ (U+02C8) not "'".
-        let forbidden: Set<String> = ["g", ":", "?", "'"]
+        // glottal stop is ʔ (U+0294) not '?', stress is ˈ (U+02C8) not "'",
+        // the (post)alveolar click is ǃ (U+01C3) not '!', and the dental
+        // click is ǀ (U+01C0) not '|'.
+        let forbidden: Set<String> = ["g", ":", "?", "'", "!", "|"]
         for layout in LayoutStore().bundledLayouts() {
             let panels = layout.arrangements.flatMap(\.panels)
             let allKeys = panels.flatMap(\.rows).flatMap(\.keys)
@@ -138,5 +141,129 @@ struct BundledLayoutTests {
                 }
             }
         }
+    }
+
+    // MARK: Generic "IPA — Chart" layout
+
+    private func genericChartLayout() throws -> KeyboardLayout {
+        let layouts = LayoutStore().bundledLayouts()
+        return try #require(layouts.first { $0.name == "IPA — Chart" },
+                            "the generic IPA — Chart layout should be bundled")
+    }
+
+    /// Every string a layout can insert — panel rows, the function row, switch
+    /// keys, and long-press alternates (recursively).
+    private func insertTexts(in layout: KeyboardLayout) -> Set<String> {
+        var texts = Set<String>()
+        func visit(_ key: Key) {
+            if case .insert(let text) = key.action { texts.insert(text) }
+            key.alternates.forEach(visit)
+        }
+        let panels = layout.arrangements.flatMap(\.panels)
+        (panels.flatMap(\.rows).flatMap(\.keys)
+            + layout.arrangements.compactMap(\.functionRow).flatMap(\.keys)
+            + panels.compactMap(\.switchKey))
+            .forEach(visit)
+        return texts
+    }
+
+    @Test func genericChartLayoutIsAReadOnlyUndLayout() throws {
+        let chart = try genericChartLayout()
+        #expect(chart.isBuiltIn)
+        #expect(chart.locale == "und")
+        #expect(chart.schemaVersion == KeyboardLayout.currentSchemaVersion)
+    }
+
+    @Test func genericChartLayoutPanelSwitchKeysFormACycle() throws {
+        // Stops → Fricatives → Vowels → More → Stops, the way ipa-full cycles
+        // its panels: every panel is reachable and the cycle closes.
+        let arrangement = try #require(try genericChartLayout().primaryArrangement)
+        #expect(arrangement.panels.count == 4)
+        let start = try #require(arrangement.primaryPanel)
+        var current = start
+        var visited: Set<String> = []
+        for _ in arrangement.panels.indices {
+            visited.insert(current.name)
+            guard case .switchPanel(let target) = try #require(current.switchKey).action else {
+                Issue.record("chart panel \(current.name) switchKey is not a switchPanel action")
+                return
+            }
+            current = try #require(arrangement.panel(named: target))
+        }
+        #expect(current.name == start.name, "chart panel switch keys should cycle back to the first panel")
+        #expect(visited.count == arrangement.panels.count, "chart panel cycle should visit every panel once")
+    }
+
+    @Test func genericChartLayoutStaysWithinTheFullLayoutHeightBudget() throws {
+        // The keyboard is sized to totalRowCount; the chart layout must not
+        // render taller than the already-shipped generic layout.
+        let chart = try #require(try genericChartLayout().primaryArrangement)
+        let full = try #require(try genericFullLayout().primaryArrangement)
+        #expect(chart.totalRowCount <= full.totalRowCount)
+        let functionRow = try #require(chart.functionRow)
+        #expect(functionRow.keys.contains { $0.action == .nextKeyboard })
+    }
+
+    @Test func genericChartLayoutFitsOneScreenPerPanel() throws {
+        // Same density heuristics as the Full layout: no horizontal scrolling,
+        // keys no denser than a QWERTY row (ipa-full's widest row is 10 keys).
+        let arrangement = try #require(try genericChartLayout().primaryArrangement)
+        for panel in arrangement.panels {
+            for row in panel.rows {
+                let width = row.keys.reduce(0.0) { $0 + $1.widthFactor }
+                #expect(width <= 12.0, "row too dense in chart panel \(panel.name)")
+                #expect(row.keys.filter { !$0.isSpacer }.count <= 10,
+                        "too many keys in a row of chart panel \(panel.name)")
+            }
+        }
+    }
+
+    @Test func genericChartLayoutUsesTheExactChartCodePoints() throws {
+        // Spot-check the trap-prone code points against the Unicode escapes so
+        // an editor silently substituting a lookalike glyph fails loudly.
+        // Clicks intentionally follow IPA values, not Unicode names (U+01C3 is
+        // *named* "retroflex click" but is the IPA (post)alveolar click ǃ).
+        let texts = insertTexts(in: try genericChartLayout())
+        let required: [(String, String)] = [
+            ("\u{0261}", "voiced velar plosive ɡ"),
+            ("\u{014B}", "voiced velar nasal ŋ"),
+            ("\u{02D0}", "length mark ː"),
+            ("\u{0298}", "bilabial click ʘ"),
+            ("\u{01C0}", "dental click ǀ"),
+            ("\u{01C3}", "(post)alveolar click ǃ"),
+            ("\u{01C2}", "palatoalveolar click ǂ"),
+            ("\u{01C1}", "alveolar lateral click ǁ"),
+            ("\u{0253}", "voiced bilabial implosive ɓ"),
+            ("\u{0257}", "voiced alveolar implosive ɗ"),
+            ("\u{0284}", "voiced palatal implosive ʄ"),
+            ("\u{0260}", "voiced velar implosive ɠ"),
+            ("\u{029B}", "voiced uvular implosive ʛ"),
+            ("\u{02BC}", "ejective mark ʼ"),
+            ("\u{0299}", "voiced bilabial trill ʙ"),
+            ("\u{2C71}", "voiced labiodental flap ⱱ"),
+            ("\u{0361}", "tie bar ◌͡◌"),
+            ("\u{0259}", "schwa ə"),
+        ]
+        for (text, what) in required {
+            #expect(texts.contains(text), "chart layout should insert \(what)")
+        }
+    }
+
+    @Test func genericChartLayoutEveryKeyHasAnAccessibilityLabel() throws {
+        // The chart layout promises a spoken IPA name on every symbol key,
+        // long-press alternates included.
+        let layout = try genericChartLayout()
+        func check(_ key: Key) {
+            if case .insert = key.action {
+                #expect(!(key.accessibilityLabel ?? "").isEmpty,
+                        "missing accessibilityLabel for chart key \(key.displayLabel)")
+            }
+            key.alternates.forEach(check)
+        }
+        let panels = layout.arrangements.flatMap(\.panels)
+        (panels.flatMap(\.rows).flatMap(\.keys)
+            + layout.arrangements.compactMap(\.functionRow).flatMap(\.keys)
+            + panels.compactMap(\.switchKey))
+            .forEach(check)
     }
 }
