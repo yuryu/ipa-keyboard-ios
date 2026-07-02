@@ -9,12 +9,17 @@
 //
 //  Accessibility identifier scheme (for ui-test-author):
 //    layout-list                    — the List
-//    layout-list-builtin-section    — the "Built-in" section
-//    layout-list-user-section       — the "My Layouts" section
+//    layout-list-active-section     — the "Active" section header
+//    layout-list-builtin-section    — the "Built-in" section header
+//    layout-list-user-section       — the "My Layouts" section header
 //    layout-row-<layout.id>         — each row (stable UUID; name is mutable)
 //    layout-list-container-unavailable — the saving-unavailable notice
 //    layout-list-help-button        — toolbar button reopening the onboarding
 //                                     guidance (see OnboardingView.swift)
+//
+//  Section identifiers go on the header Text, never on the Section itself:
+//  a modifier on Section is applied to every row, which would overwrite the
+//  per-row `layout-row-<id>` identifiers (observed on the iOS 26 SDK).
 //
 
 import SwiftUI
@@ -77,6 +82,7 @@ struct LayoutListView: View {
             .listRowInsets(EdgeInsets(top: 8, leading: 12, bottom: 8, trailing: 12))
         } header: {
             Text("Active")
+                .accessibilityIdentifier("layout-list-active-section")
         } footer: {
             if library.selectionReachesKeyboard {
                 Text("The layout the keyboard shows. Open any layout and tap "
@@ -88,7 +94,6 @@ struct LayoutListView: View {
                     .accessibilityIdentifier("layout-list-selection-unavailable")
             }
         }
-        .accessibilityIdentifier("layout-list-active-section")
     }
 
     private var builtInSection: some View {
@@ -98,6 +103,7 @@ struct LayoutListView: View {
             }
         } header: {
             Text("Built-in")
+                .accessibilityIdentifier("layout-list-builtin-section")
         } footer: {
             if !library.containerAvailable {
                 Text("Editing a built-in creates your own copy. Saving isn’t "
@@ -109,7 +115,6 @@ struct LayoutListView: View {
                     + "duplicate it for editing.")
             }
         }
-        .accessibilityIdentifier("layout-list-builtin-section")
     }
 
     private var userSection: some View {
@@ -126,8 +131,8 @@ struct LayoutListView: View {
             }
         } header: {
             Text("My Layouts")
+                .accessibilityIdentifier("layout-list-user-section")
         }
-        .accessibilityIdentifier("layout-list-user-section")
     }
 
     private func layoutRow(_ layout: KeyboardLayout) -> some View {

@@ -22,9 +22,9 @@ import XCTest
 ///
 /// Accessibility identifiers sourced from `LayoutListView.swift`:
 ///   `layout-list`                   — the `List`
-///   `layout-list-builtin-section`   — "Built-in" section
-///   `layout-list-user-section`      — "My Layouts" section
-///   `layout-row-<UUID>`             — each row cell
+///   `layout-list-builtin-section`   — "Built-in" section header
+///   `layout-list-user-section`      — "My Layouts" section header
+///   `layout-row-<UUID>`             — each row (a Button inside the cell)
 ///   `layout-list-help-button`       — toolbar button reopening onboarding
 ///                                     guidance (see OnboardingScreen.swift)
 @MainActor
@@ -63,8 +63,11 @@ struct LibraryScreen {
 
     /// The built-in English (US) row, located by its stable accessibility
     /// identifier (`layout-row-7E5A1C00-0000-4000-8000-00656E2D5553`).
+    /// On the iOS 26 SDK a SwiftUI `NavigationLink` row surfaces as a
+    /// `Button` inside the `Cell` — the identifier lands on the Button, so
+    /// query `buttons`, not `cells`.
     var englishUSRow: XCUIElement {
-        app.cells["layout-row-\(LibraryScreen.englishUSLayoutID)"]
+        app.buttons["layout-row-\(LibraryScreen.englishUSLayoutID)"]
     }
 
     // MARK: Convenience lookup
@@ -101,9 +104,14 @@ struct LayoutDetailScreen {
 
     // MARK: Elements
 
-    /// The live `KeyboardView` preview container.
+    /// The live `KeyboardView` preview. On the iOS 26 SDK the SwiftUI
+    /// container is not itself an accessibility element — the identifier
+    /// propagates to the key elements inside it — so match any element type
+    /// and take the first hit.
     var preview: XCUIElement {
-        app.otherElements["layout-detail-preview"]
+        app.descendants(matching: .any)
+            .matching(identifier: "layout-detail-preview")
+            .firstMatch
     }
 
     /// "Duplicate to Edit" button, present for built-in layouts only.
@@ -122,12 +130,30 @@ struct LayoutDetailScreen {
         app.navigationBars.buttons["Layouts"]
     }
 
+    // MARK: Scrolling
+
+    /// Scrolls the detail list until `element` exists, swiping up at most
+    /// `maxSwipes` times. Needed because SwiftUI lists are lazy: the action
+    /// section ("Duplicate to Edit" / "Delete") sits below the fold on
+    /// iPhone-sized screens and is absent from the accessibility hierarchy
+    /// until scrolled into view.
+    @discardableResult
+    func scrollTo(_ element: XCUIElement, maxSwipes: Int = 4) -> Bool {
+        var swipes = 0
+        while !element.exists && swipes < maxSwipes {
+            app.swipeUp()
+            swipes += 1
+        }
+        return element.waitForExistence(timeout: 2)
+    }
+
     // MARK: Synchronised wait
 
-    /// Blocks until the "Duplicate to Edit" button appears (the sentinel for
-    /// a built-in layout detail screen), or `timeout` expires.
+    /// Blocks until the keyboard preview appears (the sentinel that the
+    /// detail screen is presented), or `timeout` expires. The action buttons
+    /// are below the fold — use `scrollTo(_:)` before asserting on them.
     @discardableResult
     func waitForContent(timeout: TimeInterval = 10) -> Bool {
-        duplicateButton.waitForExistence(timeout: timeout)
+        preview.waitForExistence(timeout: timeout)
     }
 }
