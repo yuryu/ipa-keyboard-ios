@@ -1,0 +1,19 @@
+---
+name: project_key_editor_flow
+description: Key-level layout editor (issue #6) UI test coverage — screen objects, identifiers, and the App-Group-unavailable skip guard
+metadata:
+  type: project
+---
+
+Added 2026-07-01 in worktree `wf_a1cff817-afa-2` (issue #6, "Key-level layout editor for user layouts"). Host-app implementation (`LayoutDraft`, `LayoutKeyEditorView`, `KeyRowEditorView`, `KeyEditorForm`, plus `LayoutLibrary.update(_:)` and `IPAKeyboardKit/Model/LayoutEditing.swift`) was already in place from `layout-editor-ui`; this covers the UI-test side.
+
+**Files:**
+- `IPAKeyboardUITests/KeyEditorScreen.swift` — three page objects: `LayoutKeyEditorScreen` (editor root sheet), `KeyRowEditorScreen` (one row's keys), `KeyEditorFormScreen` (single-key form, with a `replaceText(in:with:)` helper that deletes-then-types rather than select-all, so it's deterministic and never trims/normalizes Unicode). Both `LayoutKeyEditorScreen.waitForRow(at:)` and `KeyRowEditorScreen.waitForKey(at:)` scroll their List via the shared `waitForRevealed` helper — see [[project_uitest_baseline]].
+- `IPAKeyboardUITests/KeyEditorUITests.swift` — 4 tests, only 2 of which can actually exercise persistence today (see below): `test_builtInDetail_doesNotOfferEditKeys`, `test_duplicateBuiltIn_succeedsOrDegradesGracefully` (both always run and pass — container-independent), `test_editorFlow_editedKeyPersistsToDetailPreview`, `test_editorFlow_cancelWithChangesDiscardsDraft` (both `XCTSkip` when the App Group container is unavailable — see [[project_uitest_baseline]]'s "App Group container is UNAVAILABLE" section for why that's the case in every currently-buildable configuration).
+- `LibraryScreen.swift` gained `LayoutDetailScreen.editKeysButton`, a fixed `preview` accessor, `previewElements(withLabel:)`, `LibraryScreen.row(labelContainsAll:)`/`waitForRow(labelContains:)`/`waitForRow(labelContainsAll:)`, and the shared top-level `waitForRevealed` helper — see [[project_uitest_baseline]] for the two identifier-bleed bugs and the scroll-to-reveal issue these work around.
+
+**Key choice for the fork:** tests fork `"IPA — Full (QWERTY)"` (`ipa-full.json`, locale `und`), not `"English (US) — General American"` — en-US is `ActiveLayoutResolver`'s default, so its name renders twice (Active section + Built-in row), which breaks the label-substring row lookup. The specific key edited is row 0 / key 0 of ipa-full's "QWERTY" panel: `q` (accessibilityLabel "voiceless uvular plosive"), edited to `qʰ` (U+0071 U+02B0) with spoken name "voiceless uvular plosive (edited)" — a real IPA-plausible edit (aspirated uvular stop), and its unedited accessibilityLabel is asserted present in the preview *before* editing so the post-save assertion is a genuine before/after comparison.
+
+**Not empirically verified end-to-end:** because the App Group is unavailable in every buildable configuration today, the actual navigation through `LayoutKeyEditorView` -> `KeyRowEditorView` -> `KeyEditorForm` -> Save -> back to `LayoutDetailView`'s preview has never been exercised by a passing run — it's written to match the source exactly (identifiers copied from the implementer's own header-comment documentation, cross-checked against the actual `.swift` files) and compiles, but should be re-verified once App Group signing/provisioning lands (re-run `KeyEditorUITests` and confirm the two `XCTSkip`-guarded tests actually execute their full bodies and pass, not just compile).
+
+**How to apply:** any future issue-#6-adjacent UI test work (key alternates, panel add/remove, reset-to-default, renaming) should extend `KeyEditorScreen.swift`'s three structs rather than inventing new ones, and must account for the same App-Group-unavailable constraint — gate any assertion that requires a *persisted* user layout behind the same `duplicateBuiltInLayout`-style helper (or its `XCTSkip`), since that constraint is structural to the current build, not specific to this one feature.
