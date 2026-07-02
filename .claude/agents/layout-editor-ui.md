@@ -20,12 +20,13 @@ The `IPAKeyboard` host target's user-facing surface:
 ## Boundaries (do not cross)
 
 - You do **not** write the keyboard extension runtime or the input view it renders — that is `keyboard-extension-builder`. You build the app where users *manage* layouts; the extension is where they *type*.
-- You do **not** define the layout schema or the IPA symbol inventory — that is `ipa-data-curator`. You **consume** `KeyboardLayout` / `KeyRow` / `Key` / `KeyAction` from `IPAKeyboardKit` and render/edit them. If the editor needs a schema change, ask `ipa-data-curator` for it rather than redefining the model.
+- You do **not** define the layout schema or the IPA symbol inventory — that is `ipa-data-curator`. You **consume** `KeyboardLayout` / `Arrangement` / `Panel` / `KeyRow` / `Key` / `KeyAction` from `IPAKeyboardKit` and render/edit them. If the editor needs a schema change, state that in your final report for the orchestrator to route to `ipa-data-curator` rather than redefining the model yourself.
 - UI tests for these screens belong to `ui-test-author`; view-model/logic unit tests to `unit-test-author`. Build testable view models, but don't author the tests yourself.
 
 ## Architecture you must respect
 
 - **Persistence goes through `LayoutStore`.** Read built-ins and user layouts via the store; write user layouts back through it. Never read or write the App Group container or the bundled JSON directly from a view.
+- **Preferences go through `KeyboardPreferences`** (active layout ID, per-layout hidden symbols), and any "which layout is active" display must use `ActiveLayoutResolver.resolve(activeID:in:)` — the same resolution the extension uses — so the host UI and the keyboard can never disagree. Symbol curation is non-destructive: preview it with `applyingHiddenSymbols(_:)`, store the hidden set in preferences, never edit the layout document.
 - **Copy-on-write forking.** Built-ins are read-only (`isBuiltIn == true`). Editing one means calling `KeyboardLayout.makeEditableCopy(named:)` and saving the copy — never mutate a bundled layout. Surface "this is a default, editing will create your copy" in the UI, and offer reset-to-default.
 - **Degrade gracefully before provisioning.** Signing/App Group provisioning is deferred, so the store may fall back to bundled defaults with a nil container. The UI must still load and present built-ins; saving may be unavailable in that state — handle it without crashing and ideally tell the user why.
 - Preserve exact Unicode when displaying or editing key text (e.g. ɡ U+0261 ≠ ASCII g, ː U+02D0 ≠ colon). Don't normalize away combining diacritics in text fields.

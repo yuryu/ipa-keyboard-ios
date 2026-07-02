@@ -11,13 +11,13 @@ You own the **data model** of IPAKeyboard: the IPA symbol inventory and the user
 
 ## Core design principle: layouts are DATA, not code
 
-Layouts must be fully user-customizable: users add new layouts and modify existing ones at runtime. Therefore:
+Layouts are versioned `Codable` JSON documents decoded by the shared `IPAKeyboardKit` — never Swift code. The schema already exists; your job is to evolve it carefully and author data for it. The current shape (verify against `IPAKeyboardKit/Model/` before editing — don't trust this summary over the source):
 
-- Define a versioned, `Codable` **layout schema** (JSON is the natural on-disk format; decode into Swift models in the shared `IPAKeyboardKit`). Include a `schemaVersion` field from day one and plan for migrations.
-- Each layout is identified by a stable UUID plus metadata: a display name, an associated **language-dialect locale** (BCP-47, e.g. `en-US`, `de-DE`, `ja-JP`), `isBuiltIn` (read-only default) vs user-created/edited, and a "derived from" reference when a user forks a default.
-- A layout describes rows → keys. A key carries: the inserted string (one or more Unicode scalars / a grapheme), a display glyph, an optional spoken accessibility name, and optional **long-press alternates** (e.g. base vowel → its diacritic variants). Support combining diacritics as their own keys.
-- **Bundled defaults** are suggested layouts shipped read-only per locale. Editing a default = copying it into the user's editable store (copy-on-write), never mutating the bundled file. Provide a "reset to default" path.
-- User layouts persist in the App Group container so both host app and extension see them. Keep the format diff-friendly and ideally export/import-able (share a layout as a file).
+- `KeyboardLayout` → `Arrangement` → `Panel` → `KeyRow` → `Key`. An `Arrangement` has `panels` plus an optional shared `functionRow` (the pinned bottom bar); a `Panel` has a `switchKey` (the affordance that leaves it, like iOS's `123`) and its symbol `rows`. `KeyboardLayout.currentSchemaVersion` is `2`: v1 (flat `rows`) files migrate structurally on decode; a newer-than-supported version is rejected, never downgraded.
+- `KeyAction` is a discriminated union (`insert`, `backspace`, `space`, `return`, `nextKeyboard`, `switchPanel(target)`, `spacer`) encoded as clean hand-editable JSON (`{ "type": "insert", "text": "ə" }`). `Key` carries `action` plus optional `label`, `accessibilityLabel` (spoken name, e.g. "schwa"), `alternates` (long-press variants, e.g. `p` → `pʰ`), and `widthFactor`; every field except `action` is optional in JSON so documents stay terse.
+- Layout identity/metadata: stable UUID `id`, display `name`, a BCP-47 **locale** (`en-US` for dialect layouts, `und` for generic dialect-independent ones), `isBuiltIn`, and `derivedFrom` when forked from a default.
+- **Bundled defaults** ship read-only in `IPAKeyboardKit/Resources/` (one JSON per layout; `LayoutStore` auto-discovers every `*.json`, so a new layout needs no code change). Editing a default = `makeEditableCopy(named:)` copy-on-write into the user store — never mutate a bundled file. Symbol curation is likewise non-destructive: `applyingHiddenSymbols(_:)` returns a filtered copy; hidden sets live in `KeyboardPreferences`, never in the layout document.
+- Schema changes: bump `currentSchemaVersion`, add a structural on-decode migration for every older version, and keep the format diff-friendly and export/import-able. Don't generalize the schema before a real keyboard renders the new capability — new layouts are usually just new JSON.
 
 ## Research before you assert — use highly trusted sources only
 
@@ -42,7 +42,7 @@ When research is inconclusive (e.g. a contested dialect inventory), say so expli
 
 ## When authoring a default layout for a locale
 
-Base it on the phonemes actually used by that dialect (e.g. en-US should foreground its vowels and rhotic /ɚ/ /ɝ/), organized the way a linguist or language learner expects (pulmonic consonants by place/manner, vowels by the IPA vowel chart where it fits a keyboard). Cite the inventory you used. Keep each layout compact for the extension's memory budget.
+Base it on the phonemes actually used by that dialect (e.g. en-US should foreground its vowels and rhotic /ɚ/ /ɝ/), organized the way a linguist or language learner expects (pulmonic consonants by place/manner, vowels by the IPA vowel chart where it fits a keyboard). Cite the inventory you used. Keep each layout compact for the extension's memory budget, and fit one screen with no horizontal scrolling — overflow goes to a secondary panel, not a wider row. Use the shipped layouts as structural references: `en-US.json` (dialect, split consonants-left/vowels-right via `spacer`, "More" panel) and `ipa-full.json` (generic, locale `und`).
 
 ## Issue workflow
 
