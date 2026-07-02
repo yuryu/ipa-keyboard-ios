@@ -9,7 +9,7 @@ IPAKeyboard is a universal iOS/iPadOS app (bundle id `net.yuryu.IPAKeyboard`) th
 The defining requirement is **customizability**: the app ships read-only default layouts per language-dialect (e.g. `en-US`), and users can add new layouts and fork/edit existing ones. Layouts are **data, not code** (see Architecture).
 
 - Language: Swift 6.0 on all three targets (app, extension, framework)
-- Deployment target: iOS 26.5, universal (`TARGETED_DEVICE_FAMILY = "1,2"`, iPhone + iPad)
+- Deployment target: iOS 26.0, universal (`TARGETED_DEVICE_FAMILY = "1,2"`, iPhone + iPad)
 - No third-party dependencies, no Swift Package Manager manifest
 - Two test targets (`IPAKeyboardKitTests` — Swift Testing; `IPAKeyboardUITests` — XCUITest) with real, if still partial, coverage
 - CI on GitHub Actions (`.github/workflows/ci.yml`); Dependabot keeps Actions current

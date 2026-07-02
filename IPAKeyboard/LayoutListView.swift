@@ -18,6 +18,8 @@
 //                                     guidance (see OnboardingView.swift)
 //    layout-list-import-button      — toolbar button opening the file importer
 //                                     (issue #8; import logic in LayoutLibrary)
+//    layout-list-symbol-reference-button — toolbar button opening the symbol
+//                                     reference (see SymbolReferenceView.swift)
 //
 //  Section identifiers go on the header Text, never on the Section itself:
 //  a modifier on Section is applied to every row, which would overwrite the
@@ -32,6 +34,7 @@ struct LayoutListView: View {
     @State private var library = LayoutLibrary()
     @State private var onboarding = OnboardingState()
     @State private var showingImporter = false
+    @State private var showingSymbolReference = false
     private let metrics = KeyboardMetrics()
 
     var body: some View {
@@ -57,6 +60,14 @@ struct LayoutListView: View {
                 }
                 ToolbarItem(placement: .topBarTrailing) {
                     Button {
+                        showingSymbolReference = true
+                    } label: {
+                        Label("Symbol Reference", systemImage: "character.book.closed")
+                    }
+                    .accessibilityIdentifier("layout-list-symbol-reference-button")
+                }
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button {
                         onboarding.presentManually()
                     } label: {
                         Label("Keyboard Setup Help", systemImage: "questionmark.circle")
@@ -73,6 +84,9 @@ struct LayoutListView: View {
         }
         .sheet(isPresented: $onboarding.isPresented, onDismiss: { onboarding.markSeen() }) {
             OnboardingView()
+        }
+        .sheet(isPresented: $showingSymbolReference) {
+            SymbolReferenceView()
         }
         .onAppear {
             onboarding.presentIfFirstRun()

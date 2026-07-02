@@ -56,6 +56,26 @@ Key form (`KeyEditorForm`, sheet-on-sheet):
   `key-form-add-alternate`, `key-form-done` (labelled "Add" for new keys),
   `key-form-cancel`
 
+Symbol reference (issue #17, `SymbolReferenceView.swift`):
+- `layout-list-symbol-reference-button` — LayoutListView toolbar entry point
+- `symbol-reference-list` (root List), `symbol-reference-row-<text>` (keyed by
+  the exact inserted string, e.g. `…-row-ɡ` with U+0261),
+  `symbol-reference-empty`, `symbol-reference-done`,
+  `symbol-reference-scratch` / `…-scratch-copy` / `…-scratch-clear`
+- Detail: `symbol-detail-glyph`, `symbol-detail-spoken-name`,
+  `symbol-detail-codepoint-<n>` (0-based, label is exactly "U+XXXX"),
+  `symbol-detail-copy` (label flips to "Copied" and stays — sticky by design
+  so tests are race-free), `symbol-detail-add-scratch`
+- The search field takes no custom identifier (SwiftUI `.searchable`); match
+  `app.searchFields.firstMatch`. Placement is
+  `.navigationBarDrawer(displayMode: .always)` so no reveal swipe is needed.
+- Page object: `SymbolReferenceScreen.swift` (self-contained — no shared
+  helpers, so rewrites of other page objects can't break it).
+- Gotcha: the detail screen's back button is labelled "Symbol Reference" —
+  the same label as the library's toolbar entry, which stays in the
+  accessibility hierarchy under the sheet. Any nav-bar query for that label
+  must exclude `layout-list-symbol-reference-button` or it is ambiguous.
+
 Onboarding (issue #7, `OnboardingView.swift` + `OnboardingState.swift`):
 - `onboarding-view` — the sheet's root ScrollView (`app.scrollViews[...]`)
 - `onboarding-full-access-note` — the "Full Access is not required" callout
