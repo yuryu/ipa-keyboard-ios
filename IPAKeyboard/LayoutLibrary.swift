@@ -63,14 +63,31 @@ final class LayoutLibrary {
     /// however many times the hosting view re-appears.
     private var hasPerformedLaunchImport = false
 
+    /// Launch argument (UI tests, issue #27): clears every user layout and
+    /// per-layout hidden-symbol/active-selection preference at startup, so
+    /// fork/persistence tests start from a clean slate instead of
+    /// self-healing via swipe-to-delete — mirrors the
+    /// `--uitest-show-onboarding`/`--uitest-skip-onboarding` pattern in
+    /// `OnboardingState.swift`. Applied before the first `reload()`, so the
+    /// library never observes the stale state even transiently. A safe
+    /// no-op when the App Group container is unavailable (every unsigned
+    /// build today — see CLAUDE.md's signing note): there is nothing
+    /// persisted to clear in that state.
+    static let resetLayoutsArgument = "--uitest-reset-layouts"
+
     init(
         store: LayoutStore = LayoutStore(),
         preferences: KeyboardPreferences = KeyboardPreferences(),
-        environment: [String: String] = ProcessInfo.processInfo.environment
+        environment: [String: String] = ProcessInfo.processInfo.environment,
+        launchArguments: [String] = ProcessInfo.processInfo.arguments
     ) {
         self.store = store
         self.preferences = preferences
         self.launchImportJSON = environment[Self.uiTestImportEnvironmentKey]
+        if launchArguments.contains(Self.resetLayoutsArgument) {
+            try? store.deleteAllUserLayouts()
+            preferences.resetAll()
+        }
         reload()
     }
 

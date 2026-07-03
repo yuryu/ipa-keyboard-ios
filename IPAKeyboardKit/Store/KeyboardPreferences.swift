@@ -74,4 +74,18 @@ public final class KeyboardPreferences {
     public func clearHiddenSymbols(for layoutID: UUID) {
         setHiddenSymbols([], for: layoutID)
     }
+
+    // MARK: Bulk reset
+
+    /// Clear every stored preference: the active-layout selection and all
+    /// per-layout hidden-symbol curation. UI-test reset hook (issue #27),
+    /// paired with `LayoutStore.deleteAllUserLayouts()` so a test can start
+    /// each run from a clean slate instead of self-healing via
+    /// swipe-to-delete. Always succeeds — like the rest of this type, it
+    /// degrades to the process-local `.standard` suite before provisioning
+    /// rather than needing a container to exist.
+    public func resetAll() {
+        activeLayoutID = nil
+        defaults.removeObject(forKey: Keys.hiddenSymbols)
+    }
 }

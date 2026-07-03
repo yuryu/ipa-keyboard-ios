@@ -75,6 +75,19 @@ public final class LayoutStore {
         }
     }
 
+    /// Delete every user layout in the shared container (UI-test reset hook,
+    /// issue #27 — lets a UI test start each run from a clean slate instead of
+    /// self-healing via swipe-to-delete). A no-op, not an error, when the
+    /// directory hasn't been created yet (nothing to reset).
+    public func deleteAllUserLayouts() throws {
+        guard let dir = userLayoutsDirectory else { throw StoreError.sharedContainerUnavailable }
+        guard let urls = try? fileManager.contentsOfDirectory(
+            at: dir, includingPropertiesForKeys: nil) else { return }
+        for url in urls where url.pathExtension == "json" {
+            try fileManager.removeItem(at: url)
+        }
+    }
+
     // MARK: Helpers
 
     private var userLayoutsDirectory: URL? {

@@ -54,6 +54,15 @@ func waitForRevealed(
 struct LibraryScreen {
     let app: XCUIApplication
 
+    // MARK: Launch arguments (sourced from LayoutLibrary.swift)
+
+    /// Clears every user layout and per-layout hidden-symbol/active-selection
+    /// preference at launch, so fork/persistence tests start from a clean
+    /// slate instead of self-healing via swipe-to-delete (issue #27).
+    /// Matches `LayoutLibrary.resetLayoutsArgument`. A safe no-op when the
+    /// App Group container is unavailable (every unsigned build today).
+    static let resetLayoutsArgument = "--uitest-reset-layouts"
+
     // MARK: Navigation
 
     /// The "Layouts" navigation bar. First-class sentinel that the screen is
