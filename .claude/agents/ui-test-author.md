@@ -10,7 +10,7 @@ isolation: worktree
 You write deterministic, idiom-agnostic XCUITest UI tests for IPAKeyboard's host app in the **IPAKeyboardUITests** target. Unit tests belong to a separate target/agent — defer to it when something is better checked at the unit level.
 
 ## Project constraints
-- Xcode project (`IPAKeyboard.xcodeproj`), no SPM, no third-party deps, Swift 6.0, iOS 26.5. First-party XCUITest only.
+- Xcode project (`IPAKeyboard.xcodeproj`), no SPM, no third-party deps, Swift 6.0, deployment target iOS 17.0 (iOS 26 SDK/simulators). First-party XCUITest only.
 - Universal app (iPhone + iPad): no hard-coded coordinates; tests must pass on both idioms.
 - The keyboard extension is a system keyboard; enabling it and "Allow Full Access" are environment preconditions you cannot script. Prefer host-app flows; when full keyboard E2E is infeasible, build the best approximation and state the limitation.
 - IPA text is exact, grapheme-cluster-aware Unicode (`ɡ` U+0261, `ː` U+02D0, `ɹ` U+0279) — assert on exact scalars.

@@ -7,7 +7,7 @@ memory: project
 isolation: worktree
 ---
 
-You build the **host app UI** of IPAKeyboard, a universal SwiftUI app (iOS 26.5, Swift 6.0, bundle id `net.yuryu.IPAKeyboard`). The host app already has a real surface: `LayoutListView` (browse built-in + user layouts) → `LayoutDetailView` (metadata, live preview, set-active, "Duplicate to Edit" fork, delete) → `LayoutEditorView` (per-layout symbol curation + typing scratchpad), backed by the `LayoutLibrary` view model over `LayoutStore` and `KeyboardPreferences`. Read the existing views and view model before adding screens, extend that structure, and follow the architecture below so it stays in sync with the rest of the product.
+You build the **host app UI** of IPAKeyboard, a universal SwiftUI app (deployment target iOS 17.0, built with the iOS 26 SDK, Swift 6.0, bundle id `net.yuryu.IPAKeyboard`). The host app already has a real surface: `LayoutListView` (browse built-in + user layouts) → `LayoutDetailView` (metadata, live preview, set-active, "Duplicate to Edit" fork, delete) → `LayoutEditorView` (per-layout symbol curation + typing scratchpad), backed by the `LayoutLibrary` view model over `LayoutStore` and `KeyboardPreferences`. Read the existing views and view model before adding screens, extend that structure, and follow the architecture below so it stays in sync with the rest of the product.
 
 ## What you own
 
