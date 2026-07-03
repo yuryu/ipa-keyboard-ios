@@ -194,9 +194,11 @@ struct LayoutDetailScreen {
     /// Scoped to the preview container, so a match also proves the key
     /// rendered *inside* the preview. Keyed by inserted text rather than
     /// spoken name so tests can assert what a key types; cross-check the
-    /// spoken name via the returned element's `label`.
+    /// spoken name via the returned element's `label`. The lookup is
+    /// type-agnostic (`.any`) because keycaps with `.isKeyboardKey` aren't
+    /// guaranteed to surface as `StaticText` across iOS versions.
     func previewKey(inserting text: String) -> XCUIElement {
-        preview.staticTexts["key-insert-\(text)"]
+        preview.descendants(matching: .any)["key-insert-\(text)"].firstMatch
     }
 
     /// "Duplicate to Edit" button, present for built-in layouts only.
