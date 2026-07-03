@@ -39,6 +39,7 @@ jobs:
       # Signing is deferred until the Apple developer account is provisioned, so
       # everything runs against a simulator with code signing disabled (CLAUDE.md).
       # Compile-checks all three targets (app, extension, framework) plus the
+      # app-hosted unit-test bundle (IPAKeyboardTests, run below) and the
       # UI-test bundle; the UI tests themselves run in the separate ui-test job.
       # A signed device/archive lane stays out of scope until provisioning
       # lands (issue #3).
@@ -87,12 +88,32 @@ jobs:
             CODE_SIGNING_ALLOWED=NO \
             test-without-building
 
+      # App-hosted unit tests (IPAKeyboardTests) launch the unsigned app on the
+      # booted simulator as the test host. Sequential for the same clone-race
+      # reason as the UI tests (see the ui-test job); scoped so the UI-test
+      # bundle in the same scheme stays in its own job.
+      - name: Run IPAKeyboard app unit tests
+        run: |
+          xcodebuild \
+            -project IPAKeyboard.xcodeproj \
+            -scheme IPAKeyboard \
+            -destination "platform=iOS Simulator,id=${{ steps.boot-simulator.outputs.udid }}" \
+            -resultBundlePath AppTestResults.xcresult \
+            -parallel-testing-enabled NO \
+            -only-testing:IPAKeyboardTests \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY="" \
+            test-without-building
+
       - name: Upload test results
         if: always()
         uses: actions/upload-artifact@v7
         with:
           name: unit-test-results
-          path: TestResults.xcresult
+          path: |
+            TestResults.xcresult
+            AppTestResults.xcresult
           if-no-files-found: ignore
 
   # Runs the XCUITest bundle against the unsigned simulator build. Kept as a
