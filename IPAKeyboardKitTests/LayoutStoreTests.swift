@@ -5,8 +5,10 @@
 //  Tests LayoutStore behaviour visible without a provisioned App Group:
 //  AppGroup.identifier, bundledLayouts auto-discovery, sort order, graceful
 //  degradation when the shared container is unavailable, and the allLayouts
-//  aggregate. Full save/load I/O requires a containerURL injection seam that
-//  does not yet exist in LayoutStore — flagged as a testability gap below.
+//  aggregate. Full save/userLayouts/delete I/O is exercised hermetically via
+//  LayoutStore's `containerURL` injection seam (issue #59), which points the
+//  store at a throwaway temp directory instead of the real (unprovisioned in
+//  this test environment) App Group container.
 //
 
 import Foundation
@@ -59,6 +61,13 @@ struct LayoutStoreTests {
     }
 
     // MARK: Graceful degradation (App Group not provisioned in test environment)
+    //
+    // These exercise LayoutStore()'s *default* containerURL argument, which
+    // resolves to the real AppGroup.containerURL — nil in this unsigned test
+    // environment — so they're guarded rather than deterministic. The
+    // `containerURL: nil`-injected tests further down assert the identical
+    // behaviour unconditionally, regardless of the environment's real
+    // provisioning state.
 
     @Test func userLayoutsReturnsEmptyArrayWhenContainerUnavailable() {
         // The test runner carries no App Group entitlement, so containerURL
@@ -69,9 +78,9 @@ struct LayoutStoreTests {
 
     @Test func saveThrowsWhenContainerUnavailable() throws {
         guard AppGroup.containerURL == nil else {
-            // App Group is unexpectedly provisioned in this environment.
-            // A full save test requires injecting a containerURL; skip here
-            // and note it as a testability gap.
+            // App Group is unexpectedly provisioned in this environment;
+            // saveThrowsWhenContainerIsNil below covers the same behavior
+            // deterministically via explicit injection.
             return
         }
         let layout = KeyboardLayout(
@@ -91,6 +100,37 @@ struct LayoutStoreTests {
         }
     }
 
+    // MARK: Graceful degradation (explicit `containerURL: nil` injection)
+    //
+    // Deterministic counterparts to the guarded tests above: injecting `nil`
+    // directly exercises the degraded path regardless of whether this
+    // environment's real App Group happens to be provisioned.
+
+    @Test func userLayoutsReturnsEmptyArrayWhenContainerIsNil() {
+        #expect(LayoutStore(containerURL: nil).userLayouts().isEmpty)
+    }
+
+    @Test func saveThrowsWhenContainerIsNil() {
+        let layout = KeyboardLayout(
+            name: "Test", locale: "en-US",
+            rows: [KeyRow(keys: [Key(action: .insert("p"))])]
+        )
+        #expect(throws: LayoutStore.StoreError.self) {
+            try LayoutStore(containerURL: nil).save(layout)
+        }
+    }
+
+    @Test func deleteThrowsWhenContainerIsNil() {
+        #expect(throws: LayoutStore.StoreError.self) {
+            try LayoutStore(containerURL: nil).delete(id: UUID())
+        }
+    }
+
+    @Test func allLayoutsIsBundledOnlyWhenContainerIsNil() {
+        let store = LayoutStore(containerURL: nil)
+        #expect(store.allLayouts().map(\.id) == store.bundledLayouts().map(\.id))
+    }
+
     // MARK: allLayouts
 
     @Test func allLayoutsContainsEveryBundledLayout() {
@@ -104,16 +144,130 @@ struct LayoutStoreTests {
         let store = LayoutStore()
         #expect(store.allLayouts().count >= store.bundledLayouts().count)
     }
+}
 
-    // MARK: Testability gap note
-    //
-    // LayoutStore.userLayoutsDirectory is computed from AppGroup.containerURL,
-    // which calls FileManager.containerURL(forSecurityApplicationGroupIdentifier:)
-    // directly. There is no injection seam for the container URL, so it is
-    // impossible to write a hermetic save → userLayouts → delete round-trip in
-    // a test process that lacks the App Group entitlement.
-    //
-    // Recommended fix: add an optional `containerURL: URL?` parameter to
-    // LayoutStore.init (defaulting to AppGroup.containerURL) so tests can pass
-    // a temporary directory and exercise the full I/O path without provisioning.
+/// Hermetic exercise of LayoutStore's persisting half (issue #59): each test
+/// injects a throwaway temp directory as the store's `containerURL`, so the
+/// real save/userLayouts/delete/import I/O path runs without App Group
+/// provisioning and without touching any other test's state.
+struct LayoutStoreHermeticContainerTests {
+
+    /// A directory unique to this test, standing in for the App Group
+    /// container root (LayoutStore appends its own "Layouts" subdirectory
+    /// inside it). Not created up front — `save` is responsible for that,
+    /// matching real container behavior. Removed via the caller's `defer`.
+    private func makeTempContainerURL() -> URL {
+        FileManager.default.temporaryDirectory
+            .appendingPathComponent("LayoutStoreHermeticContainerTests-\(UUID().uuidString)", isDirectory: true)
+    }
+
+    private func makeLayout(name: String = "Hermetic ɡː", id: UUID = UUID()) -> KeyboardLayout {
+        KeyboardLayout(
+            id: id, name: name, locale: "en-US",
+            rows: [KeyRow(keys: [Key(action: .insert("\u{0261}"))])])
+    }
+
+    // MARK: save / userLayouts / delete
+
+    @Test func saveUserLayoutsDeleteRoundTrips() throws {
+        let container = makeTempContainerURL()
+        defer { try? FileManager.default.removeItem(at: container) }
+        let store = LayoutStore(containerURL: container)
+
+        #expect(store.userLayouts().isEmpty)
+
+        let layout = makeLayout()
+        try store.save(layout)
+
+        let saved = store.userLayouts()
+        #expect(saved.count == 1)
+        #expect(saved.first == layout)
+
+        try store.delete(id: layout.id)
+        #expect(store.userLayouts().isEmpty)
+    }
+
+    @Test func saveWritesTheExpectedFileUnderALayoutsSubdirectory() throws {
+        let container = makeTempContainerURL()
+        defer { try? FileManager.default.removeItem(at: container) }
+        let store = LayoutStore(containerURL: container)
+        let layout = makeLayout()
+        try store.save(layout)
+
+        let expectedURL = container
+            .appendingPathComponent("Layouts", isDirectory: true)
+            .appendingPathComponent("\(layout.id.uuidString).json")
+        #expect(FileManager.default.fileExists(atPath: expectedURL.path))
+    }
+
+    @Test func savingTwiceWithTheSameIDOverwritesRatherThanDuplicates() throws {
+        let container = makeTempContainerURL()
+        defer { try? FileManager.default.removeItem(at: container) }
+        let store = LayoutStore(containerURL: container)
+        let id = UUID()
+
+        try store.save(makeLayout(name: "Original", id: id))
+        try store.save(makeLayout(name: "Renamed", id: id))
+
+        let saved = store.userLayouts()
+        #expect(saved.count == 1)
+        #expect(saved.first?.name == "Renamed")
+    }
+
+    @Test func deletingAnUnknownIDInAHermeticContainerIsANoOp() throws {
+        let container = makeTempContainerURL()
+        defer { try? FileManager.default.removeItem(at: container) }
+        let store = LayoutStore(containerURL: container)
+        try store.save(makeLayout())
+
+        try store.delete(id: UUID()) // does not throw, does not remove the saved layout
+        #expect(store.userLayouts().count == 1)
+    }
+
+    @Test func allLayoutsCombinesBundledAndHermeticallySavedUserLayouts() throws {
+        let container = makeTempContainerURL()
+        defer { try? FileManager.default.removeItem(at: container) }
+        let store = LayoutStore(containerURL: container)
+        let layout = makeLayout()
+        try store.save(layout)
+
+        let all = store.allLayouts()
+        #expect(all.count == store.bundledLayouts().count + 1)
+        #expect(all.contains { $0.id == layout.id })
+    }
+
+    // MARK: importLayout(from:) save path
+
+    @Test func importLayoutPersistsHermeticallyAndAppearsInUserLayouts() throws {
+        let container = makeTempContainerURL()
+        defer { try? FileManager.default.removeItem(at: container) }
+        let store = LayoutStore(containerURL: container)
+
+        let original = makeLayout(name: "Imported ɡː")
+        let data = try LayoutTransfer.exportData(for: original)
+
+        let imported = try store.importLayout(from: data)
+        #expect(imported.id == original.id)
+        #expect(imported.isBuiltIn == false)
+
+        let userLayouts = store.userLayouts()
+        #expect(userLayouts.count == 1)
+        #expect(userLayouts.first?.id == original.id)
+        #expect(userLayouts.first?.arrangements == original.arrangements)
+    }
+
+    @Test func importLayoutMintsFreshIDWhenItCollidesWithAnAlreadySavedUserLayout() throws {
+        let container = makeTempContainerURL()
+        defer { try? FileManager.default.removeItem(at: container) }
+        let store = LayoutStore(containerURL: container)
+
+        let existing = makeLayout(name: "Existing")
+        try store.save(existing)
+
+        let data = try LayoutTransfer.exportData(for: existing)
+        let imported = try store.importLayout(from: data)
+
+        #expect(imported.id != existing.id)
+        #expect(store.userLayouts().count == 2)
+    }
 }

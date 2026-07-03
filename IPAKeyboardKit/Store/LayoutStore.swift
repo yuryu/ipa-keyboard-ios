@@ -18,10 +18,23 @@ public final class LayoutStore {
 
     private let fileManager: FileManager
     private let bundle: Bundle
+    private let containerURL: URL?
 
-    public init(fileManager: FileManager = .default, bundle: Bundle = IPAResources.bundle) {
+    /// - Parameter containerURL: Root of the shared container user layouts
+    ///   are persisted under (a `"Layouts"` subdirectory is created inside
+    ///   it). Defaults to `AppGroup.containerURL`, which is `nil` until the
+    ///   App Group capability is provisioned — callers get the same
+    ///   graceful degradation to bundled-only behavior as before. Tests can
+    ///   inject a temporary directory here to exercise the full save/delete
+    ///   I/O path hermetically, without App Group provisioning.
+    public init(
+        fileManager: FileManager = .default,
+        bundle: Bundle = IPAResources.bundle,
+        containerURL: URL? = AppGroup.containerURL
+    ) {
         self.fileManager = fileManager
         self.bundle = bundle
+        self.containerURL = containerURL
     }
 
     // MARK: Reading
@@ -78,7 +91,7 @@ public final class LayoutStore {
     // MARK: Helpers
 
     private var userLayoutsDirectory: URL? {
-        AppGroup.containerURL?.appendingPathComponent("Layouts", isDirectory: true)
+        containerURL?.appendingPathComponent("Layouts", isDirectory: true)
     }
 
     private func fileURL(for id: UUID, in dir: URL) -> URL {
