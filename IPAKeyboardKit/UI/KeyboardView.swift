@@ -476,6 +476,7 @@ private struct AlternatesPopup: View {
                     .onTapGesture { onSelect(alt.action) }
                     .accessibilityLabel(alt.accessibilityLabel ?? alt.displayLabel)
                     .accessibilityIdentifier(alt.accessibilityIdentifier)
+                    .accessibilityAddTraits(.isKeyboardKey)
             }
         }
         .padding(6)

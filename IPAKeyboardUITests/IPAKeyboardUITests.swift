@@ -134,7 +134,7 @@ final class IPAKeyboardUITests: XCTestCase {
         // glyph, as the label.
         let schwaKey = detail.previewKey(inserting: "ə")
         XCTAssertTrue(
-            schwaKey.exists,
+            schwaKey.waitForExistence(timeout: 10),
             "Preview does not expose the schwa key via its per-key identifier 'key-insert-ə'"
         )
         XCTAssertEqual(
