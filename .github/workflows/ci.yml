@@ -69,7 +69,7 @@ jobs:
 
       # Running tests does need a concrete device: boot one by name, to
       # completion, and pass its UDID to the test step so both agree on the
-      # device. No OS version spec — the deployment target (26.0) accepts any
+      # device. No OS version spec — the deployment target (17.0) accepts any
       # runtime the image ships.
       - name: Boot simulator
         id: boot-simulator

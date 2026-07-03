@@ -33,8 +33,8 @@ See [`docs/ROADMAP.md`](docs/ROADMAP.md) for the full product direction and
 
 ## Building
 
-Requires Xcode with the iOS 26.5 SDK. Build the project directly (there is no
-`.xcworkspace`):
+Requires Xcode with the iOS 26.5 SDK; the app runs on iOS 17.0 or later. Build
+the project directly (there is no `.xcworkspace`):
 
 ```sh
 # Framework only, no signing (validates the kit + bundled JSON)
