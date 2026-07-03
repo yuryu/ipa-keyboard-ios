@@ -4,7 +4,8 @@
 //
 //  Small cross-target preferences shared by the host app (writes) and the
 //  keyboard extension (reads) through the App Group's `UserDefaults` suite —
-//  currently which layout is active. Like `LayoutStore`, it degrades
+//  the active layout and per-layout hidden-symbol curation. Like
+//  `LayoutStore`, it degrades
 //  gracefully before provisioning: the suite is still writable, just
 //  process-local until the App Group is enabled (see `AppGroup.sharedAvailable`).
 //

@@ -16,8 +16,13 @@
 //                                     see the scheme doc on
 //                                     Key.accessibilityIdentifier in
 //                                     IPAKeyboardKit's KeyboardView.swift
+//    layout-detail-active-label     — "Active layout" indicator (when this is
+//                                     the active layout)
+//    layout-detail-use-button       — "Use this Layout" (when not the active
+//                                     layout)
 //    layout-detail-duplicate-button — "Duplicate to Edit" (built-ins only)
 //    layout-detail-edit-keys-button — "Edit Keys" (user layouts only)
+//    layout-detail-customize-link   — "Customize symbols" (all layouts)
 //    layout-detail-export-button    — "Export Layout" ShareLink (all layouts,
 //                                     issue #8; see LayoutExportItem.swift)
 //    layout-detail-delete-button    — "Delete" (user layouts only)
