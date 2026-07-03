@@ -85,7 +85,16 @@ final class LayoutLibrary {
         self.preferences = preferences
         self.launchImportJSON = environment[Self.uiTestImportEnvironmentKey]
         if launchArguments.contains(Self.resetLayoutsArgument) {
-            try? store.deleteAllUserLayouts()
+            do {
+                try store.deleteAllUserLayouts()
+            } catch LayoutStore.StoreError.sharedContainerUnavailable {
+                // Nothing persisted before provisioning — the documented no-op.
+            } catch {
+                // Test-only path: fail loudly (UI tests run debug builds) so a
+                // real IO failure reads as "reset failed", not a stale-state
+                // mystery in whatever test runs next.
+                assertionFailure("\(Self.resetLayoutsArgument) failed: \(error)")
+            }
             preferences.resetAll()
         }
         reload()

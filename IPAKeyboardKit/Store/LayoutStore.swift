@@ -81,8 +81,12 @@ public final class LayoutStore {
     /// directory hasn't been created yet (nothing to reset).
     public func deleteAllUserLayouts() throws {
         guard let dir = userLayoutsDirectory else { throw StoreError.sharedContainerUnavailable }
-        guard let urls = try? fileManager.contentsOfDirectory(
-            at: dir, includingPropertiesForKeys: nil) else { return }
+        // Only a not-yet-created directory is a no-op; any other listing
+        // failure (permissions, corruption) throws so the reset can't
+        // silently leave stale layouts behind.
+        guard fileManager.fileExists(atPath: dir.path) else { return }
+        let urls = try fileManager.contentsOfDirectory(
+            at: dir, includingPropertiesForKeys: nil)
         for url in urls where url.pathExtension == "json" {
             try fileManager.removeItem(at: url)
         }
