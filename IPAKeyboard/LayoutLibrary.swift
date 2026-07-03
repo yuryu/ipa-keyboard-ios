@@ -69,10 +69,11 @@ final class LayoutLibrary {
     /// self-healing via swipe-to-delete — mirrors the
     /// `--uitest-show-onboarding`/`--uitest-skip-onboarding` pattern in
     /// `OnboardingState.swift`. Applied before the first `reload()`, so the
-    /// library never observes the stale state even transiently. A safe
-    /// no-op when the App Group container is unavailable (every unsigned
-    /// build today — see CLAUDE.md's signing note): there is nothing
-    /// persisted to clear in that state.
+    /// library never observes the stale state even transiently. When the
+    /// App Group container is unavailable (every unsigned build today — see
+    /// CLAUDE.md's signing note) only the layout deletion is skipped (no
+    /// layouts persisted to delete); the preferences reset still runs,
+    /// clearing the fallback process-local `.standard` suite.
     static let resetLayoutsArgument = "--uitest-reset-layouts"
 
     init(

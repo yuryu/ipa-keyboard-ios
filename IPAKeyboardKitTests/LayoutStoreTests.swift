@@ -91,6 +91,15 @@ struct LayoutStoreTests {
         }
     }
 
+    @Test func deleteAllUserLayoutsThrowsWhenContainerUnavailable() throws {
+        guard AppGroup.containerURL == nil else { return }
+        // Same contract as save/delete: the UI-test reset hook must fail
+        // loudly, not silently skip, when the container is missing.
+        #expect(throws: LayoutStore.StoreError.self) {
+            try LayoutStore().deleteAllUserLayouts()
+        }
+    }
+
     // MARK: allLayouts
 
     @Test func allLayoutsContainsEveryBundledLayout() {

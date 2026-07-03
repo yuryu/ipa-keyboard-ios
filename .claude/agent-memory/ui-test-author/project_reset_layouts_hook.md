@@ -20,9 +20,11 @@ statics). Checked in `LayoutLibrary.init`, applied **before** the first
 `reload()` (not from `onAppear` like the import hook, since there's no error
 alert to present against an attached view — this also means the library
 never transiently shows stale rows before they'd be cleared). Calls
-`try? store.deleteAllUserLayouts()` then `preferences.resetAll()`; both are
-safe no-ops when the App Group container is unavailable (every unsigned
-build today).
+`store.deleteAllUserLayouts()` in a do/catch that swallows only the expected
+`StoreError.sharedContainerUnavailable` (the pre-provisioning case — every
+unsigned build today) and hits `assertionFailure` on any other error, then
+`preferences.resetAll()`, which always runs (against the fallback
+process-local `.standard` suite before provisioning).
 
 **New kit API** (both added, following existing doc-comment/no-throw style):
 - `LayoutStore.deleteAllUserLayouts() throws` (`IPAKeyboardKit/Store/LayoutStore.swift`) — removes every `*.json` in the user-layouts directory; throws `StoreError.sharedContainerUnavailable` when the container is nil (same contract as `save`/`delete`), and is a silent no-op if the directory doesn't exist yet.
