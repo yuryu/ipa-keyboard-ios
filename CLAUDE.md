@@ -61,7 +61,7 @@ Actionable work is tracked as **GitHub issues** on `yuryu/ipa-keyboard-ios`; `do
 - Work with no issue yet? File one first (`gh issue create`) — it anchors the branch and the PR.
 - File discovered work as new issues rather than leaving TODOs in code or adding task lists to the roadmap.
 - Labels map to areas (and subagents): `layouts` (IPA data/schema/bundled JSON — `ipa-data-curator`), `host-app` (`layout-editor-ui`), `keyboard-ext` (`keyboard-extension-builder`), `testing` (the test authors), `infra` (CI/signing/provisioning), `deferred` (parked by design).
-- **Branch names must be ASCII.** Issue titles here often contain IPA characters, and `gh issue develop` copies the title into the branch name — always pass an explicit name: `gh issue develop <n> --name <ascii-name> --checkout`. Renaming a branch later does not retarget its open PR; GitHub closes the PR and it must be recreated (this bit PR #91 → #94).
+- **Branch names must be ASCII.** Issue titles here often contain IPA characters, and `gh issue develop` copies the title into the branch name — always pass an explicit name: `gh issue develop <n> --name <ascii-name> --checkout`. Don't plan on renaming later: pushing the branch under a new name and deleting the old one closes any open PR from it, which then has to be recreated (as happened with PR #91, recreated as #94).
 
 ## Working style: verify, don't trust memory
 
