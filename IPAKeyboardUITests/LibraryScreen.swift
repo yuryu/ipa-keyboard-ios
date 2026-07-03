@@ -35,14 +35,17 @@ func waitForRevealed(
 ) -> Bool {
     let deadline = Date().addingTimeInterval(timeout)
     var swipes = 0
-    while !element.waitForExistence(timeout: 1) {
-        if Date() >= deadline { return element.exists }
+    while true {
+        let remaining = deadline.timeIntervalSinceNow
+        if remaining <= 0 { return element.exists }
+        // Poll in ~1s slices (capped by the remaining budget) so the loop can
+        // swipe between checks without ever starting a poll past the deadline.
+        if element.waitForExistence(timeout: min(1, remaining)) { return true }
         if swipes < maxSwipes {
             scrollView.swipeUp()
             swipes += 1
         }
     }
-    return true
 }
 
 // MARK: - LibraryScreen
