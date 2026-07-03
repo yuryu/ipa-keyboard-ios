@@ -10,7 +10,7 @@
 //
 //  Each test builds an isolated world: a LayoutStore over a temporary
 //  container directory (or nil, for the unprovisioned degraded path — the
-//  containerURL seam added for issue #26) and a fresh UserDefaults suite, so
+//  containerURL seam added for issue #59 / PR #76) and a fresh UserDefaults suite, so
 //  nothing touches real shared storage.
 //
 

@@ -6,7 +6,7 @@
 //  auto-presents: first run gated on the has-seen flag, UI-test launch
 //  arguments overriding it (--uitest-skip-onboarding wins over
 //  --uitest-show-onboarding), and a one-shot latch so the sheet auto-presents
-//  at most once per process. Every test injects an isolated UserDefaults
+//  at most once per instance. Every test injects an isolated UserDefaults
 //  suite and an explicit launch-arguments array, so nothing touches the real
 //  process state.
 //
