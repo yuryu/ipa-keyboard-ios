@@ -43,10 +43,15 @@ Copilot is sometimes right, sometimes wrong. Judge each comment:
 - **Disagree** → leave the code alone.
 
 Reply either way — "Applied in `<sha>`" or the reason you declined — so
-nothing is silently ignored:
+nothing is silently ignored. Replies post under the user's account, so every
+reply must end with the attribution line `*— written by Claude*` (the
+repo-wide convention in CLAUDE.md's Workflow section):
 
 ```sh
-gh api repos/yuryu/ipa-keyboard-ios/pulls/<PR>/comments/<id>/replies -f body='...'
+gh api repos/yuryu/ipa-keyboard-ios/pulls/<PR>/comments/<id>/replies \
+  -f body='Applied in `<sha>`.
+
+*— written by Claude*'
 ```
 
 ## 3. Update the PR
