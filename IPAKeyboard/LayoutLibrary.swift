@@ -151,14 +151,29 @@ final class LayoutLibrary {
     /// descriptions), or the unprovisioned-container degraded state — lands
     /// in `errorMessage` for the root alert; nothing is ever dropped silently.
     func importLayout(from result: Result<URL, Error>) {
-        perform("Couldn’t import this layout.") {
-            let url = try result.get()
-            // fileImporter hands back a security-scoped URL; without
-            // start/stop accessing, reading it fails outside the sandbox.
-            let accessing = url.startAccessingSecurityScopedResource()
-            defer { if accessing { url.stopAccessingSecurityScopedResource() } }
-            try store.importLayout(from: Data(contentsOf: url))
+        Task {
+            do {
+                let url = try result.get()
+                importLayout(data: try await Self.readPickedDocument(at: url))
+            } catch {
+                errorMessage = "Couldn’t import this layout. \(error.localizedDescription)"
+            }
         }
+    }
+
+    /// Read the picked document's bytes off the main actor (`nonisolated
+    /// async` runs on the global executor): `Data(contentsOf:)` can block on
+    /// an iCloud/network-backed file, which must not freeze the UI.
+    ///
+    /// fileImporter hands back a security-scoped URL; without start/stop
+    /// accessing, reading it fails outside the sandbox. `start…` returning
+    /// false is *not* an error — it's the normal answer for files already
+    /// inside our sandbox — so the read is attempted either way and a real
+    /// permission failure surfaces through the thrown read error.
+    private nonisolated static func readPickedDocument(at url: URL) async throws -> Data {
+        let accessing = url.startAccessingSecurityScopedResource()
+        defer { if accessing { url.stopAccessingSecurityScopedResource() } }
+        return try Data(contentsOf: url)
     }
 
     /// Import a layout document's raw bytes — the shared tail of the file
