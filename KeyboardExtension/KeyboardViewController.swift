@@ -77,14 +77,20 @@ class KeyboardViewController: UIInputViewController {
     /// dark text field gets a dark keyboard even inside a light-mode app.
     /// `.default` defers to the ambient trait (system light/dark mode).
     private func applyProxyAppearance() {
+        let style: UIUserInterfaceStyle
         switch textDocumentProxy.keyboardAppearance ?? .default {
         case .dark:
-            view.overrideUserInterfaceStyle = .dark
+            style = .dark
         case .light:
-            view.overrideUserInterfaceStyle = .light
+            style = .light
         default:
-            view.overrideUserInterfaceStyle = .unspecified
+            style = .unspecified
         }
+        // textDidChange calls this per keystroke; skip the (rarely changing)
+        // assignment when it's a no-op so we don't kick off trait propagation
+        // through the whole hierarchy on every key press.
+        guard view.overrideUserInterfaceStyle != style else { return }
+        view.overrideUserInterfaceStyle = style
     }
 
     private func verticalSizeClassDidChange() {
