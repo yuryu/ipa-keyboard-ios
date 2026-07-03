@@ -10,6 +10,8 @@
 //    layout-list-symbol-reference-button — toolbar entry point (library)
 //    symbol-reference-list           — the root List
 //    symbol-reference-row-<text>     — each symbol row (exact inserted string)
+//    symbol-reference-copy-<text>    — the row's inline copy button (same
+//                                      key; label flips to sticky "Copied")
 //    symbol-reference-empty          — the no-search-results placeholder
 //    symbol-reference-done           — toolbar Done button
 //    symbol-reference-scratch        — the scratchpad text
@@ -79,6 +81,14 @@ struct SymbolReferenceScreen {
         app.buttons["symbol-reference-row-\(text)"]
     }
 
+    /// A row's inline copy button (issue #69), keyed like the row by the
+    /// exact inserted string. Copies the symbol in place — it must never
+    /// push the detail screen. Its spoken label flips to "Copied" (sticky,
+    /// moves only when another row is copied) after a tap.
+    func rowCopyButton(forSymbol text: String) -> XCUIElement {
+        app.buttons["symbol-reference-copy-\(text)"]
+    }
+
     /// The scratchpad text on the reference's main screen (appears once a
     /// symbol has been added from a detail screen).
     var scratchpadText: XCUIElement {
@@ -142,18 +152,32 @@ struct SymbolReferenceScreen {
 
     /// Waits for `element`, swiping the reference list up between checks —
     /// SwiftUI lists compose rows lazily, so a row below the fold does not
-    /// exist until scrolled into range.
+    /// exist until scrolled into range. Termination is progress-based, not
+    /// wall-clock: the loop stops when a swipe reveals no new bottom row
+    /// (the whole list has been traversed), so the reach scales with the
+    /// inventory instead of failing when new bundled layouts grow it. The
+    /// swipe cap is only a runaway backstop, sized well past the row count
+    /// a full traversal of today's inventory needs.
     @discardableResult
-    func waitForRevealed(
-        _ element: XCUIElement, timeout: TimeInterval = 10, maxSwipes: Int = 6
-    ) -> Bool {
-        let deadline = Date().addingTimeInterval(timeout)
+    func waitForRevealed(_ element: XCUIElement, maxSwipes: Int = 40) -> Bool {
         var swipes = 0
+        var previousBottomRow: String?
         while !element.waitForExistence(timeout: 1) {
-            if Date() >= deadline || swipes >= maxSwipes { return element.exists }
+            let bottomRow = lastVisibleRowIdentifier
+            let stalled = bottomRow != nil && bottomRow == previousBottomRow
+            if stalled || swipes >= maxSwipes { return element.exists }
+            previousBottomRow = bottomRow
             list.swipeUp()
             swipes += 1
         }
         return true
+    }
+
+    /// Identifier of the bottom-most composed symbol row, used by
+    /// `waitForRevealed` to detect that swiping stopped making progress.
+    private var lastVisibleRowIdentifier: String? {
+        list.buttons.matching(
+            NSPredicate(format: "identifier BEGINSWITH %@", "symbol-reference-row-")
+        ).allElementsBoundByIndex.last?.identifier
     }
 }

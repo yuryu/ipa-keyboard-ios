@@ -90,6 +90,48 @@ struct BundledLayoutTests {
         }
     }
 
+    /// Accessibility invariant (issue #18): no bundled key may reach
+    /// VoiceOver as a bare, unexplained glyph. `KeyButton.spokenLabel`
+    /// (private, in `KeyboardView.swift`) computes
+    /// `key.accessibilityLabel ?? key.displayLabel` for every
+    /// action *except* `.return`, which the view always overrides with the
+    /// return-key-type word (Go/Search/Done/return) regardless of the JSON —
+    /// so `.return` keys are exempt here; the view "provably" labels them
+    /// itself. `.spacer` keys are exempt too: `KeyRowView` renders them as a
+    /// `Spacer(minLength:)`, never a `KeyButton`, so they never become an
+    /// accessibility element at all. Every other action — `insert`, `space`,
+    /// `backspace`, `nextKeyboard`, `switchPanel` — falls back to
+    /// `displayLabel` (a raw glyph, an emoji, or empty string) when
+    /// `accessibilityLabel` is missing, none of which is an acceptable
+    /// spoken name, so this test requires an explicit label on all of them.
+    /// Walks every arrangement's panels/rows, the shared `functionRow`, each
+    /// panel's `switchKey`, and every long-press `alternates` entry
+    /// (recursively), across every bundled layout, so a future layout (or
+    /// symbol added to an existing one) can't ship without a spoken name.
+    @Test func everyBundledKeyRequiringASpokenNameHasAnAccessibilityLabel() {
+        func check(_ key: Key, layoutName: String) {
+            switch key.action {
+            case .return, .spacer:
+                break // KeyboardView labels/exempts these itself; see doc comment above.
+            default:
+                #expect(
+                    !(key.accessibilityLabel ?? "").isEmpty,
+                    "\(layoutName): key \"\(key.displayLabel)\" (\(key.action)) is missing an accessibilityLabel")
+            }
+            key.alternates.forEach { check($0, layoutName: layoutName) }
+        }
+
+        for layout in LayoutStore().bundledLayouts() {
+            for arrangement in layout.arrangements {
+                for panel in arrangement.panels {
+                    panel.rows.flatMap(\.keys).forEach { check($0, layoutName: layout.name) }
+                    if let switchKey = panel.switchKey { check(switchKey, layoutName: layout.name) }
+                }
+                arrangement.functionRow?.keys.forEach { check($0, layoutName: layout.name) }
+            }
+        }
+    }
+
     // MARK: Generic "IPA — Full (QWERTY)" layout
 
     private func genericFullLayout() throws -> KeyboardLayout {
@@ -266,21 +308,7 @@ struct BundledLayoutTests {
         }
     }
 
-    @Test func genericChartLayoutEveryKeyHasAnAccessibilityLabel() throws {
-        // The chart layout promises a spoken IPA name on every symbol key,
-        // long-press alternates included.
-        let layout = try genericChartLayout()
-        func check(_ key: Key) {
-            if case .insert = key.action {
-                #expect(!(key.accessibilityLabel ?? "").isEmpty,
-                        "missing accessibilityLabel for chart key \(key.displayLabel)")
-            }
-            key.alternates.forEach(check)
-        }
-        let panels = layout.arrangements.flatMap(\.panels)
-        (panels.flatMap(\.rows).flatMap(\.keys)
-            + layout.arrangements.compactMap(\.functionRow).flatMap(\.keys)
-            + panels.compactMap(\.switchKey))
-            .forEach(check)
-    }
+    // Chart-layout accessibility labels are covered by the general
+    // `everyBundledKeyRequiringASpokenNameHasAnAccessibilityLabel` test
+    // above, which runs across every bundled layout (not just the chart).
 }

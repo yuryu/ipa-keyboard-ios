@@ -88,6 +88,38 @@ public extension KeyboardMetrics {
     }
 }
 
+extension Key {
+    /// Stable accessibility identifier for this key, for XCUITest lookups.
+    /// Derived from the key's *action* — not its `id`, which is regenerated
+    /// whenever a layout document omits it — so it is stable across symbol
+    /// curation, panel switches, and re-decoding. Naming scheme:
+    ///
+    ///     insert        → "key-insert-<text>"        e.g. "key-insert-ə"
+    ///     backspace     → "key-backspace"
+    ///     space         → "key-space"
+    ///     return        → "key-return"
+    ///     nextKeyboard  → "key-nextKeyboard"
+    ///     switchPanel   → "key-switchPanel-<target>" e.g. "key-switchPanel-More"
+    ///
+    /// `<text>` is the exact inserted string (precise IPA code points, e.g.
+    /// `ɡ` U+0261), not the display label — so tests can assert what a key
+    /// *types*, not just its spoken name. Duplicate identifiers can coexist
+    /// (only one panel renders at a time, and the long-press alternates popup
+    /// reuses the same scheme for its keys); `.spacer` never renders an
+    /// accessibility element, so its value is defined only for totality.
+    var accessibilityIdentifier: String {
+        switch action {
+        case .insert(let text): return "key-insert-\(text)"
+        case .backspace: return "key-backspace"
+        case .space: return "key-space"
+        case .return: return "key-return"
+        case .nextKeyboard: return "key-nextKeyboard"
+        case .switchPanel(let target): return "key-switchPanel-\(target)"
+        case .spacer: return "key-spacer"
+        }
+    }
+}
+
 public struct KeyboardView: View {
     private let layout: KeyboardLayout
     private let metrics: KeyboardMetrics
@@ -356,6 +388,7 @@ private struct KeyButton: View {
                 }
             }
             .accessibilityLabel(spokenLabel)
+            .accessibilityIdentifier(key.accessibilityIdentifier)
             .accessibilityAddTraits(.isKeyboardKey)
             .onDisappear { stopRepeat() }
     }
@@ -442,6 +475,8 @@ private struct AlternatesPopup: View {
                     .contentShape(Rectangle())
                     .onTapGesture { onSelect(alt.action) }
                     .accessibilityLabel(alt.accessibilityLabel ?? alt.displayLabel)
+                    .accessibilityIdentifier(alt.accessibilityIdentifier)
+                    .accessibilityAddTraits(.isKeyboardKey)
             }
         }
         .padding(6)

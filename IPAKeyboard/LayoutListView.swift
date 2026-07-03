@@ -118,6 +118,10 @@ struct LayoutListView: View {
                 KeyboardView(layout: active, metrics: metrics) { _ in }
                     .frame(height: metrics.totalHeight(for: active.primaryArrangement))
                     .frame(maxWidth: .infinity)
+                    // Explicit accessibility container so the identifier
+                    // names one element instead of bleeding onto every key
+                    // (issue #25; same pattern as LayoutDetailView's preview).
+                    .accessibilityElement(children: .contain)
                     .accessibilityIdentifier("layout-list-active-preview")
                     // Keyboard-chrome backdrop (adapts light/dark) so the
                     // white light-mode keycaps don't vanish into the row. A

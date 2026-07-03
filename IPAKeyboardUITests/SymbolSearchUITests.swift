@@ -6,7 +6,8 @@
 //  reference sheet from the library toolbar, search by spoken-name fragment
 //  and by code point, verify the detail screen reports exact Unicode code
 //  points (ɡ is U+0261, never conflated with ASCII g U+0067), and exercise
-//  copy + scratchpad.
+//  copy + scratchpad — including the per-row inline copy button (issue #69),
+//  which must copy in place without pushing the detail screen.
 //
 //  Glyph-paste matching (searching by pasting "ɡ" itself) is covered by the
 //  kit unit tests (SymbolInventoryTests.matchesExactGlyphNeverALookalike):
@@ -158,6 +159,40 @@ final class SymbolSearchUITests: XCTestCase {
         XCTAssertFalse(
             reference.row(forSymbol: Self.schwa).exists,
             "No symbol rows should remain for a match-less search")
+    }
+
+    @MainActor
+    func test_rowCopyButton_copiesInPlace_withoutNavigating() throws {
+        let reference = launchAndOpenReference()
+
+        reference.search("0261")
+        let gRow = reference.row(forSymbol: Self.scriptG)
+        XCTAssertTrue(reference.waitForRevealed(gRow), "ɡ row not found for '0261'")
+
+        // The row carries its own copy affordance — no detail visit needed.
+        let rowCopy = reference.rowCopyButton(forSymbol: Self.scriptG)
+        XCTAssertTrue(
+            rowCopy.waitForExistence(timeout: 10),
+            "Per-row copy button not found on the ɡ row")
+        rowCopy.tap()
+
+        // The label flips to "Copied" (sticky, race-free) — proof the tap
+        // landed on the button, and enough settle time that a (wrong)
+        // navigation push would have completed by now.
+        let copied = NSPredicate(format: "label == %@", "Copied")
+        expectation(for: copied, evaluatedWith: rowCopy)
+        waitForExpectations(timeout: 10)
+
+        // Copying must not navigate: the reference list and its row are
+        // still on screen, and the detail screen's copy button never
+        // appeared.
+        XCTAssertTrue(
+            reference.list.exists,
+            "Reference list left the screen after a row copy")
+        XCTAssertTrue(gRow.exists, "ɡ row disappeared after a row copy")
+        XCTAssertFalse(
+            reference.copyButton.exists,
+            "Detail screen appeared — the row copy button must not navigate")
     }
 
     @MainActor

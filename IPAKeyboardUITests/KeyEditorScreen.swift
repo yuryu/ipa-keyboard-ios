@@ -31,8 +31,10 @@ import XCTest
 ///   `key-editor`                 — the root List
 ///   `key-editor-cancel`          — Cancel (confirms discard when dirty)
 ///   `key-editor-save`            — Save (disabled until there are changes)
-///   `key-editor-preview`         — live draft preview (same identifier-bleed
-///                                  caveat as `LayoutDetailScreen.preview`)
+///   `key-editor-preview`         — live draft preview (one accessibility
+///                                  container element, issue #25; keys inside
+///                                  carry per-key identifiers like
+///                                  `key-insert-<text>`)
 ///   `key-editor-panel-picker`    — panel picker (only when >1 panel)
 ///   `key-editor-row-<index>`     — row link (0-based, within the shown panel)
 ///   `key-editor-add-row`         — appends an empty row
@@ -72,11 +74,13 @@ struct LayoutKeyEditorScreen {
         app.buttons["key-editor-discard-confirm"]
     }
 
-    /// The root `List` (no accessibilityIdentifier of its own on the `List`
-    /// itself — `key-editor` is applied to it in source, but per the same
-    /// bleed pattern as `LayoutDetailScreen.preview` that identifier only
-    /// resurfaces on descendant leaves, not a single container element; a
-    /// type query is the reliable way to reach the scrollable List here).
+    /// The root `List`. `key-editor` is applied to it in source, but
+    /// (confirmed empirically during the issue #6 work) that identifier does
+    /// not surface on the scrollable collection-view element itself — only on
+    /// descendant leaves — so a type query is the reliable way to reach the
+    /// List here. (The *preview* bleed of the same vintage was fixed by
+    /// issue #25's explicit accessibility containers; this List quirk is
+    /// separate and unaffected.)
     private var list: XCUIElement {
         app.collectionViews.firstMatch
     }

@@ -55,6 +55,10 @@ struct LayoutEditorView: View {
             KeyboardView(layout: curated, metrics: metrics) { handleScratch($0) }
                 .frame(height: metrics.totalHeight(for: curated.primaryArrangement))
                 .frame(maxWidth: .infinity)
+                // Explicit accessibility container so the identifier names
+                // one element instead of bleeding onto every key (issue #25;
+                // same pattern as LayoutDetailView's preview).
+                .accessibilityElement(children: .contain)
                 .accessibilityIdentifier("layout-editor-preview")
                 .listRowInsets(EdgeInsets())
                 // Keyboard-chrome color so white keycaps stay visible in light.

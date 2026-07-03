@@ -230,14 +230,18 @@ final class KeyEditorUITests: XCTestCase {
             userDetail.waitForUserLayoutContent(timeout: 10),
             "'Edit Keys' button did not appear on the forked layout's detail screen")
 
-        // Sanity: the unedited key's spoken name renders in the preview
-        // before we change anything, so the post-save assertion below is a
-        // genuine before/after comparison rather than a query that would
-        // have matched regardless.
+        // Sanity: the unedited key renders in the preview before we change
+        // anything — located by its inserted text ("q" → key-insert-q) and
+        // cross-checked by its spoken name — so the post-save assertions
+        // below are a genuine before/after comparison rather than queries
+        // that would have matched regardless.
+        let uneditedKey = userDetail.previewKey(inserting: "q")
         XCTAssertTrue(
-            userDetail.previewElements(withLabel: "voiceless uvular plosive").firstMatch
-                .waitForExistence(timeout: 5),
-            "Expected the unedited 'q' key's spoken name in the preview before editing")
+            uneditedKey.waitForExistence(timeout: 5),
+            "Expected the unedited 'q' key (key-insert-q) in the preview before editing")
+        XCTAssertEqual(
+            uneditedKey.label, "voiceless uvular plosive",
+            "Unedited 'q' key does not speak its VoiceOver name in the preview")
 
         // "Edit Keys" -> key editor root -> row 0 -> key 0 ('q', the QWERTY
         // panel's first key in ipa-full.json).
@@ -310,14 +314,20 @@ final class KeyEditorUITests: XCTestCase {
         XCTAssertTrue(
             userDetail.waitForUserLayoutContent(timeout: 10),
             "Did not return to the layout-detail screen after saving")
+        // Per-key identifiers (issue #25) let this assert the *inserted text*
+        // changed — "key-insert-qʰ" replacing "key-insert-q" — not just the
+        // spoken name, which the label cross-check still covers.
+        let editedKey = userDetail.previewKey(inserting: editedText)
         XCTAssertTrue(
-            userDetail.previewElements(withLabel: editedSpokenName).firstMatch
-                .waitForExistence(timeout: 10),
-            "Detail preview does not show the edited key's new spoken name "
+            editedKey.waitForExistence(timeout: 10),
+            "Detail preview does not show a key inserting '\(editedText)' "
                 + "after Save — the edit did not persist")
+        XCTAssertEqual(
+            editedKey.label, editedSpokenName,
+            "Edited key's spoken name did not update in the detail preview")
         XCTAssertFalse(
-            userDetail.previewElements(withLabel: "voiceless uvular plosive").firstMatch.exists,
-            "Detail preview still shows the pre-edit spoken name after Save")
+            userDetail.previewKey(inserting: "q").exists,
+            "Detail preview still shows the pre-edit 'q' key after Save")
     }
 
     /// Cancel-without-saving must leave the layout unchanged: reopening "Edit
