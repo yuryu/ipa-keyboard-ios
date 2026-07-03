@@ -14,7 +14,7 @@ ja-JP.json (issue #75, 2026-07-02) inventory decisions and sources. UUID tag `00
 - **Moraic nasal = ɴ U+0274** (Okada: uvular utterance-finally; nasalized vowel before vowels/approximants/fricatives → ◌̃ U+0303; homorganic [m n ŋ] elsewhere → own keys). Narrow [ɰ̃] not shipped (composable: ɰ alternate of w + ◌̃).
 - **Sibilants:** ɕ U+0255, ʑ U+0291 own keys; affricates ts, tɕ own keys; **dz alternate of z, dʑ alternate of ʑ** (phonological pairing — Okada: "/z/ tends to be [dz] initially and after /ɴ/" — deviates from ipa-chart's voiceless→voiced alternate rule on purpose).
 - **ɸ U+0278, ç U+00E7 (precomposed NFC)** — Okada: /h/ → [ç]/[ɸ] before /i/,/u/. No hʲ needed (hj → ç).
-- **Tap ɾ U+027E** primary; alternates ɾʲ, ɺ U+027A (lateral flap, Vance/L&M), l (Okada: "a postalveolar [l] is not unusual in all positions"), r (Okada's phonemic chart symbol, IPA trill).
+- **Tap ɾ U+027E** primary; alternates ɾʲ, ɺ U+027A (lateral flap, Vance/L&M), l, ɹ U+0279, r (Okada's phonemic chart symbol, IPA trill). **[l]/[ɹ] source caution:** Okada's sentence "A postalveolar [?] is not unusual in all positions" reads [ɹ] in the archive.org OCR but was quoted as [l] during authoring — the OCR garbles IPA inside brackets, so don't quote either reading exclusively without a print copy. Wikipedia's Japanese phonology (citing Okada 1999) attests [ɾ], [l], AND [ɹ], so shipping both l and ɹ as alternates is safe either way (review finding, 2026-07-02).
 - **Palatalized series as alternates:** pʲ bʲ kʲ ɡʲ mʲ ɾʲ (ʲ U+02B2; Okada "/j/ affects the preceding consonant as /i/ does", [mʲaku]; Labrune: palatalized n is written [ɲ] U+0272 — own key, no nʲ alternate). No tʲ/dʲ/sʲ/zʲ (those surface as tɕ/dʑ/ɕ/ʑ).
 - **Gemination = doubled letters** ([ɡakkoː] in Okada's passage), vowel length ː U+02D0 — **no sokuon key by design**.
 - **Devoicing ◌̥ U+0325 primary, ◌̊ U+030A alternate** (official IPA chart licenses ring above for descender symbols, e.g. ŋ̊). Okada: "/i, u/ tend to be devoiced ... between voiceless consonants".
@@ -22,4 +22,4 @@ ja-JP.json (issue #75, 2026-07-02) inventory decisions and sources. UUID tag `00
 
 **Why:** dialect inventories are exactly where memory fails; these placements deliberately deviate from generic-layout compaction rules and someone will "fix" them without the citations.
 
-**How to apply:** when editing ja-JP.json or reviewing PRs against it, keep these placements unless a higher-tier source contradicts; JaJPLayoutTests.swift locks the scalars.
+**How to apply:** when editing ja-JP.json or reviewing PRs against it, keep these placements unless a higher-tier source contradicts; JaJPLayoutTests.swift locks the scalars. Cross-layout spoken-name rule: the same inserted string must keep one accessibilityLabel across bundled layouts — U+0301 is "combining high tone" in both ipa-chart.json and ja-JP.json; don't introduce a divergent name like "pitch accent (high)" in a dialect layout.
