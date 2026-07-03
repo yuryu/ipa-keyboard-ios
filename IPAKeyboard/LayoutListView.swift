@@ -16,6 +16,8 @@
 //    layout-list-container-unavailable — the saving-unavailable notice
 //    layout-list-help-button        — toolbar button reopening the onboarding
 //                                     guidance (see OnboardingView.swift)
+//    layout-list-import-button      — toolbar button opening the file importer
+//                                     (issue #8; import logic in LayoutLibrary)
 //    layout-list-symbol-reference-button — toolbar button opening the symbol
 //                                     reference (see SymbolReferenceView.swift)
 //
@@ -25,11 +27,13 @@
 //
 
 import SwiftUI
+import UniformTypeIdentifiers
 import IPAKeyboardKit
 
 struct LayoutListView: View {
     @State private var library = LayoutLibrary()
     @State private var onboarding = OnboardingState()
+    @State private var showingImporter = false
     @State private var showingSymbolReference = false
     @Environment(\.verticalSizeClass) private var verticalSizeClass
 
@@ -54,6 +58,14 @@ struct LayoutListView: View {
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button {
+                        showingImporter = true
+                    } label: {
+                        Label("Import Layout", systemImage: "square.and.arrow.down")
+                    }
+                    .accessibilityIdentifier("layout-list-import-button")
+                }
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button {
                         showingSymbolReference = true
                     } label: {
                         Label("Symbol Reference", systemImage: "character.book.closed")
@@ -69,6 +81,12 @@ struct LayoutListView: View {
                     .accessibilityIdentifier("layout-list-help-button")
                 }
             }
+            .fileImporter(
+                isPresented: $showingImporter,
+                allowedContentTypes: [.json]
+            ) { result in
+                library.importLayout(from: result)
+            }
         }
         .sheet(isPresented: $onboarding.isPresented, onDismiss: { onboarding.markSeen() }) {
             OnboardingView()
@@ -76,7 +94,10 @@ struct LayoutListView: View {
         .sheet(isPresented: $showingSymbolReference) {
             SymbolReferenceView()
         }
-        .onAppear { onboarding.presentIfFirstRun() }
+        .onAppear {
+            onboarding.presentIfFirstRun()
+            library.performLaunchImportIfRequested()
+        }
         .alert(
             "Something went wrong",
             isPresented: Binding(

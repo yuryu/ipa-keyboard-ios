@@ -33,6 +33,16 @@ The host app's layout-management UI follows these patterns (library increment
   re-derives content from `builtInSource` (lookup of `original.derivedFrom` in
   `library.builtInLayouts` — bundled JSON pins stable UUIDs, so this works
   across launches); nothing persists until Save.
+- **Import/export (issue #8)**: file-exchange logic lives in the kit
+  (`IPAKeyboardKit/Store/LayoutTransfer.swift`: `exportData`/`exportFileName`/
+  `importableLayout(from:existingIDs:)` + `LayoutStore.importLayout(from:)`,
+  which validates *before* the container check). Host side: `ShareLink` with a
+  `nonisolated struct LayoutExportItem: Transferable` (`FileRepresentation`,
+  temp-staged file) — the `nonisolated` type keyword is required because the
+  app target's default MainActor isolation otherwise conflicts with
+  Transferable's nonisolated static requirement. Import errors flow through
+  `LayoutLibrary.perform`, so `LayoutImportError` carries user-facing
+  `errorDescription`s.
 - **Unicode exactness in editors**: every editing TextField sets
   `.autocorrectionDisabled(true)` + `.textInputAutocapitalization(.never)`; no
   trimming/normalization anywhere; `KeyEditorForm` shows a code-point readout

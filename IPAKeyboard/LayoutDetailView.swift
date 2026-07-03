@@ -12,6 +12,8 @@
 //    layout-detail-preview          — the live keyboard preview container
 //    layout-detail-duplicate-button — "Duplicate to Edit" (built-ins only)
 //    layout-detail-edit-keys-button — "Edit Keys" (user layouts only)
+//    layout-detail-export-button    — "Export Layout" ShareLink (all layouts,
+//                                     issue #8; see LayoutExportItem.swift)
 //    layout-detail-delete-button    — "Delete" (user layouts only)
 //
 
@@ -48,6 +50,7 @@ struct LayoutDetailView: View {
             previewSection
             useSection
             customizeSection
+            exportSection
             actionSection
         }
         .navigationTitle(current.name)
@@ -136,6 +139,24 @@ struct LayoutDetailView: View {
                     + "symbols is a reversible overlay that doesn’t change the "
                     + "layout’s data.")
             }
+        }
+    }
+
+    private var exportSection: some View {
+        Section {
+            // Exports the document exactly as the store persists it (kit's
+            // LayoutTransfer via LayoutExportItem), for any layout — sharing
+            // a built-in is fine; only *importing* strips built-in identity.
+            ShareLink(
+                item: LayoutExportItem(layout: current),
+                preview: SharePreview(current.name)
+            ) {
+                Label("Export Layout", systemImage: "square.and.arrow.up")
+            }
+            .accessibilityIdentifier("layout-detail-export-button")
+        } footer: {
+            Text("Shares this layout as a JSON file. Import it from the "
+                + "Layouts screen on any device.")
         }
     }
 
