@@ -80,7 +80,7 @@ final class SymbolSearchUITests: XCTestCase {
         app.launch()
         let reference = SymbolReferenceScreen(app: app)
         XCTAssertTrue(
-            reference.open(),
+            reference.open(timeout: .postNavigation),
             "Symbol reference sheet did not open from the library toolbar")
         return reference
     }
@@ -102,10 +102,10 @@ final class SymbolSearchUITests: XCTestCase {
         // sheet, so asserting on its toolbar alone would pass vacuously —
         // wait for the sheet's own list to actually go away.
         XCTAssertTrue(
-            reference.list.waitForNonExistence(timeout: 10),
+            reference.list.waitForNonExistence(timeout: .postNavigation),
             "Reference list still present after Done")
         XCTAssertTrue(
-            reference.openButton.waitForExistence(timeout: 10),
+            reference.openButton.waitForExistence(timeout: .postNavigation),
             "Library toolbar did not come back after dismissing the reference sheet")
     }
 
@@ -142,7 +142,7 @@ final class SymbolSearchUITests: XCTestCase {
         // ASCII look-alike g (U+0067) anywhere on the screen.
         let firstCodePoint = reference.codePointText(at: 0)
         XCTAssertTrue(
-            firstCodePoint.waitForExistence(timeout: 10),
+            firstCodePoint.waitForExistence(timeout: .postNavigation),
             "Code-point readout did not appear on the symbol detail screen")
         XCTAssertEqual(
             firstCodePoint.label, "U+0261",
@@ -211,7 +211,7 @@ final class SymbolSearchUITests: XCTestCase {
 
         // Copy: the button's label flips to "Copied" (sticky, race-free).
         XCTAssertTrue(
-            reference.copyButton.waitForExistence(timeout: 10),
+            reference.copyButton.waitForExistence(timeout: .postNavigation),
             "Copy button did not appear on the detail screen")
         reference.copyButton.tap()
         let copied = NSPredicate(format: "label == %@", "Copied")
@@ -225,7 +225,7 @@ final class SymbolSearchUITests: XCTestCase {
         reference.backButton.tap()
 
         XCTAssertTrue(
-            reference.scratchpadText.waitForExistence(timeout: 10),
+            reference.scratchpadText.waitForExistence(timeout: .postNavigation),
             "Scratchpad did not appear on the reference list after adding a symbol")
         XCTAssertEqual(
             reference.scratchpadText.label, Self.scriptG,

@@ -37,7 +37,7 @@ final class IPAKeyboardUITestsLaunchTests: XCTestCase {
         // Assert the main window is present — catches silent crashes and black
         // screens that would otherwise only show up as a blank screenshot.
         XCTAssertTrue(
-            app.windows.firstMatch.waitForExistence(timeout: 10),
+            app.windows.firstMatch.waitForExistence(timeout: .postNavigation),
             "Main window did not appear after launch"
         )
 
@@ -45,7 +45,7 @@ final class IPAKeyboardUITestsLaunchTests: XCTestCase {
         // SwiftUI layout-library hierarchy rendered.
         let screen = LibraryScreen(app: app)
         XCTAssertTrue(
-            screen.waitForContent(timeout: 10),
+            screen.waitForContent(timeout: .postNavigation),
             "Expected 'Layouts' navigation bar (LayoutListView) after launch"
         )
 
