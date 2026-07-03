@@ -5,6 +5,11 @@ on:
     branches: [main]
   pull_request:
     branches: [main]
+  # Run on the merge queue's temporary ref so the required "Build + test"
+  # check reports against each queued entry; without this the queue would
+  # stall forever waiting for a check that never runs (merge_group fires no
+  # push/pull_request event).
+  merge_group:
   workflow_dispatch:
 
 # Cancel superseded runs on the same ref to save runner minutes.
