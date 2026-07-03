@@ -167,7 +167,9 @@ struct LibraryScreen {
 /// Page object wrapping XCUIElement queries for `LayoutDetailView`.
 ///
 /// Accessibility identifiers sourced from `LayoutDetailView.swift`:
-///   `layout-detail-preview`          — the live `KeyboardView` container
+///   `layout-detail-preview`          — the live `KeyboardView` preview (one
+///                                      accessibility container element,
+///                                      issue #25)
 ///   `layout-detail-duplicate-button` — "Duplicate to Edit" (built-ins only)
 ///   `layout-detail-edit-keys-button` — "Edit Keys" (user layouts only, issue #6)
 ///   `layout-detail-delete-button`    — "Delete" (user layouts only)
@@ -177,26 +179,26 @@ struct LayoutDetailScreen {
 
     // MARK: Elements
 
-    /// The live `KeyboardView` preview area. `.accessibilityIdentifier(
-    /// "layout-detail-preview")` is applied to the `KeyboardView` container,
-    /// but (confirmed via the runtime accessibility snapshot) it bleeds down
-    /// the same way the `LayoutListView` Section identifiers did: there is no
-    /// single element carrying that identifier — instead *every rendered
-    /// key* becomes its own `StaticText` with `identifier ==
-    /// "layout-detail-preview"` and `label` equal to that key's spoken name
-    /// (`key.accessibilityLabel ?? key.displayLabel`). So this resolves to
-    /// the *first* such element, any type (any match proves the preview
-    /// rendered); use `previewElements(withLabel:)` to find one specific key.
+    /// The live `KeyboardView` preview: exactly one accessibility container
+    /// element (`.accessibilityElement(children: .contain)` + the identifier,
+    /// issue #25). The keys inside remain individually accessible descendants
+    /// — look them up with `previewKey(inserting:)`.
     var preview: XCUIElement {
-        app.descendants(matching: .any).matching(identifier: "layout-detail-preview").firstMatch
+        app.otherElements["layout-detail-preview"]
     }
 
-    /// All preview key elements whose spoken name (or, if a key sets no
-    /// `accessibilityLabel`, its display glyph) exactly matches `label`.
-    /// Use to confirm an edited key's new content actually rendered.
-    func previewElements(withLabel label: String) -> XCUIElementQuery {
-        app.staticTexts.matching(
-            NSPredicate(format: "identifier == %@ AND label == %@", "layout-detail-preview", label))
+    /// The preview key that inserts `text`, located by `KeyboardView`'s
+    /// stable per-key identifier scheme — `key-insert-<text>`, where `<text>`
+    /// is the exact inserted string (precise IPA code points; see the scheme
+    /// doc on `Key.accessibilityIdentifier` in the kit's KeyboardView.swift).
+    /// Scoped to the preview container, so a match also proves the key
+    /// rendered *inside* the preview. Keyed by inserted text rather than
+    /// spoken name so tests can assert what a key types; cross-check the
+    /// spoken name via the returned element's `label`. The lookup is
+    /// type-agnostic (`.any`) because keycaps with `.isKeyboardKey` aren't
+    /// guaranteed to surface as `StaticText` across iOS versions.
+    func previewKey(inserting text: String) -> XCUIElement {
+        preview.descendants(matching: .any)["key-insert-\(text)"].firstMatch
     }
 
     /// "Duplicate to Edit" button, present for built-in layouts only.

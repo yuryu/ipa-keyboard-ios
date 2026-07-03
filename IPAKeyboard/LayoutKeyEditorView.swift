@@ -14,7 +14,10 @@
 //    key-editor                 — the root List
 //    key-editor-cancel          — Cancel (confirms discard when dirty)
 //    key-editor-save            — Save (disabled until there are changes)
-//    key-editor-preview         — live draft preview
+//    key-editor-preview         — live draft preview (one accessibility
+//                                 container; keys inside carry per-key
+//                                 identifiers — see Key.accessibilityIdentifier
+//                                 in IPAKeyboardKit's KeyboardView.swift)
 //    key-editor-panel-picker    — panel picker (only when >1 panel)
 //    key-editor-row-<index>     — row link (0-based, within the shown panel)
 //    key-editor-add-row         — appends an empty row
@@ -117,6 +120,10 @@ struct LayoutKeyEditorView: View {
             KeyboardView(layout: draft.workingCopy, metrics: metrics) { _ in }
                 .frame(height: metrics.totalHeight(for: draft.workingCopy.primaryArrangement))
                 .frame(maxWidth: .infinity)
+                // Explicit accessibility container so the identifier names
+                // one element instead of bleeding onto every key (issue #25;
+                // same pattern as LayoutDetailView's preview).
+                .accessibilityElement(children: .contain)
                 .accessibilityIdentifier("key-editor-preview")
                 .listRowInsets(EdgeInsets())
                 // Keyboard-chrome color so white keycaps stay visible in light.

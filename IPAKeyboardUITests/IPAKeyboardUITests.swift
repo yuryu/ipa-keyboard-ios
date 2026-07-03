@@ -116,12 +116,33 @@ final class IPAKeyboardUITests: XCTestCase {
         library.englishUSRow.tap()
 
         let detail = LayoutDetailScreen(app: app)
+        // Preview assertions first: the preview section sits at the top of
+        // the lazy List, and scrolling down to the action section can compose
+        // it back out of the accessibility tree.
         XCTAssertTrue(
-            detail.waitForContent(timeout: 10),
+            detail.preview.waitForExistence(timeout: 10),
             "Keyboard preview (layout-detail-preview) did not appear on detail screen"
         )
+        XCTAssertEqual(
+            app.descendants(matching: .any).matching(identifier: "layout-detail-preview").count, 1,
+            "Expected exactly one 'layout-detail-preview' element — the "
+                + "accessibility container; more means the identifier is "
+                + "bleeding onto the keys again (issue #25)"
+        )
+        // One representative per-key identifier: the schwa key on the en-US
+        // main panel, by inserted text — with its spoken name, not the raw
+        // glyph, as the label.
+        let schwaKey = detail.previewKey(inserting: "ə")
         XCTAssertTrue(
-            detail.scrollTo(detail.duplicateButton),
+            schwaKey.waitForExistence(timeout: 10),
+            "Preview does not expose the schwa key via its per-key identifier 'key-insert-ə'"
+        )
+        XCTAssertEqual(
+            schwaKey.label, "schwa",
+            "Schwa key's accessibility label should be its spoken name"
+        )
+        XCTAssertTrue(
+            detail.waitForContent(timeout: 10),
             "'Duplicate to Edit' button missing on detail screen (after scrolling)"
         )
 
