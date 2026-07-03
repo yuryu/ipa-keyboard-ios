@@ -18,9 +18,13 @@ xcodebuild -project IPAKeyboard.xcodeproj -scheme IPAKeyboardKit \
 
 `PBXFileSystemSynchronizedRootGroup` is used for `IPAKeyboardKitTests/` — all `.swift` files dropped into that directory are automatically included in the target without editing the `.pbxproj`.
 
+`xcodebuild -only-testing:IPAKeyboardKitTests/BundledLayoutTests/someTestName` (bare Swift Testing method name, no `()`,  as the third path segment) silently matches nothing — "Executed 0 tests, with 0 failures" — rather than erroring. It is NOT the same identifier format XCTest uses. Filter at the class/suite level only (`-only-testing:IPAKeyboardKitTests/BundledLayoutTests`) and read the per-test ✔/✘ lines in the output; don't trust a 0-test "success" as a real run.
+
+`KeyboardView.swift`'s `KeyButton.spokenLabel` (private, ~line 289) is `key.action == .return ? ReturnKeyLabel.text(for: returnKeyType) : (key.accessibilityLabel ?? key.displayLabel)` — i.e. **only `.return` keys are provably self-labeled by the view**, regardless of JSON; every other action (`insert`, `space`, `backspace`, `nextKeyboard`, `switchPanel`) falls back to `displayLabel` (raw glyph / emoji / empty string) if `accessibilityLabel` is nil, which is not an acceptable spoken name. `.spacer` keys never reach `KeyButton` at all — `KeyRowView` renders them as a SwiftUI `Spacer(minLength:)` sized from the key's `widthFactor` — so they're exempt from any accessibility-label requirement, not just exempt because they're non-interactive. As of 2026-07-02 all three bundled layouts (`en-US.json`, `ipa-full.json`, `ipa-chart.json`) already have a non-empty `accessibilityLabel` on every key needing one (verified via `BundledLayoutTests.everyBundledKeyRequiringASpokenNameHasAnAccessibilityLabel`, added for issue #18) — no bundled JSON needed edits when auditing this invariant.
+
 **Why:** These facts are not obvious from the code and were discovered by running the build.
 
-**How to apply:** Use when adding new test files or running the test suite.
+**How to apply:** Use when adding new test files or running the test suite. When testing VoiceOver/accessibility invariants against `KeyboardView`, exempt `.return` and `.spacer` keys by the exact reasoning above rather than by guessing which actions "seem" self-explanatory.
 
 ---
 
