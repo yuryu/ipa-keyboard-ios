@@ -142,18 +142,32 @@ struct SymbolReferenceScreen {
 
     /// Waits for `element`, swiping the reference list up between checks —
     /// SwiftUI lists compose rows lazily, so a row below the fold does not
-    /// exist until scrolled into range.
+    /// exist until scrolled into range. Termination is progress-based, not
+    /// wall-clock: the loop stops when a swipe reveals no new bottom row
+    /// (the whole list has been traversed), so the reach scales with the
+    /// inventory instead of failing when new bundled layouts grow it. The
+    /// swipe cap is only a runaway backstop, sized well past the row count
+    /// a full traversal of today's inventory needs.
     @discardableResult
-    func waitForRevealed(
-        _ element: XCUIElement, timeout: TimeInterval = 10, maxSwipes: Int = 6
-    ) -> Bool {
-        let deadline = Date().addingTimeInterval(timeout)
+    func waitForRevealed(_ element: XCUIElement, maxSwipes: Int = 40) -> Bool {
         var swipes = 0
+        var previousBottomRow: String?
         while !element.waitForExistence(timeout: 1) {
-            if Date() >= deadline || swipes >= maxSwipes { return element.exists }
+            let bottomRow = lastVisibleRowIdentifier
+            let stalled = bottomRow != nil && bottomRow == previousBottomRow
+            if stalled || swipes >= maxSwipes { return element.exists }
+            previousBottomRow = bottomRow
             list.swipeUp()
             swipes += 1
         }
         return true
+    }
+
+    /// Identifier of the bottom-most composed symbol row, used by
+    /// `waitForRevealed` to detect that swiping stopped making progress.
+    private var lastVisibleRowIdentifier: String? {
+        list.buttons.matching(
+            NSPredicate(format: "identifier BEGINSWITH %@", "symbol-reference-row-")
+        ).allElementsBoundByIndex.last?.identifier
     }
 }
