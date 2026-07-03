@@ -60,6 +60,10 @@ Symbol reference (issue #17, `SymbolReferenceView.swift`):
 - `layout-list-symbol-reference-button` — LayoutListView toolbar entry point
 - `symbol-reference-list` (root List), `symbol-reference-row-<text>` (keyed by
   the exact inserted string, e.g. `…-row-ɡ` with U+0261),
+  `symbol-reference-copy-<text>` (issue #69: inline per-row copy button, same
+  key as the row; `.borderless` so it doesn't trigger the NavigationLink;
+  spoken label "Copy <name>", flips to sticky "Copied" — moves to another row
+  only when that row is copied),
   `symbol-reference-empty`, `symbol-reference-done`,
   `symbol-reference-scratch` / `…-scratch-copy` / `…-scratch-clear`
 - Detail: `symbol-detail-glyph`, `symbol-detail-spoken-name`,

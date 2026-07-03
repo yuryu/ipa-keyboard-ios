@@ -12,12 +12,18 @@
 //
 //  Tap a symbol for its detail: exact per-scalar code points with Unicode
 //  names, copy-to-pasteboard, and an add-to-scratchpad action that collects
-//  symbols into a copyable string on the reference's main screen.
+//  symbols into a copyable string on the reference's main screen. Each row
+//  also carries an inline copy button (issue #69) so the exact text can be
+//  copied without opening the detail.
 //
 //  Accessibility identifier scheme (for ui-test-author):
 //    symbol-reference-list           — the root List
 //    symbol-reference-row-<text>     — each symbol row (keyed by the exact
 //                                      inserted string, e.g. "…-row-ɡ")
+//    symbol-reference-copy-<text>    — the row's inline copy button (same
+//                                      key as the row; spoken label
+//                                      "Copy <name>", sticky "Copied" on the
+//                                      most recently copied row)
 //    symbol-reference-empty          — the no-search-results placeholder
 //    symbol-reference-done           — toolbar Done button (dismisses sheet)
 //    symbol-reference-scratch        — the scratchpad text
@@ -41,6 +47,12 @@ import IPAKeyboardKit
 struct SymbolReferenceView: View {
     @State private var model = SymbolReferenceModel()
     @Environment(\.dismiss) private var dismiss
+
+    /// The entry most recently copied from its row's inline button. Sticky
+    /// (moves only when another row is copied, never auto-reverts) —
+    /// mirroring the detail screen's deliberately deterministic "Copied"
+    /// feedback for UI tests and screen readers.
+    @State private var copiedSymbolID: SymbolEntry.ID?
 
     var body: some View {
         NavigationStack {
@@ -108,7 +120,13 @@ struct SymbolReferenceView: View {
             Section {
                 ForEach(model.filtered) { entry in
                     NavigationLink(value: entry) {
-                        SymbolReferenceRow(entry: entry)
+                        SymbolReferenceRow(
+                            entry: entry,
+                            copied: copiedSymbolID == entry.id
+                        ) {
+                            UIPasteboard.general.string = entry.text
+                            copiedSymbolID = entry.id
+                        }
                     }
                     .accessibilityIdentifier("symbol-reference-row-\(entry.text)")
                 }
@@ -122,26 +140,47 @@ struct SymbolReferenceView: View {
     }
 }
 
-/// One row: the glyph, its spoken name, and its exact code points.
+/// One row: the glyph, its spoken name, its exact code points, and an
+/// inline copy button so the exact text can be copied without opening the
+/// detail screen (issue #69).
 private struct SymbolReferenceRow: View {
     let entry: SymbolEntry
+    /// Whether this row is the most recently copied one (see
+    /// `SymbolReferenceView.copiedSymbolID`).
+    let copied: Bool
+    let copyAction: () -> Void
 
     var body: some View {
         HStack(spacing: 12) {
-            Text(entry.displayLabel)
-                .font(.title2)
-                .frame(minWidth: 36)
-            VStack(alignment: .leading, spacing: 2) {
-                Text(entry.spokenName ?? "No spoken name")
-                    .font(.body)
-                    .foregroundStyle(entry.spokenName == nil ? .secondary : .primary)
-                Text(entry.codePointNotation)
-                    .font(.caption.monospaced())
-                    .foregroundStyle(.secondary)
+            HStack(spacing: 12) {
+                Text(entry.displayLabel)
+                    .font(.title2)
+                    .frame(minWidth: 36)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(entry.spokenName ?? "No spoken name")
+                        .font(.body)
+                        .foregroundStyle(entry.spokenName == nil ? .secondary : .primary)
+                    Text(entry.codePointNotation)
+                        .font(.caption.monospaced())
+                        .foregroundStyle(.secondary)
+                }
             }
+            .accessibilityElement(children: .combine)
+            .accessibilityLabel(entry.spokenName ?? entry.displayLabel)
+
+            Spacer(minLength: 8)
+
+            // `.borderless` keeps the button's hit area independent of the
+            // List row, so tapping it copies in place while the rest of the
+            // row still pushes the detail screen.
+            Button(action: copyAction) {
+                Image(systemName: copied ? "checkmark" : "doc.on.doc")
+            }
+            .buttonStyle(.borderless)
+            .accessibilityLabel(
+                copied ? "Copied" : "Copy \(entry.spokenName ?? entry.displayLabel)")
+            .accessibilityIdentifier("symbol-reference-copy-\(entry.text)")
         }
-        .accessibilityElement(children: .combine)
-        .accessibilityLabel(entry.spokenName ?? entry.displayLabel)
     }
 }
 
