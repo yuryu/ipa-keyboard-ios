@@ -23,6 +23,10 @@ import XCTest
 /// accessibility snapshot — so a bare `waitForExistence` can time out on
 /// content that would render once scrolled into range. Shared by both page
 /// objects below rather than duplicated per screen.
+/// `maxSwipes` bounds how far it scrolls; `timeout` bounds how long it
+/// waits — after the swipe budget is exhausted it keeps polling in place
+/// until the deadline, so a generous caller deadline (`.postNavigation`,
+/// issue #96) is never truncated by the scroll cap.
 @MainActor
 @discardableResult
 func waitForRevealed(
@@ -31,12 +35,17 @@ func waitForRevealed(
 ) -> Bool {
     let deadline = Date().addingTimeInterval(timeout)
     var swipes = 0
-    while !element.waitForExistence(timeout: 1) {
-        if Date() >= deadline || swipes >= maxSwipes { return element.exists }
-        scrollView.swipeUp()
-        swipes += 1
+    while true {
+        let remaining = deadline.timeIntervalSinceNow
+        if remaining <= 0 { return element.exists }
+        // Poll in ~1s slices (capped by the remaining budget) so the loop can
+        // swipe between checks without ever starting a poll past the deadline.
+        if element.waitForExistence(timeout: min(1, remaining)) { return true }
+        if swipes < maxSwipes {
+            scrollView.swipeUp()
+            swipes += 1
+        }
     }
-    return true
 }
 
 // MARK: - LibraryScreen

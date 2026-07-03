@@ -12,6 +12,9 @@
 //  - Elements located by accessibilityIdentifier first, label second,
 //    type-query last — never by index or coordinate.
 //  - Synchronisation via waitForExistence / XCTNSPredicateExpectation, not sleep.
+//  - The first wait after a navigation event (launch, push, sheet/alert,
+//    dismissal) passes timeout: .postNavigation — slow CI runners can stretch
+//    the transition past the 10s suite default (issue #96).
 //  - continueAfterFailure = false so failures are reported at their root cause.
 //  - Failure screenshots are attached automatically in tearDown.
 //
@@ -80,7 +83,7 @@ final class IPAKeyboardUITests: XCTestCase {
         app.launch()
         let screen = LibraryScreen(app: app)
         XCTAssertTrue(
-            screen.waitForContent(timeout: 10),
+            screen.waitForContent(timeout: .postNavigation),
             "Layout library 'Layouts' navigation bar did not appear"
         )
         let row = screen.englishUSRow
@@ -113,7 +116,7 @@ final class IPAKeyboardUITests: XCTestCase {
     func test_library_openDetail_showsPreview_andBackNavigatesToList() throws {
         app.launch()
         let library = LibraryScreen(app: app)
-        XCTAssertTrue(library.waitForContent(timeout: 10))
+        XCTAssertTrue(library.waitForContent(timeout: .postNavigation))
 
         library.englishUSRow.tap()
 
@@ -122,7 +125,7 @@ final class IPAKeyboardUITests: XCTestCase {
         // the lazy List, and scrolling down to the action section can compose
         // it back out of the accessibility tree.
         XCTAssertTrue(
-            detail.preview.waitForExistence(timeout: 10),
+            detail.preview.waitForExistence(timeout: .postNavigation),
             "Keyboard preview (layout-detail-preview) did not appear on detail screen"
         )
         XCTAssertEqual(
@@ -151,7 +154,7 @@ final class IPAKeyboardUITests: XCTestCase {
         detail.backButton.tap()
 
         XCTAssertTrue(
-            library.waitForContent(timeout: 10),
+            library.waitForContent(timeout: .postNavigation),
             "Did not navigate back to the layout library"
         )
         XCTAssertTrue(

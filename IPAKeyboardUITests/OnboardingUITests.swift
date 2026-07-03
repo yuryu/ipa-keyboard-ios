@@ -85,7 +85,7 @@ final class OnboardingUITests: XCTestCase {
 
         let onboarding = OnboardingScreen(app: app)
         XCTAssertTrue(
-            onboarding.waitForContent(timeout: 10),
+            onboarding.waitForContent(timeout: .postNavigation),
             "Onboarding sheet ('Enable the Keyboard') did not auto-present "
                 + "with \(OnboardingScreen.forceShowArgument)"
         )
@@ -121,13 +121,13 @@ final class OnboardingUITests: XCTestCase {
         onboarding.doneButton.tap()
 
         XCTAssertTrue(
-            onboarding.waitForDismissal(timeout: 5),
+            onboarding.waitForDismissal(timeout: .postNavigation),
             "Onboarding sheet did not dismiss after tapping Done"
         )
 
         let library = LibraryScreen(app: app)
         XCTAssertTrue(
-            library.waitForContent(timeout: 5),
+            library.waitForContent(timeout: .postNavigation),
             "Layout library ('Layouts') did not reappear after dismissing "
                 + "onboarding"
         )
@@ -147,7 +147,7 @@ final class OnboardingUITests: XCTestCase {
 
         let library = LibraryScreen(app: app)
         XCTAssertTrue(
-            library.waitForContent(timeout: 10),
+            library.waitForContent(timeout: .postNavigation),
             "Layout library did not appear with "
                 + "\(OnboardingScreen.forceSkipArgument)"
         )
@@ -171,7 +171,7 @@ final class OnboardingUITests: XCTestCase {
         library.helpButton.tap()
 
         XCTAssertTrue(
-            onboarding.waitForContent(timeout: 5),
+            onboarding.waitForContent(timeout: .postNavigation),
             "Tapping the help button did not reopen the onboarding sheet"
         )
     }

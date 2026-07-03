@@ -161,7 +161,7 @@ final class ImportExportUITests: XCTestCase {
     private func assertImportErrorAlert(messageContains fragment: String) {
         let alert = app.alerts["Something went wrong"]
         XCTAssertTrue(
-            alert.waitForExistence(timeout: 10),
+            alert.waitForExistence(timeout: .postNavigation),
             "Import-error alert did not appear")
 
         let message = alert.staticTexts.matching(
@@ -176,7 +176,7 @@ final class ImportExportUITests: XCTestCase {
         alert.buttons["OK"].tap()
         let library = LibraryScreen(app: app)
         XCTAssertTrue(
-            library.waitForContent(timeout: 10),
+            library.waitForContent(timeout: .postNavigation),
             "Library not usable after dismissing the import-error alert")
     }
 
@@ -208,7 +208,7 @@ final class ImportExportUITests: XCTestCase {
         launch()
 
         let library = LibraryScreen(app: app)
-        XCTAssertTrue(library.waitForContent(timeout: 10), "Library did not appear")
+        XCTAssertTrue(library.waitForContent(timeout: .postNavigation), "Library did not appear")
         let builtInRow = library.waitForRow(
             labelContainsAll: [Self.builtInLayoutName, "Built-in, read-only"], timeout: 10)
         XCTAssertTrue(builtInRow.exists, "Built-in '\(Self.builtInLayoutName)' row not found")
@@ -217,7 +217,7 @@ final class ImportExportUITests: XCTestCase {
         let detail = LayoutDetailScreen(app: app)
         // waitForContent scrolls to the action section, which sits below the
         // export section — so success guarantees the export button is loaded.
-        XCTAssertTrue(detail.waitForContent(timeout: 10), "Detail screen did not appear")
+        XCTAssertTrue(detail.waitForContent(timeout: .postNavigation), "Detail screen did not appear")
 
         let exportButton = app.buttons["layout-detail-export-button"]
         XCTAssertTrue(
@@ -226,7 +226,7 @@ final class ImportExportUITests: XCTestCase {
         exportButton.tap()
 
         XCTAssertTrue(
-            waitForShareSheet(timeout: 15),
+            waitForShareSheet(timeout: .postNavigation),
             "Share sheet did not appear after tapping 'Export Layout'")
     }
 
@@ -255,7 +255,7 @@ final class ImportExportUITests: XCTestCase {
     func test_importButton_isPresentOnLibraryToolbar() throws {
         launch()
         let importButton = app.buttons["layout-list-import-button"]
-        XCTAssertTrue(importButton.waitForExistence(timeout: 10), "Import button not found")
+        XCTAssertTrue(importButton.waitForExistence(timeout: .postNavigation), "Import button not found")
         XCTAssertTrue(importButton.isHittable, "Import button not hittable")
     }
 
@@ -290,13 +290,13 @@ final class ImportExportUITests: XCTestCase {
                 "Valid-import failure alert should carry the shared-storage message")
             alert.buttons["OK"].tap()
             XCTAssertTrue(
-                library.waitForContent(timeout: 10),
+                library.waitForContent(timeout: .postNavigation),
                 "Library not usable after dismissing the shared-storage alert")
             XCTAssertFalse(
                 library.waitForRow(labelContains: Self.importedLayoutName, timeout: 2).exists,
                 "No imported row should exist when persistence was unavailable")
         } else {
-            XCTAssertTrue(library.waitForContent(timeout: 10), "Library did not appear")
+            XCTAssertTrue(library.waitForContent(timeout: .postNavigation), "Library did not appear")
             let importedRow = library.waitForRow(
                 labelContains: Self.importedLayoutName, timeout: 10)
             XCTAssertTrue(

@@ -135,13 +135,13 @@ final class KeyEditorUITests: XCTestCase {
                 "Unexpected error-alert message when the shared container is unavailable")
             errorAlert.buttons["OK"].tap()
             XCTAssertTrue(
-                library.waitForContent(timeout: 10),
+                library.waitForContent(timeout: .postNavigation),
                 "Library did not remain usable after dismissing the save-failure alert")
             return false
         }
 
         XCTAssertTrue(
-            library.waitForContent(timeout: 10),
+            library.waitForContent(timeout: .postNavigation),
             "Did not return to the library after duplicating")
         return true
     }
@@ -152,7 +152,7 @@ final class KeyEditorUITests: XCTestCase {
     @MainActor
     private func openSourceLayoutDetail() -> LayoutDetailScreen {
         let library = LibraryScreen(app: app)
-        XCTAssertTrue(library.waitForContent(timeout: 10), "Library did not appear")
+        XCTAssertTrue(library.waitForContent(timeout: .postNavigation), "Library did not appear")
         let builtInRow = library.waitForRow(
             labelContainsAll: [Self.sourceLayoutName, "Built-in, read-only"], timeout: 5)
         XCTAssertTrue(builtInRow.exists, "Built-in '\(Self.sourceLayoutName)' row not found")
@@ -160,7 +160,7 @@ final class KeyEditorUITests: XCTestCase {
 
         let detail = LayoutDetailScreen(app: app)
         XCTAssertTrue(
-            detail.waitForContent(timeout: 10),
+            detail.waitForContent(timeout: .postNavigation),
             "'Duplicate to Edit' button did not appear on built-in detail screen")
         return detail
     }
@@ -232,7 +232,7 @@ final class KeyEditorUITests: XCTestCase {
 
         let userDetail = LayoutDetailScreen(app: app)
         XCTAssertTrue(
-            userDetail.waitForUserLayoutContent(timeout: 10),
+            userDetail.waitForUserLayoutContent(timeout: .postNavigation),
             "'Edit Keys' button did not appear on the forked layout's detail screen")
 
         // Sanity: the unedited key renders in the preview before we change
@@ -253,7 +253,7 @@ final class KeyEditorUITests: XCTestCase {
         userDetail.editKeysButton.tap()
 
         let keyEditor = LayoutKeyEditorScreen(app: app)
-        XCTAssertTrue(keyEditor.waitForContent(timeout: 10), "Key editor sheet did not appear")
+        XCTAssertTrue(keyEditor.waitForContent(timeout: .postNavigation), "Key editor sheet did not appear")
 
         let firstRow = keyEditor.waitForRow(at: 0, timeout: 5)
         XCTAssertTrue(firstRow.exists, "key-editor-row-0 not found")
@@ -261,7 +261,7 @@ final class KeyEditorUITests: XCTestCase {
 
         let rowEditor = KeyRowEditorScreen(app: app)
         XCTAssertTrue(
-            rowEditor.waitForContent(rowNumber: 1, timeout: 10),
+            rowEditor.waitForContent(rowNumber: 1, timeout: .postNavigation),
             "Row editor for row 1 did not appear")
 
         let firstKey = rowEditor.waitForKey(at: 0, timeout: 5)
@@ -271,7 +271,7 @@ final class KeyEditorUITests: XCTestCase {
         // Edit the key's inserted text ("q" -> "qʰ", a real aspirated
         // voiceless uvular plosive) and its spoken name, then commit.
         let form = KeyEditorFormScreen(app: app)
-        XCTAssertTrue(form.insertTextField.waitForExistence(timeout: 10), "Key form did not appear")
+        XCTAssertTrue(form.insertTextField.waitForExistence(timeout: .postNavigation), "Key form did not appear")
 
         let editedText = "q\u{02B0}" // "qʰ": U+0071 LATIN SMALL LETTER Q, U+02B0 MODIFIER LETTER SMALL H
         form.replaceText(in: form.insertTextField, with: editedText)
@@ -297,7 +297,7 @@ final class KeyEditorUITests: XCTestCase {
         // Back in the row editor: the committed edit is reflected
         // immediately (draft, not yet saved).
         XCTAssertTrue(
-            rowEditor.waitForContent(rowNumber: 1, timeout: 10),
+            rowEditor.waitForContent(rowNumber: 1, timeout: .postNavigation),
             "Did not return to the row editor after committing the key form")
         XCTAssertTrue(
             app.staticTexts[editedText].waitForExistence(timeout: 5),
@@ -308,7 +308,7 @@ final class KeyEditorUITests: XCTestCase {
 
         // Back to the key-editor root and Save.
         app.navigationBars.buttons["Edit Keys"].tap()
-        XCTAssertTrue(keyEditor.waitForContent(timeout: 10), "Did not return to the key editor root")
+        XCTAssertTrue(keyEditor.waitForContent(timeout: .postNavigation), "Did not return to the key editor root")
         XCTAssertTrue(
             keyEditor.saveButton.isEnabled,
             "Save should be enabled once the draft has unsaved changes")
@@ -317,7 +317,7 @@ final class KeyEditorUITests: XCTestCase {
         // Sheet dismisses back to the (still forked) layout's detail screen,
         // whose preview now reflects the saved edit.
         XCTAssertTrue(
-            userDetail.waitForUserLayoutContent(timeout: 10),
+            userDetail.waitForUserLayoutContent(timeout: .postNavigation),
             "Did not return to the layout-detail screen after saving")
         // Per-key identifiers (issue #25) let this assert the *inserted text*
         // changed — "key-insert-qʰ" replacing "key-insert-q" — not just the
@@ -359,11 +359,11 @@ final class KeyEditorUITests: XCTestCase {
         forkedRow.tap()
 
         let userDetail = LayoutDetailScreen(app: app)
-        XCTAssertTrue(userDetail.waitForUserLayoutContent(timeout: 10))
+        XCTAssertTrue(userDetail.waitForUserLayoutContent(timeout: .postNavigation))
         userDetail.editKeysButton.tap()
 
         let keyEditor = LayoutKeyEditorScreen(app: app)
-        XCTAssertTrue(keyEditor.waitForContent(timeout: 10))
+        XCTAssertTrue(keyEditor.waitForContent(timeout: .postNavigation))
         XCTAssertFalse(
             keyEditor.saveButton.isEnabled,
             "Save should start disabled — the draft has no changes yet")
@@ -385,12 +385,12 @@ final class KeyEditorUITests: XCTestCase {
         // Cancel -> confirms discard -> dismisses without saving.
         keyEditor.cancelButton.tap()
         XCTAssertTrue(
-            keyEditor.discardConfirmButton.waitForExistence(timeout: 5),
+            keyEditor.discardConfirmButton.waitForExistence(timeout: .postNavigation),
             "Discard-changes confirmation did not appear for a dirty draft")
         keyEditor.discardConfirmButton.tap()
 
         XCTAssertTrue(
-            userDetail.waitForUserLayoutContent(timeout: 10),
+            userDetail.waitForUserLayoutContent(timeout: .postNavigation),
             "Did not return to the layout-detail screen after discarding")
 
         // Reopening the editor must show the original (unmodified) content —
@@ -403,7 +403,7 @@ final class KeyEditorUITests: XCTestCase {
         // up, so lazy List composition can't hide a persisted row from the
         // absence assertion.
         userDetail.editKeysButton.tap()
-        XCTAssertTrue(keyEditor.waitForContent(timeout: 10))
+        XCTAssertTrue(keyEditor.waitForContent(timeout: .postNavigation))
         XCTAssertFalse(
             keyEditor.waitForEmptyRow(timeout: 5).exists,
             "Reopened editor still shows the appended 'No keys yet' row — "
