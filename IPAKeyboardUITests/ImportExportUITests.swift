@@ -54,6 +54,14 @@ final class ImportExportUITests: XCTestCase {
     override func setUp() async throws {
         try await super.setUp()
         continueAfterFailure = false
+        // Portrait, always, for the same hermeticity reason as
+        // IPAKeyboardUITests: IPAKeyboardUITestsLaunchTests runs per UI
+        // configuration and leaves the simulator in landscape, where the
+        // active-layout preview card fills the viewport and built-in rows
+        // fall below the fold — SwiftUI's lazy list keeps off-screen cells
+        // out of the accessibility tree, so row queries fail (CI flake:
+        // "Built-in 'IPA — Full (QWERTY)' row not found").
+        XCUIDevice.shared.orientation = .portrait
         app = XCUIApplication()
     }
 

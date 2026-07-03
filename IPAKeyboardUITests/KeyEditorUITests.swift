@@ -71,6 +71,11 @@ final class KeyEditorUITests: XCTestCase {
     override func setUp() async throws {
         try await super.setUp()
         continueAfterFailure = false
+        // Portrait, always, for the same hermeticity reason as
+        // IPAKeyboardUITests: IPAKeyboardUITestsLaunchTests runs per UI
+        // configuration and leaves the simulator in landscape, where lazy
+        // lists drop off-screen rows from the accessibility tree.
+        XCUIDevice.shared.orientation = .portrait
         app = XCUIApplication()
         // Onboarding (#34) appears on a fresh install and covers the library
         // list; skip it like every other non-onboarding suite does.

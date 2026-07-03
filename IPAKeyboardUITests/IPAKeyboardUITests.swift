@@ -35,8 +35,10 @@ final class IPAKeyboardUITests: XCTestCase {
         // Portrait, always: in landscape the active-layout preview card fills
         // the viewport and the built-in layout row falls below the fold —
         // SwiftUI's lazy list keeps off-screen cells out of the accessibility
-        // tree entirely, so row queries fail. CI simulators boot in portrait;
-        // a developer's simulator may be left in landscape.
+        // tree entirely, so row queries fail. IPAKeyboardUITestsLaunchTests
+        // (per-UI-configuration) leaves even CI simulators in landscape, and
+        // a developer's simulator may be left there too — every functional
+        // suite resets orientation in setUp.
         XCUIDevice.shared.orientation = .portrait
         app = XCUIApplication()
         // None of these tests exercise onboarding (see OnboardingUITests.swift),

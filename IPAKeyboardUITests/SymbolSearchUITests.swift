@@ -43,6 +43,11 @@ final class SymbolSearchUITests: XCTestCase {
     override func setUp() async throws {
         try await super.setUp()
         continueAfterFailure = false
+        // Portrait, always, for the same hermeticity reason as
+        // IPAKeyboardUITests: IPAKeyboardUITestsLaunchTests runs per UI
+        // configuration and leaves the simulator in landscape, where lazy
+        // lists drop off-screen rows from the accessibility tree.
+        XCUIDevice.shared.orientation = .portrait
         app = XCUIApplication()
         app.launchArguments += ["--uitest-skip-onboarding"]
     }
