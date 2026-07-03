@@ -60,6 +60,7 @@ Actionable work is tracked as **GitHub issues** on `yuryu/ipa-keyboard-ios`; `do
 - Before starting feature work, check `gh issue list` and read the relevant issue (`gh issue view <n>`) — issues are written so a fresh session can act on them (context, file pointers, acceptance criteria, owning subagent).
 - Work with no issue yet? File one first (`gh issue create`) — it anchors the branch and the PR.
 - File discovered work as new issues rather than leaving TODOs in code or adding task lists to the roadmap.
+- **Attribute Claude's writing.** Anything posted to GitHub via `gh` goes out under the user's account, so every issue, comment, or review reply Claude writes must say so explicitly in the body — end it with a line like `*— written by Claude*` (issues: place it after the issue body; comment/reply bodies: last line). PR bodies already carry the `🤖 Generated with Claude Code` footer, which covers them.
 - Labels map to areas (and subagents): `layouts` (IPA data/schema/bundled JSON — `ipa-data-curator`), `host-app` (`layout-editor-ui`), `keyboard-ext` (`keyboard-extension-builder`), `testing` (the test authors), `infra` (CI/signing/provisioning), `deferred` (parked by design).
 
 ## Working style: verify, don't trust memory
