@@ -171,7 +171,9 @@ final class SymbolSearchUITests: XCTestCase {
 
         // The row carries its own copy affordance — no detail visit needed.
         let rowCopy = reference.rowCopyButton(forSymbol: Self.scriptG)
-        XCTAssertTrue(rowCopy.exists, "Per-row copy button not found on the ɡ row")
+        XCTAssertTrue(
+            rowCopy.waitForExistence(timeout: 10),
+            "Per-row copy button not found on the ɡ row")
         rowCopy.tap()
 
         // The label flips to "Copied" (sticky, race-free) — proof the tap
