@@ -10,6 +10,8 @@
 //    layout-list-symbol-reference-button — toolbar entry point (library)
 //    symbol-reference-list           — the root List
 //    symbol-reference-row-<text>     — each symbol row (exact inserted string)
+//    symbol-reference-copy-<text>    — the row's inline copy button (same
+//                                      key; label flips to sticky "Copied")
 //    symbol-reference-empty          — the no-search-results placeholder
 //    symbol-reference-done           — toolbar Done button
 //    symbol-reference-scratch        — the scratchpad text
@@ -77,6 +79,14 @@ struct SymbolReferenceScreen {
     /// `Button`s inside cells on the iOS 26 SDK — query `buttons`.
     func row(forSymbol text: String) -> XCUIElement {
         app.buttons["symbol-reference-row-\(text)"]
+    }
+
+    /// A row's inline copy button (issue #69), keyed like the row by the
+    /// exact inserted string. Copies the symbol in place — it must never
+    /// push the detail screen. Its spoken label flips to "Copied" (sticky,
+    /// moves only when another row is copied) after a tap.
+    func rowCopyButton(forSymbol text: String) -> XCUIElement {
+        app.buttons["symbol-reference-copy-\(text)"]
     }
 
     /// The scratchpad text on the reference's main screen (appears once a
