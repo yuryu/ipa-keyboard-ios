@@ -59,7 +59,11 @@ public final class LayoutStore {
     public func save(_ layout: KeyboardLayout) throws {
         guard let dir = userLayoutsDirectory else { throw StoreError.sharedContainerUnavailable }
         try fileManager.createDirectory(at: dir, withIntermediateDirectories: true)
-        let data = try encoder.encode(layout)
+        // Fresh encoder per save (`makeDocumentEncoder` is documented
+        // fresh-per-call; `JSONEncoder` isn't documented thread-safe), shared
+        // with `LayoutTransfer.exportData` so a saved document and an exported
+        // one are byte-for-byte the same format.
+        let data = try LayoutTransfer.makeDocumentEncoder().encode(layout)
         try data.write(to: fileURL(for: layout.id, in: dir), options: .atomic)
     }
 
@@ -86,9 +90,4 @@ public final class LayoutStore {
     }
 
     private let decoder = JSONDecoder()
-
-    // Stable, diff-friendly output for layouts saved to the container.
-    // Shared with `LayoutTransfer.exportData` so a saved document and an
-    // exported one are byte-for-byte the same format.
-    private let encoder = LayoutTransfer.makeDocumentEncoder()
 }

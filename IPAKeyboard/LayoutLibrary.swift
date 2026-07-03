@@ -161,15 +161,19 @@ final class LayoutLibrary {
         }
     }
 
-    /// Read the picked document's bytes off the main actor (`nonisolated
-    /// async` runs on the global executor): `Data(contentsOf:)` can block on
-    /// an iCloud/network-backed file, which must not freeze the UI.
+    /// Read the picked document's bytes off the main actor: `Data(contentsOf:)`
+    /// can block on an iCloud/network-backed file, which must not freeze the
+    /// UI. `@concurrent` forces the global executor — this project builds with
+    /// Approachable Concurrency (`NonisolatedNonsendingByDefault`), under
+    /// which a plain `nonisolated async` function runs in the *caller's*
+    /// isolation, i.e. right back on the main actor.
     ///
     /// fileImporter hands back a security-scoped URL; without start/stop
     /// accessing, reading it fails outside the sandbox. `start…` returning
     /// false is *not* an error — it's the normal answer for files already
     /// inside our sandbox — so the read is attempted either way and a real
     /// permission failure surfaces through the thrown read error.
+    @concurrent
     private nonisolated static func readPickedDocument(at url: URL) async throws -> Data {
         let accessing = url.startAccessingSecurityScopedResource()
         defer { if accessing { url.stopAccessingSecurityScopedResource() } }
