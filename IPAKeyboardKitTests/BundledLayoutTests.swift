@@ -91,13 +91,14 @@ struct BundledLayoutTests {
     }
 
     /// Accessibility invariant (issue #18): no bundled key may reach
-    /// VoiceOver as a bare, unexplained glyph. `KeyboardView.spokenLabel`
-    /// computes `key.accessibilityLabel ?? key.displayLabel` for every
+    /// VoiceOver as a bare, unexplained glyph. `KeyButton.spokenLabel`
+    /// (private, in `KeyboardView.swift`) computes
+    /// `key.accessibilityLabel ?? key.displayLabel` for every
     /// action *except* `.return`, which the view always overrides with the
     /// return-key-type word (Go/Search/Done/return) regardless of the JSON —
     /// so `.return` keys are exempt here; the view "provably" labels them
     /// itself. `.spacer` keys are exempt too: `KeyRowView` renders them as a
-    /// plain `Spacer()`, never a `KeyButton`, so they never become an
+    /// `Spacer(minLength:)`, never a `KeyButton`, so they never become an
     /// accessibility element at all. Every other action — `insert`, `space`,
     /// `backspace`, `nextKeyboard`, `switchPanel` — falls back to
     /// `displayLabel` (a raw glyph, an emoji, or empty string) when
