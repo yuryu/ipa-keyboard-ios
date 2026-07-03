@@ -1,6 +1,6 @@
 ---
 name: copilot-review
-description: Fetch GitHub Copilot auto-review comments on a PR of this repo, address each one, update the PR, and rerun workflows when needed. Use when a PR has Copilot review feedback to handle.
+description: Fetch GitHub Copilot auto-review comments on a PR of this repo, address each one, update the PR, resolve the addressed threads, and rerun workflows when needed. Use when a PR has Copilot review feedback to handle.
 ---
 
 # Handle a PR's Copilot review
@@ -51,7 +51,30 @@ gh api repos/yuryu/ipa-keyboard-ios/pulls/<PR>/comments/<id>/replies -f body='..
 
 ## 3. Update the PR
 
-Commit and push to the PR branch, then re-request Copilot review — it does not
+Commit and push to the PR branch. Then resolve each thread whose fix landed —
+after the push, so the "Applied in `<sha>`" reply points at a commit that
+exists on the branch. Leave declined threads unresolved; the user adjudicates
+those. Resolving is GraphQL-only, so first map each REST comment id to its
+thread (match on `commentId`, not login — GraphQL reports the thread author as
+`copilot-pull-request-reviewer` even where REST said `Copilot`):
+
+```sh
+gh api graphql -f owner=yuryu -f repo=ipa-keyboard-ios -F pr=<PR> -f query='
+  query($owner:String!,$repo:String!,$pr:Int!){
+    repository(owner:$owner,name:$repo){ pullRequest(number:$pr){
+      reviewThreads(first:100){ nodes{
+        id isResolved comments(first:1){ nodes{ databaseId } } } } } } }' \
+  --jq '.data.repository.pullRequest.reviewThreads.nodes[]
+        | select(.isResolved | not)
+        | {id, commentId: .comments.nodes[0].databaseId}'
+```
+
+```sh
+gh api graphql -f id=<thread-id> -f query='
+  mutation($id:ID!){ resolveReviewThread(input:{threadId:$id}){ thread{ isResolved } } }'
+```
+
+Re-request Copilot review — it does not
 re-review new pushes on its own. The `[bot]` suffix is required; the bare
 login is rejected with HTTP 422:
 
@@ -70,5 +93,6 @@ gh run list --branch <branch> --limit 5
 gh run rerun <run-id> --failed
 ```
 
-Finish by reporting what you applied vs. declined. The user does the final
-review and merge — never merge the PR yourself.
+Finish by reporting what you applied (threads resolved) vs. declined (threads
+left open). The user does the final review and merge — never merge the PR
+yourself.
