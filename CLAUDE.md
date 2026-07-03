@@ -48,17 +48,17 @@ are just additional bundled JSON and need no schema change.
 
 Everything lands through pull requests — code and docs alike. `main` is protected by a ruleset (PR + green CI required, squash-merge only, admin bypass for emergencies) and only moves by merging a PR. The loop, per work item:
 
-1. **Start from an issue** (see the conventions below), and create its linked branch: `gh issue develop <n> --checkout`.
+1. **Start from an issue for substantial work** (feature work, behavior changes, anything needing context or acceptance criteria — see the conventions below), and create its linked branch: `gh issue develop <n> --checkout`. **Small self-contained changes need no issue** — agent-memory updates, docs tweaks, typo fixes, mechanical chores whose PR description tells the whole story: just branch off `main` (`git checkout -b <short-name>`) and let the PR body be the record.
 2. **Work on the branch.** Commit and push freely there without asking — PR review replaces the old ask-before-committing rule. Never commit to or push `main` directly.
-3. **Open the PR** (`gh pr create`), following `.github/pull_request_template.md`: a standalone summary, test evidence (which suites ran and their results), and `Fixes #<n>` — closing keywords must be in the **PR body**, because squash-merge discards branch commit messages (the squash commit is configured to take the PR title + body).
-4. **The user reviews and merges — don't merge a PR unless asked.** CI must be green; for deeper review the user may run `/code-review ultra <PR#>`. On merge the branch auto-deletes and `Fixes #<n>` closes the issue.
+3. **Open the PR** (`gh pr create`), following `.github/pull_request_template.md`: a standalone summary, test evidence (which suites ran and their results), and — when the PR closes an issue — `Fixes #<n>` in the **PR body**, because squash-merge discards branch commit messages (the squash commit is configured to take the PR title + body).
+4. **The user reviews and merges — don't merge a PR unless asked.** CI must be green; for deeper review the user may run `/code-review ultra <PR#>`. On merge the branch auto-deletes and `Fixes #<n>` closes the issue, if there is one.
 
-Keep PRs small and short-lived: one issue = one branch = one PR. Independent issues can proceed in parallel on separate branches.
+Keep PRs small and short-lived: one work item = one branch = one PR. Independent work items can proceed in parallel on separate branches.
 
 Actionable work is tracked as **GitHub issues** on `yuryu/ipa-keyboard-ios`; `docs/ROADMAP.md` holds product direction only. Conventions:
 
 - Before starting feature work, check `gh issue list` and read the relevant issue (`gh issue view <n>`) — issues are written so a fresh session can act on them (context, file pointers, acceptance criteria, owning subagent).
-- Work with no issue yet? File one first (`gh issue create`) — it anchors the branch and the PR.
+- Substantial work with no issue yet? File one first (`gh issue create`) — it anchors the branch and the PR. Small self-contained changes (see the loop above) skip this and go straight to a branch + PR.
 - File discovered work as new issues rather than leaving TODOs in code or adding task lists to the roadmap.
 - **Attribute Claude's writing.** Anything posted to GitHub via `gh` goes out under the user's account, so every issue, comment, or review reply Claude writes must say so explicitly in the body — end it with a line like `*— written by Claude*` (issues: place it after the issue body; comment/reply bodies: last line). PR bodies already carry the `🤖 Generated with Claude Code` footer, which covers them.
 - Labels map to areas (and subagents): `layouts` (IPA data/schema/bundled JSON — `ipa-data-curator`), `host-app` (`layout-editor-ui`), `keyboard-ext` (`keyboard-extension-builder`), `testing` (the test authors), `infra` (CI/signing/provisioning), `deferred` (parked by design).
