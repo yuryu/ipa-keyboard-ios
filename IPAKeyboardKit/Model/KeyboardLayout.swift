@@ -189,7 +189,7 @@ public struct KeyboardLayout: Codable, Sendable, Hashable, Identifiable {
                 panel.rows = panel.rows.compactMap { row in
                     var row = row
                     row.keys = row.keys.compactMap { KeyboardLayout.pruning($0, shouldRemove) }
-                    if dropEmptyRows && !row.keys.contains(where: { !$0.isSpacer }) { return nil }
+                    if dropEmptyRows && row.keys.allSatisfy(\.isSpacer) { return nil }
                     return row
                 }
                 return panel
