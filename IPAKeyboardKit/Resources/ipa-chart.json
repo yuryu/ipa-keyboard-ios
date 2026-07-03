@@ -11,7 +11,8 @@
         "keys": [
           { "action": { "type": "nextKeyboard" }, "label": "🌐", "accessibilityLabel": "next keyboard", "widthFactor": 1.5 },
           { "action": { "type": "space" }, "label": "space", "accessibilityLabel": "space", "widthFactor": 3.0 },
-          { "action": { "type": "backspace" }, "label": "⌫", "accessibilityLabel": "delete", "widthFactor": 1.5 }
+          { "action": { "type": "backspace" }, "label": "⌫", "accessibilityLabel": "delete", "widthFactor": 1.5 },
+          { "action": { "type": "return" }, "label": "return", "accessibilityLabel": "return", "widthFactor": 1.5 }
         ]
       },
       "panels": [

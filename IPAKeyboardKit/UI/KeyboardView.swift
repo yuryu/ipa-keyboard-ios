@@ -69,9 +69,29 @@ public struct KeyboardMetrics: Sendable {
     }
 }
 
+extension KeyboardMetrics: Equatable {}
+
+public extension KeyboardMetrics {
+    /// Shorter rows for compact-height environments (iPhone landscape),
+    /// mirroring the system keyboard, which drops to roughly two-thirds of
+    /// its portrait height there. A 5-row bundled layout renders ~196 pt —
+    /// close to the system landscape keyboard — instead of 290 pt.
+    static let compactHeight = KeyboardMetrics(
+        rowHeight: 34, rowSpacing: 5, keySpacing: 6, outerPadding: 3)
+
+    /// The metrics for an environment: the default set, or the shorter
+    /// `compactHeight` set when the vertical size class is compact. The
+    /// extension (UIKit traits) and the host previews (SwiftUI environment)
+    /// both key off this so their heights always agree.
+    static func metrics(forCompactHeight isCompact: Bool) -> KeyboardMetrics {
+        isCompact ? .compactHeight : KeyboardMetrics()
+    }
+}
+
 public struct KeyboardView: View {
     private let layout: KeyboardLayout
     private let metrics: KeyboardMetrics
+    private let returnKeyType: UIReturnKeyType
     private let nextKeyboardOverlay: AnyView?
     private let onAction: (KeyAction) -> Void
 
@@ -80,6 +100,11 @@ public struct KeyboardView: View {
     /// in place; the action never escapes to the host document.
     @State private var activePanelName: String?
 
+    /// - Parameter returnKeyType: the host field's return-key type; `.return`
+    ///   keys are relabeled to match (Go/Search/Done…) and tinted for the
+    ///   non-default types, like the system keyboard. The extension passes
+    ///   `textDocumentProxy.returnKeyType`; the host previews keep the
+    ///   default, which renders a plain "return".
     /// - Parameter nextKeyboardOverlay: an optional UIKit control the
     ///   keyboard extension lays over every `.nextKeyboard` keycap so the
     ///   system handles switching (tap advances; long-press shows the
@@ -88,11 +113,13 @@ public struct KeyboardView: View {
     public init(
         layout: KeyboardLayout,
         metrics: KeyboardMetrics = KeyboardMetrics(),
+        returnKeyType: UIReturnKeyType = .default,
         nextKeyboardOverlay: AnyView? = nil,
         onAction: @escaping (KeyAction) -> Void
     ) {
         self.layout = layout
         self.metrics = metrics
+        self.returnKeyType = returnKeyType
         self.nextKeyboardOverlay = nextKeyboardOverlay
         self.onAction = onAction
     }
@@ -137,6 +164,7 @@ public struct KeyboardView: View {
                         metrics: metrics,
                         gridReferenceFactor: reference,
                         popupEdge: index == 0 ? .bottom : .top,
+                        returnKeyType: returnKeyType,
                         nextKeyboardOverlay: nextKeyboardOverlay,
                         onAction: handle)
                 }
@@ -148,6 +176,7 @@ public struct KeyboardView: View {
                     metrics: metrics,
                     gridReferenceFactor: reference,
                     popupEdge: .top,
+                    returnKeyType: returnKeyType,
                     nextKeyboardOverlay: nextKeyboardOverlay,
                     onAction: handle)
             }
@@ -183,6 +212,7 @@ private struct KeyRowView: View {
     /// stretching to fill the width.
     let gridReferenceFactor: Double
     let popupEdge: VerticalEdge
+    let returnKeyType: UIReturnKeyType
     let nextKeyboardOverlay: AnyView?
     let onAction: (KeyAction) -> Void
 
@@ -207,6 +237,7 @@ private struct KeyRowView: View {
                         KeyButton(
                             key: key,
                             popupEdge: popupEdge,
+                            returnKeyType: returnKeyType,
                             nextKeyboardOverlay: nextKeyboardOverlay,
                             onAction: onAction)
                             .frame(width: max(unit * key.widthFactor, 0))
@@ -228,6 +259,7 @@ private struct KeyRowView: View {
 private struct KeyButton: View {
     let key: Key
     let popupEdge: VerticalEdge
+    let returnKeyType: UIReturnKeyType
     let nextKeyboardOverlay: AnyView?
     let onAction: (KeyAction) -> Void
 
@@ -239,6 +271,26 @@ private struct KeyButton: View {
     @State private var repeatTask: Task<Void, Never>?
 
     private var hasAlternates: Bool { !key.alternates.isEmpty }
+
+    /// Palette tier for this key (character / function / tinted return),
+    /// resolved against the trait environment so it follows the extension's
+    /// `keyboardAppearance` override and the host app's color scheme alike.
+    private var style: KeyStyle { KeyStyle(key: key, returnKeyType: returnKeyType) }
+
+    /// The rendered glyph. Return keys always mirror the host field's
+    /// `returnKeyType` (Go/Search/Done…), overriding any static layout label,
+    /// exactly like the system keyboard. Every other key keeps its own label.
+    private var displayText: String {
+        key.action == .return ? ReturnKeyLabel.text(for: returnKeyType) : key.displayLabel
+    }
+
+    /// Spoken label; for return keys the mapped word ("search", not a stale
+    /// "return") so VoiceOver matches what is displayed.
+    private var spokenLabel: String {
+        key.action == .return
+            ? ReturnKeyLabel.text(for: returnKeyType)
+            : (key.accessibilityLabel ?? key.displayLabel)
+    }
 
     /// Autorepeat timing for a held backspace (pure kit policy, unit-tested;
     /// the actual clock lives here in the view).
@@ -252,11 +304,14 @@ private struct KeyButton: View {
 
     var body: some View {
         RoundedRectangle(cornerRadius: 6, style: .continuous)
-            .fill(Color(uiColor: isPressed ? .systemGray2 : .systemGray4))
+            .fill(Color(uiColor: style.fill(isPressed: isPressed)))
+            // The system keyboard's 1-pt keycap drop shadow; applied before
+            // the overlays so the label doesn't cast one.
+            .shadow(color: Color(uiColor: KeyPalette.keycapShadow), radius: 0, y: 1)
             .overlay(
-                Text(key.displayLabel)
+                Text(displayText)
                     .font(.title3)
-                    .foregroundStyle(Color(uiColor: .label))
+                    .foregroundStyle(Color(uiColor: style.textColor))
                     .minimumScaleFactor(0.5)
                     .lineLimit(1)
                     .padding(.horizontal, 2)
@@ -300,7 +355,7 @@ private struct KeyButton: View {
                     }
                 }
             }
-            .accessibilityLabel(key.accessibilityLabel ?? key.displayLabel)
+            .accessibilityLabel(spokenLabel)
             .accessibilityAddTraits(.isKeyboardKey)
             .onDisappear { stopRepeat() }
     }
@@ -382,7 +437,7 @@ private struct AlternatesPopup: View {
                     .frame(minWidth: 36, minHeight: 40)
                     .background(
                         RoundedRectangle(cornerRadius: 6, style: .continuous)
-                            .fill(Color(uiColor: .systemGray6))
+                            .fill(Color(uiColor: KeyPalette.characterKey))
                     )
                     .contentShape(Rectangle())
                     .onTapGesture { onSelect(alt.action) }
@@ -392,7 +447,7 @@ private struct AlternatesPopup: View {
         .padding(6)
         .background(
             RoundedRectangle(cornerRadius: 8, style: .continuous)
-                .fill(Color(uiColor: .systemGray3))
+                .fill(Color(uiColor: KeyPalette.functionKey))
                 .shadow(radius: 4, y: 2)
         )
         .fixedSize()
@@ -410,10 +465,10 @@ private struct AlternatesPopup: View {
         locale: "en-US",
         rows: [KeyRow(keys: [.insert("ə"), .insert("i"), .insert("u")])]
     )
-    return KeyboardView(layout: layout) { action in
+    return KeyboardView(layout: layout, returnKeyType: .search) { action in
         print("action: \(action)")
     }
     .frame(height: KeyboardMetrics().totalHeight(for: layout.primaryArrangement))
-    .background(Color(uiColor: .systemBackground))
+    .background(Color(uiColor: KeyboardChrome.background))
 }
 #endif
