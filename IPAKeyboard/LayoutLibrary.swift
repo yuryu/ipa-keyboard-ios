@@ -63,14 +63,45 @@ final class LayoutLibrary {
     /// however many times the hosting view re-appears.
     private var hasPerformedLaunchImport = false
 
+    /// Launch argument (UI tests, issue #27): clears every user layout and
+    /// per-layout hidden-symbol/active-selection preference at startup, so
+    /// fork/persistence tests start from a clean slate instead of
+    /// self-healing via swipe-to-delete — mirrors the
+    /// `--uitest-show-onboarding`/`--uitest-skip-onboarding` pattern in
+    /// `OnboardingState.swift`. Applied before the first `reload()`, so the
+    /// library never observes the stale state even transiently. When the
+    /// App Group container is unavailable (every unsigned build today — see
+    /// CLAUDE.md's signing note) only the layout deletion is skipped (no
+    /// layouts persisted to delete); the preferences reset still runs,
+    /// clearing the fallback process-local `.standard` suite.
+    static let resetLayoutsArgument = "--uitest-reset-layouts"
+
     init(
         store: LayoutStore = LayoutStore(),
         preferences: KeyboardPreferences = KeyboardPreferences(),
-        environment: [String: String] = ProcessInfo.processInfo.environment
+        environment: [String: String] = ProcessInfo.processInfo.environment,
+        launchArguments: [String] = ProcessInfo.processInfo.arguments
     ) {
         self.store = store
         self.preferences = preferences
         self.launchImportJSON = environment[Self.uiTestImportEnvironmentKey]
+        if launchArguments.contains(Self.resetLayoutsArgument) {
+            do {
+                try store.deleteAllUserLayouts()
+            } catch LayoutStore.StoreError.sharedContainerUnavailable {
+                // Nothing persisted before provisioning — the documented
+                // no-op. But we just learned storage is unavailable, so
+                // reflect it immediately instead of waiting for the first
+                // failed write (keeps the library's footer honest).
+                containerAvailable = false
+            } catch {
+                // Test-only path: fail loudly (UI tests run debug builds) so a
+                // real IO failure reads as "reset failed", not a stale-state
+                // mystery in whatever test runs next.
+                assertionFailure("\(Self.resetLayoutsArgument) failed: \(error)")
+            }
+            preferences.resetAll()
+        }
         reload()
     }
 

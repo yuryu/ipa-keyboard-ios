@@ -46,20 +46,19 @@
 //  once as the tappable built-in row) — an ambiguous target for
 //  `LibraryScreen.row(labelContains:)`. "IPA — Full (QWERTY)" is never the
 //  default active layout, so its row label is unique (once any leftover
-//  fork is cleaned up — see below).
+//  fork has been reset — see "Hermeticity" below).
 //
 //  Hermeticity: when the App Group *is* available (e.g. a future signed run),
 //  `LayoutStore` persists forked user layouts to the container across
-//  `app.launch()` calls within the same test session — there is no
-//  launch-argument to reset it (none exists in the app yet; see the report).
-//  "Duplicate to Edit" always names the fork "<source> (Custom)" with no way
-//  to vary it from the UI, so a leftover fork from a previous run would
-//  collide with a fresh one and make the row(labelContains:) lookups
-//  ambiguous. Every test calls `cleanUpForkedSourceLayout()` first, deleting
-//  any pre-existing fork via the library row's own swipe-to-delete action
-//  (no confirmation dialog on that path, so it stays idiom-agnostic on both
-//  iPhone and iPad) — this makes each test self-healing regardless of what a
-//  prior run left behind, without depending on tearDown running.
+//  `app.launch()` calls within the same test session. "Duplicate to Edit"
+//  always names the fork "<source> (Custom)" with no way to vary it from the
+//  UI, so a leftover fork from a previous run would collide with a fresh one
+//  and make the row(labelContains:) lookups ambiguous. `setUp` passes
+//  `LibraryScreen.resetLayoutsArgument` (`--uitest-reset-layouts`,
+//  `LayoutLibrary`'s UI-test reset hook, issue #27), which clears every user
+//  layout and per-layout preference before the library ever renders — a safe
+//  no-op when the container is unavailable (nothing persisted to clear).
+//  This replaces the previous swipe-to-delete self-healing helper.
 //
 
 import XCTest
@@ -75,7 +74,13 @@ final class KeyEditorUITests: XCTestCase {
         app = XCUIApplication()
         // Onboarding (#34) appears on a fresh install and covers the library
         // list; skip it like every other non-onboarding suite does.
-        app.launchArguments += [OnboardingScreen.forceSkipArgument]
+        // Reset persisted user layouts/prefs (issue #27) so this suite's
+        // fork-dependent tests are hermetic without swipe-to-delete
+        // self-healing — see the file-level comment.
+        app.launchArguments += [
+            OnboardingScreen.forceSkipArgument,
+            LibraryScreen.resetLayoutsArgument,
+        ]
     }
 
     @MainActor
@@ -93,7 +98,7 @@ final class KeyEditorUITests: XCTestCase {
 
     /// The built-in layout this flow forks. Never the default active layout
     /// (see the file-level comment), so its library row label is unique once
-    /// any leftover fork has been cleaned up.
+    /// any leftover fork has been reset (see the "Hermeticity" note above).
     private static let sourceLayoutName = "IPA — Full (QWERTY)"
 
     /// Name `KeyboardLayout.makeEditableCopy(named:)` gives the fork when
@@ -105,34 +110,6 @@ final class KeyEditorUITests: XCTestCase {
     private static let sharedStorageUnavailableMessage =
         "Couldn’t save your copy. Saving layouts needs the keyboard’s shared storage, "
         + "which isn’t set up yet."
-
-    /// Deletes any leftover fork of `sourceLayoutName` from a previous test
-    /// run via the library row's swipe-to-delete action (`LayoutListView`'s
-    /// `.swipeActions`, which — unlike the layout-detail screen's Delete —
-    /// calls `library.delete(layout)` directly with no confirmation dialog,
-    /// so this works the same on iPhone and iPad without a popover/action-
-    /// sheet idiom difference to handle). Call at the *start* of every test
-    /// in this file so each run is self-healing regardless of what an
-    /// earlier run left behind. Bounded to a handful of iterations so a
-    /// genuine failure here surfaces as a hung/failed precondition rather
-    /// than an infinite loop. A no-op when the App Group container is
-    /// unavailable (nothing can have persisted — see the file-level comment).
-    @MainActor
-    private func cleanUpForkedSourceLayout() {
-        let library = LibraryScreen(app: app)
-        XCTAssertTrue(library.waitForContent(timeout: 10), "Library did not appear")
-        for _ in 0..<5 {
-            let row = library.waitForRow(labelContains: Self.forkedLayoutName, timeout: 3)
-            guard row.exists else { return }
-            row.swipeLeft()
-            let deleteAction = app.buttons["Delete"]
-            guard deleteAction.waitForExistence(timeout: 5) else {
-                XCTFail("Swipe-to-delete action did not reveal a 'Delete' button")
-                return
-            }
-            deleteAction.tap()
-        }
-    }
 
     /// Taps "Duplicate to Edit" on `builtInDetail` and handles both possible
     /// outcomes of `LayoutLibrary.fork` (see the file-level comment):
@@ -165,11 +142,12 @@ final class KeyEditorUITests: XCTestCase {
     }
 
     /// Opens the built-in "IPA — Full (QWERTY)" layout's detail screen from
-    /// a freshly-loaded, cleaned-up library.
+    /// a freshly-loaded library. `setUp`'s `LibraryScreen.resetLayoutsArgument`
+    /// guarantees no leftover fork from a previous run is present (issue #27).
     @MainActor
     private func openSourceLayoutDetail() -> LayoutDetailScreen {
-        cleanUpForkedSourceLayout()
         let library = LibraryScreen(app: app)
+        XCTAssertTrue(library.waitForContent(timeout: 10), "Library did not appear")
         let builtInRow = library.waitForRow(
             labelContainsAll: [Self.sourceLayoutName, "Built-in, read-only"], timeout: 5)
         XCTAssertTrue(builtInRow.exists, "Built-in '\(Self.sourceLayoutName)' row not found")

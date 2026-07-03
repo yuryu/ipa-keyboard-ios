@@ -34,7 +34,14 @@
 //  - continueAfterFailure = false; failure screenshots attached in tearDown.
 //  - Every launch passes --uitest-skip-onboarding so the onboarding sheet
 //    (auto-presented on first launch of a fresh install) can't cover the
-//    library or block the import-error alert.
+//    library or block the import-error alert, and
+//    LibraryScreen.resetLayoutsArgument (`LayoutLibrary`'s UI-test reset
+//    hook, issue #27) so a leftover imported row from a previous (future,
+//    provisioned) run can never collide with this run's fixed
+//    `importedLayoutName` — the reset runs before the view (and hence any
+//    injected import for that same launch) ever renders, so it can't clobber
+//    an import injected in the same launch. Replaces the previous
+//    swipe-to-delete self-healing helper.
 //
 
 import XCTest
@@ -124,11 +131,15 @@ final class ImportExportUITests: XCTestCase {
 
     // MARK: - Helpers
 
-    /// Launches the app with onboarding suppressed, optionally injecting a
-    /// layout document into the UI-test import hook.
+    /// Launches the app with onboarding suppressed and persisted user
+    /// layouts/prefs reset (issue #27 — see the file-level comment),
+    /// optionally injecting a layout document into the UI-test import hook.
     @MainActor
     private func launch(importJSON: String? = nil) {
-        app.launchArguments += ["--uitest-skip-onboarding"]
+        app.launchArguments += [
+            "--uitest-skip-onboarding",
+            LibraryScreen.resetLayoutsArgument,
+        ]
         if let importJSON {
             app.launchEnvironment[Self.importEnvironmentKey] = importJSON
         }
@@ -159,28 +170,6 @@ final class ImportExportUITests: XCTestCase {
         XCTAssertTrue(
             library.waitForContent(timeout: 10),
             "Library not usable after dismissing the import-error alert")
-    }
-
-    /// Deletes any leftover imported rows from a previous (provisioned) run
-    /// via the library's swipe-to-delete, so the valid-import test stays
-    /// hermetic in every environment. A no-op when the container is
-    /// unavailable — nothing can have persisted. Bounded iterations, same
-    /// self-healing pattern as KeyEditorUITests.cleanUpForkedSourceLayout.
-    @MainActor
-    private func cleanUpImportedLayoutRows() {
-        let library = LibraryScreen(app: app)
-        XCTAssertTrue(library.waitForContent(timeout: 10), "Library did not appear")
-        for _ in 0..<5 {
-            let row = library.waitForRow(labelContains: Self.importedLayoutName, timeout: 3)
-            guard row.exists else { return }
-            row.swipeLeft()
-            let deleteAction = app.buttons["Delete"]
-            guard deleteAction.waitForExistence(timeout: 5) else {
-                XCTFail("Swipe-to-delete did not reveal a 'Delete' button")
-                return
-            }
-            deleteAction.tap()
-        }
     }
 
     /// True once any recognizable share-sheet element exists. The share
@@ -270,15 +259,10 @@ final class ImportExportUITests: XCTestCase {
     /// crash, never a silent drop. Green in both environments.
     @MainActor
     func test_importValid_succeedsOrDegradesGracefully() throws {
-        // First launch without injection: clean up any persisted leftover
-        // from a previous provisioned run, so the row assertion below can't
-        // match stale data.
-        launch()
-        cleanUpImportedLayoutRows()
-
-        // Relaunch with the valid document injected.
-        app.terminate()
-        app = XCUIApplication()
+        // `launch`'s LibraryScreen.resetLayoutsArgument clears any persisted
+        // leftover from a previous (future, provisioned) run before this
+        // launch's injected import runs, so the row assertion below can't
+        // match stale data (issue #27 — see the file-level comment).
         launch(importJSON: Self.validLayoutJSON)
 
         let library = LibraryScreen(app: app)
@@ -310,8 +294,8 @@ final class ImportExportUITests: XCTestCase {
             XCTAssertTrue(
                 importedRow.exists,
                 "Imported layout row not found under 'My Layouts' after a successful import")
-            // Hermeticity: remove what this test persisted.
-            cleanUpImportedLayoutRows()
+            // Hermeticity: no manual cleanup needed — the next launch (this
+            // suite or any other) resets user layouts before rendering.
         }
 
         XCTAssertTrue(library.layoutList.exists, "Layout list not usable after importing")

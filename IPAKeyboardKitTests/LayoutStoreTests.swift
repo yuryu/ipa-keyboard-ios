@@ -100,6 +100,16 @@ struct LayoutStoreTests {
         }
     }
 
+    @Test func deleteAllUserLayoutsThrowsWhenContainerUnavailable() throws {
+        guard AppGroup.containerURL == nil else { return }
+        // Same store contract as save/delete: a missing container throws
+        // rather than silently no-ops, so callers decide how to react
+        // (the reset hook treats it as the expected pre-provisioning case).
+        #expect(throws: LayoutStore.StoreError.self) {
+            try LayoutStore().deleteAllUserLayouts()
+        }
+    }
+
     // MARK: Graceful degradation (explicit `containerURL: nil` injection)
     //
     // Deterministic counterparts to the guarded tests above: injecting `nil`
@@ -123,6 +133,12 @@ struct LayoutStoreTests {
     @Test func deleteThrowsWhenContainerIsNil() {
         #expect(throws: LayoutStore.StoreError.self) {
             try LayoutStore(containerURL: nil).delete(id: UUID())
+        }
+    }
+
+    @Test func deleteAllUserLayoutsThrowsWhenContainerIsNil() {
+        #expect(throws: LayoutStore.StoreError.self) {
+            try LayoutStore(containerURL: nil).deleteAllUserLayouts()
         }
     }
 
@@ -222,6 +238,30 @@ struct LayoutStoreHermeticContainerTests {
 
         try store.delete(id: UUID()) // does not throw, does not remove the saved layout
         #expect(store.userLayouts().count == 1)
+    }
+
+    // MARK: deleteAllUserLayouts (the UI-test reset hook, issue #27)
+
+    @Test func deleteAllUserLayoutsRemovesEverySavedLayout() throws {
+        let container = makeTempContainerURL()
+        defer { try? FileManager.default.removeItem(at: container) }
+        let store = LayoutStore(containerURL: container)
+        try store.save(makeLayout(name: "First"))
+        try store.save(makeLayout(name: "Second"))
+
+        try store.deleteAllUserLayouts()
+        #expect(store.userLayouts().isEmpty)
+        // Bundled layouts are untouched — only the user half is reset.
+        #expect(store.allLayouts().map(\.id) == store.bundledLayouts().map(\.id))
+    }
+
+    @Test func deleteAllUserLayoutsIsANoOpBeforeTheLayoutsDirectoryExists() throws {
+        let container = makeTempContainerURL()
+        defer { try? FileManager.default.removeItem(at: container) }
+        // No save has run, so the "Layouts" subdirectory was never created —
+        // the documented nothing-to-reset case must not throw.
+        try LayoutStore(containerURL: container).deleteAllUserLayouts()
+        #expect(LayoutStore(containerURL: container).userLayouts().isEmpty)
     }
 
     @Test func allLayoutsCombinesBundledAndHermeticallySavedUserLayouts() throws {

@@ -111,4 +111,23 @@ struct KeyboardPreferencesTests {
         #expect(prefs.hiddenSymbols(for: a).isEmpty)
         #expect(prefs.hiddenSymbols(for: b) == ["t"])
     }
+
+    // MARK: Bulk reset
+
+    @Test func resetAllClearsSelectionAndEveryLayoutsHiddenSymbols() {
+        let (defaults, suite) = makeDefaults()
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let prefs = KeyboardPreferences(defaults: defaults)
+        let a = UUID(); let b = UUID()
+        prefs.activeLayoutID = a
+        prefs.setHiddenSymbols(["p", "b"], for: a)
+        prefs.setHiddenSymbols(["t"], for: b)
+        prefs.resetAll()
+        #expect(prefs.activeLayoutID == nil)
+        #expect(prefs.hiddenSymbols(for: a).isEmpty)
+        #expect(prefs.hiddenSymbols(for: b).isEmpty)
+        // The clear reaches the suite itself, not just this instance's view.
+        #expect(KeyboardPreferences(defaults: defaults).activeLayoutID == nil)
+        #expect(KeyboardPreferences(defaults: defaults).hiddenSymbols(for: a).isEmpty)
+    }
 }
