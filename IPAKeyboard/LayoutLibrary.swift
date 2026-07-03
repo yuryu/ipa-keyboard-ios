@@ -89,7 +89,11 @@ final class LayoutLibrary {
             do {
                 try store.deleteAllUserLayouts()
             } catch LayoutStore.StoreError.sharedContainerUnavailable {
-                // Nothing persisted before provisioning — the documented no-op.
+                // Nothing persisted before provisioning — the documented
+                // no-op. But we just learned storage is unavailable, so
+                // reflect it immediately instead of waiting for the first
+                // failed write (keeps the library's footer honest).
+                containerAvailable = false
             } catch {
                 // Test-only path: fail loudly (UI tests run debug builds) so a
                 // real IO failure reads as "reset failed", not a stale-state

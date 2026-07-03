@@ -93,8 +93,9 @@ struct LayoutStoreTests {
 
     @Test func deleteAllUserLayoutsThrowsWhenContainerUnavailable() throws {
         guard AppGroup.containerURL == nil else { return }
-        // Same contract as save/delete: the UI-test reset hook must fail
-        // loudly, not silently skip, when the container is missing.
+        // Same store contract as save/delete: a missing container throws
+        // rather than silently no-ops, so callers decide how to react
+        // (the reset hook treats it as the expected pre-provisioning case).
         #expect(throws: LayoutStore.StoreError.self) {
             try LayoutStore().deleteAllUserLayouts()
         }
