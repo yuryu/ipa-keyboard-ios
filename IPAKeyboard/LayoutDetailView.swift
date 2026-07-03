@@ -9,7 +9,13 @@
 //  user layout).
 //
 //  Accessibility identifier scheme (for ui-test-author):
-//    layout-detail-preview          — the live keyboard preview container
+//    layout-detail-preview          — the live keyboard preview: one
+//                                     accessibility container element; the
+//                                     keys inside expose stable per-key
+//                                     identifiers ("key-insert-<text>", …) —
+//                                     see the scheme doc on
+//                                     Key.accessibilityIdentifier in
+//                                     IPAKeyboardKit's KeyboardView.swift
 //    layout-detail-duplicate-button — "Duplicate to Edit" (built-ins only)
 //    layout-detail-edit-keys-button — "Edit Keys" (user layouts only)
 //    layout-detail-export-button    — "Export Layout" ShareLink (all layouts,
@@ -83,6 +89,13 @@ struct LayoutDetailView: View {
             KeyboardView(layout: current, metrics: metrics) { _ in }
                 .frame(height: metrics.totalHeight(for: current.primaryArrangement))
                 .frame(maxWidth: .infinity)
+                // One accessibility *container* element carrying the
+                // identifier (issue #25): without `children: .contain` an
+                // identifier on this non-element view bleeds onto every key
+                // inside, clobbering their per-key identifiers, and no single
+                // "layout-detail-preview" element exists. Keys stay
+                // individually navigable for VoiceOver.
+                .accessibilityElement(children: .contain)
                 .accessibilityIdentifier("layout-detail-preview")
                 .listRowInsets(EdgeInsets())
                 // The keyboard-chrome color (adapts light/dark) instead of the
