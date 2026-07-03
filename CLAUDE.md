@@ -11,7 +11,7 @@ The defining requirement is **customizability**: the app ships read-only default
 - Language: Swift 6.0 on all three targets (app, extension, framework)
 - Deployment target: iOS 26.0, universal (`TARGETED_DEVICE_FAMILY = "1,2"`, iPhone + iPad)
 - No third-party dependencies, no Swift Package Manager manifest
-- Two test targets (`IPAKeyboardKitTests` — Swift Testing; `IPAKeyboardUITests` — XCUITest) with real, if still partial, coverage
+- Three test targets (`IPAKeyboardKitTests` and the app-hosted `IPAKeyboardTests` — Swift Testing; `IPAKeyboardUITests` — XCUITest) with real, if still partial, coverage
 - CI on GitHub Actions (`.github/workflows/ci.yml`); Dependabot keeps Actions current
 - Licensed under the MIT License (`LICENSE`)
 
@@ -95,7 +95,7 @@ Once per session, call `session_show_defaults` (don't assume defaults are set); 
 
 `boot_sim` / `install_app_sim` / `launch_app_sim` / `screenshot` / `snapshot_ui` cover simulator driving; Xcode (`open IPAKeyboard.xcodeproj`) is still preferred for SwiftUI previews. The raw-`xcodebuild` fallback mirrors these: `-project IPAKeyboard.xcodeproj -scheme <scheme> -destination 'platform=iOS Simulator,name=iPhone 17' [CODE_SIGNING_ALLOWED=NO] build|test`.
 
-The test bundles (`IPAKeyboardKitTests` uses Swift Testing; `IPAKeyboardUITests` uses XCUITest) hold real, if still partial, coverage — kit Codable round-trips, `LayoutStore`, schema v2 + migration, grapheme deletion, and arrangement/bundled-layout checks, plus host library-UI flows. CI (`.github/workflows/ci.yml`, `macos-26`) runs two unsigned-simulator jobs: `build-and-test` does `build-for-testing` for all three targets plus the UI-test bundle, then runs the kit unit tests; `ui-test` builds the app scheme for testing, fully boots the destination simulator (`simctl bootstatus -b` — launching the XCUITest runner mid-boot fails with "Busy"), and runs `IPAKeyboardUITests` sequentially (`-parallel-testing-enabled NO`) via `test-without-building`. There is still no signed/device/archive lane (deferred until provisioning).
+The test bundles (`IPAKeyboardKitTests` and the app-hosted `IPAKeyboardTests` use Swift Testing; `IPAKeyboardUITests` uses XCUITest) hold real, if still partial, coverage — kit Codable round-trips, `LayoutStore` (including save/read/delete I/O through the injectable `containerURL` seam), schema v2 + migration, grapheme deletion, and arrangement/bundled-layout checks; app view models (`LayoutDraft`, `OnboardingState`); plus host library-UI flows. CI (`.github/workflows/ci.yml`, `macos-26`) runs two unsigned-simulator jobs: `build-and-test` does `build-for-testing` for all three targets plus both the app-hosted unit-test and UI-test bundles, then runs the kit unit tests and the app-hosted unit tests (`-only-testing:IPAKeyboardTests`, sequential); `ui-test` builds the app scheme for testing, fully boots the destination simulator (`simctl bootstatus -b` — launching the XCUITest runner mid-boot fails with "Busy"), and runs `IPAKeyboardUITests` sequentially (`-parallel-testing-enabled NO`) via `test-without-building`. There is still no signed/device/archive lane (deferred until provisioning).
 
 > **Signing is deferred.** The Apple developer account is mid-relocation, so the App Group is configured in the project but not yet provisioned with Apple. A full app/extension build fails at code-signing until that is resolved; the framework builds standalone without signing.
 

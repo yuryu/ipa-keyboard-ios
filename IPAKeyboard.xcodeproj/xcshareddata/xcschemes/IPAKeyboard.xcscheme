@@ -31,6 +31,16 @@
       shouldAutocreateTestPlan = "YES">
       <Testables>
          <TestableReference
+            skipped = "NO">
+            <BuildableReference
+               BuildableIdentifier = "primary"
+               BlueprintIdentifier = "9377660A2FF3000100000001"
+               BuildableName = "IPAKeyboardTests.xctest"
+               BlueprintName = "IPAKeyboardTests"
+               ReferencedContainer = "container:IPAKeyboard.xcodeproj">
+            </BuildableReference>
+         </TestableReference>
+         <TestableReference
             skipped = "NO"
             parallelizable = "YES">
             <BuildableReference
