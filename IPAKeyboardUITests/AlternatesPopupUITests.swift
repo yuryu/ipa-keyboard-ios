@@ -138,9 +138,29 @@ final class AlternatesPopupUITests: XCTestCase {
         let rhotic = editorPreview.descendants(matching: .any)["key-insert-ɹ"].firstMatch
         XCTAssertTrue(rhotic.waitForExistence(timeout: 10), "ɹ key missing from editor preview")
 
+        // The editor screen was just pushed: wait for ɹ's frame to stop
+        // moving before deriving gesture coordinates from it — a start point
+        // resolved from a still-settling frame puts the whole fixed-offset
+        // drag in the wrong place (CI sightings 2026-07-03/-04 on two
+        // unrelated branches: the slide committed nothing and the scratchpad
+        // kept its placeholder).
+        var previousFrame = CGRect.null
+        let frameDeadline = Date().addingTimeInterval(10)
+        while rhotic.frame != previousFrame, Date() < frameDeadline {
+            previousFrame = rhotic.frame
+            RunLoop.current.run(until: Date().addingTimeInterval(0.2))
+        }
+
         let start = rhotic.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5))
         let inPopup = start.withOffset(CGVector(dx: 0, dy: -55))
-        start.press(forDuration: 0.8, thenDragTo: inPopup)
+        // Hold briefly inside the popup before releasing: the release
+        // commits whatever cell the last *processed* drag position selected,
+        // and on a slow runner a release issued in the same frame as the
+        // final move can land before SwiftUI has observed the drag entering
+        // the popup at all.
+        start.press(
+            forDuration: 0.8, thenDragTo: inPopup,
+            withVelocity: .default, thenHoldForDuration: 0.3)
 
         let scratch = app.staticTexts["layout-editor-scratch"]
         XCTAssertTrue(scratch.waitForExistence(timeout: 5), "Editor scratchpad missing")
