@@ -16,16 +16,8 @@ higher-severity comments than Copilot. Review behavior is steered by the
 
 ## 1. Fetch the feedback
 
-Codex posts as a GitHub App; the expected login is
-`chatgpt-codex-connector[bot]` (**unverified until the first review lands
-here** — confirm with the discovery command below and correct this file if
-it differs, dropping this parenthetical).
-
-Discover the actual reviewer login if unsure:
-
-```sh
-gh pr view <PR> --json reviews --jq '[.reviews[].author.login] | unique'
-```
+Codex posts as a GitHub App: login `chatgpt-codex-connector[bot]`
+(verified on PR #108).
 
 The summary review — one per round; the last is the current one:
 
@@ -95,12 +87,14 @@ gh api graphql -f id=<thread-id> -f query='
   mutation($id:ID!){ resolveReviewThread(input:{threadId:$id}){ thread{ isResolved } } }'
 ```
 
-Re-request review after the push — Codex does not re-review new pushes on
-its own. Unlike Copilot, this is a PR comment, not a reviewer request
-(scope it when useful, e.g. `@codex review for Unicode regressions`):
+**Don't re-request a Codex review after the push** — reviews are
+expensive against the plan's usage limit, and CI plus the user's own
+review cover the follow-up. If the fixes are substantial enough to truly
+warrant a second pass, ask via a PR comment, scoped to the concern
+(Codex does not re-review new pushes on its own):
 
 ```sh
-gh pr comment <PR> --body '@codex review
+gh pr comment <PR> --body '@codex review for <specific concern>
 
 *— written by Claude*'
 ```
