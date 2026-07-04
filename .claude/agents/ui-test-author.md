@@ -2,7 +2,7 @@
 name: ui-test-author
 description: Writes and debugs XCUITest UI tests for the host app in the IPAKeyboardUITests target — screen flows, flaky-test fixes, screen-object helpers. Use proactively after adding or changing host-app screens or flows. End-to-end UI testing only, not unit tests.
 tools: Read, Grep, Glob, Edit, Write, Bash, mcp__XcodeBuildMCP__*
-model: sonnet
+model: inherit
 memory: project
 isolation: worktree
 ---

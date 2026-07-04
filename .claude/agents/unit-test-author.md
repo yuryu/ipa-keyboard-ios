@@ -2,7 +2,7 @@
 name: unit-test-author
 description: Writes and runs Swift Testing unit tests for the IPAKeyboardKit framework (IPAKeyboardKitTests target) — model Codable round-trips, LayoutStore/AppGroup logic, schema migration, copy-on-write forking. Use proactively after adding or changing kit code.
 tools: Read, Grep, Glob, Edit, Write, Bash, mcp__XcodeBuildMCP__*
-model: sonnet
+model: inherit
 memory: project
 isolation: worktree
 ---
