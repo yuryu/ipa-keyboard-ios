@@ -1,6 +1,6 @@
 ---
 name: layout-authoring-decisions
-description: Data decisions behind bundled layouts - normalization convention, ipa-chart compaction rules, shared budgets, UUID tag pattern
+description: Data decisions behind bundled layouts - normalization convention, ipa-chart compaction rules, shared budgets, QWERTY shared-grid geometry, UUID tag pattern
 metadata:
   type: project
 ---
@@ -17,5 +17,7 @@ Decisions that live only in the data (not enforced by the schema), made while au
 - Tones (issue #29): 5th "Tones" panel (cycle Stops→Fricatives→Vowels→More→Tones→Stops, 2 rows). Level bars ˥˦˧˨˩ are primaries with the combining tone marks (U+030B/0301/0304/0300/030F) as alternates; only rising ˩˥ and falling ˥˩ ship as contour sequences (alts ◌̌ U+030C / ◌̂ U+0302). ipa-full instead compacts everything into 2 keys in its suprasegmentals row: ˥ (alts ˦˧˨˩) and ꜜ (alts ꜛ ↗ ↘).
 
 **Shared budgets (mirror of ipa-full, enforced by BundledLayoutTests):** max 3 symbol rows per panel (totalRowCount ≤ 4), ≤ 10 interactive keys per row, width-factor sum ≤ 12.0 per row; panels form a single switch-key cycle (chart cycle test locks panels.count == 5 since #29).
+
+**System-QWERTY grid convention (ipa-full, issue #101):** the QWERTY panel's three rows sit on a shared 10-unit grid — row 1 ten plain keys; row 2 flanked by 0.5-unit spacers (system half-key indent); row 3 flanked by 1.5-unit spacers (shift/backspace footprints left empty as placeholders). Rule: any row containing a spacer should total exactly the panel's gridReferenceFactor (densest row incl. bottom bar) so spacers sit at their minimum and geometry is deterministic. Known residual: the renderer subtracts keySpacing×(elements−1) per row before dividing, so rows with different element counts differ by ~0.6pt/gap in key width — exact cross-row equality is impossible data-only; don't chase it with spacer tricks, it needs a renderer change. Guarded by `genericFullQwertyPanelMatchesSystemKeyboardGeometry`.
 
 **Bundled-layout UUID house pattern:** `7E5A1C00-0000-4000-8000-` + 12 hex digits whose bytes spell an ASCII tag (`006368617274` = "chart", `00656E2D5553` = "en-US"). Tests select bundled layouts **by name** ("IPA — Full (QWERTY)", "IPA — Chart"), not by locale — several layouts share locale `und`. Related: [[unicode-traps-and-verification]].

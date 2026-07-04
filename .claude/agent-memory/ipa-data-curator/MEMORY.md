@@ -4,5 +4,5 @@
 - [en-GB inventory + sources](en-gb-inventory-sources.md) — dictionary convention primary vs Lindsey alternates (#74), ɜ/ɛ trap, skipped contested SSB symbols
 - [Unicode verification workflow](unicode-verification-workflow.md) — character.jsp + NamesList.txt work via WebFetch; chart PDFs and phon.ucl.ac.uk do not
 - [Unicode traps & verification](unicode-traps-and-verification.md) — clicks, ʡ, tone marks (ꜜ≠↓, contested contours, ‖≠ǁ), util.unicode.org workflow
-- [Layout authoring decisions](layout-authoring-decisions.md) — NFC + bare-combining convention, ipa-chart compaction rules, shared budgets, UUID tag pattern
+- [Layout authoring decisions](layout-authoring-decisions.md) — NFC + bare-combining convention, chart compaction, QWERTY shared grid (#101), budgets, UUID tags
 - [ja-JP inventory + sources](ja-jp-inventory-sources.md) — Tokyo layout decisions (#75): ɯ/u, ɴ, dz-under-z, no sokuon key, acute pitch accent; Okada 1999 OCR access path
