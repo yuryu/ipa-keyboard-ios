@@ -4,8 +4,10 @@
 //
 //  Root screen of the host app (roadmap step 3a — layout library). Browses the
 //  bundled defaults and the user's own layouts, pushes a detail/preview screen,
-//  and offers swipe-to-delete for user layouts. All data comes from
-//  `LayoutLibrary`, which reads/writes through `LayoutStore`.
+//  and offers swipe-to-delete for user layouts. The Active section also hosts a
+//  small typing scratchpad (issue #103) so keyboard settings can be tried
+//  in-app. All data comes from `LayoutLibrary`, which reads/writes through
+//  `LayoutStore`.
 //
 //  Accessibility identifier scheme (for ui-test-author):
 //    layout-list                    — the List
@@ -20,6 +22,11 @@
 //                                     (issue #8; import logic in LayoutLibrary)
 //    layout-list-symbol-reference-button — toolbar button opening the symbol
 //                                     reference (see SymbolReferenceView.swift)
+//    layout-list-scratch            — scratchpad text field under the active
+//                                     preview for trying the keyboard without
+//                                     switching apps (issue #103)
+//    layout-list-scratch-clear      — clears the scratchpad (only rendered
+//                                     while it has text)
 //
 //  Section identifiers go on the header Text, never on the Section itself:
 //  a modifier on Section is applied to every row, which would overwrite the
@@ -35,6 +42,9 @@ struct LayoutListView: View {
     @State private var onboarding = OnboardingState()
     @State private var showingImporter = false
     @State private var showingSymbolReference = false
+    /// Scratchpad text (issue #103). Deliberately transient `@State`: it is a
+    /// test surface, not a document, so it resets with the screen.
+    @State private var scratch = ""
     @Environment(\.verticalSizeClass) private var verticalSizeClass
 
     /// Same size selection as the extension (compact rows in iPhone
@@ -51,6 +61,9 @@ struct LayoutListView: View {
                 userSection
             }
             .accessibilityIdentifier("layout-list")
+            // The scratchpad summons a keyboard with no other dismissal
+            // affordance on this screen; dragging the list puts it away.
+            .scrollDismissesKeyboard(.interactively)
             .navigationTitle("Layouts")
             .navigationDestination(for: KeyboardLayout.self) { layout in
                 LayoutDetailView(layout: layout, library: library)
@@ -130,6 +143,36 @@ struct LayoutListView: View {
                     .background(
                         Color(uiColor: KeyboardChrome.background),
                         in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+                // Scratchpad (issue #103): a real text field, so the user can
+                // switch to the IPA keyboard right here and try the active
+                // layout — settings changes are testable without leaving the
+                // app. Autocorrection/capitalization are off so typed IPA
+                // survives exactly as sent (no ɡ U+0261 → ASCII g "fixes").
+                HStack(spacing: 8) {
+                    TextField(
+                        "Type here to try the keyboard…",
+                        text: $scratch,
+                        axis: .vertical
+                    )
+                    .font(.callout)
+                    .lineLimit(1...4)
+                    .autocorrectionDisabled()
+                    .textInputAutocapitalization(.never)
+                    .accessibilityIdentifier("layout-list-scratch")
+                    if !scratch.isEmpty {
+                        Button {
+                            scratch = ""
+                        } label: {
+                            Image(systemName: "xmark.circle.fill")
+                                .foregroundStyle(.secondary)
+                        }
+                        // Borderless keeps the tap target on the icon instead
+                        // of promoting the whole list row to a button.
+                        .buttonStyle(.borderless)
+                        .accessibilityLabel("Clear scratchpad")
+                        .accessibilityIdentifier("layout-list-scratch-clear")
+                    }
+                }
             }
             .listRowInsets(EdgeInsets(top: 8, leading: 12, bottom: 8, trailing: 12))
         } header: {

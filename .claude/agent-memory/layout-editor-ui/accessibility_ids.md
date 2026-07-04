@@ -19,6 +19,13 @@ Layout library (`LayoutListView`):
 - `layout-list-help-button` — toolbar button that reopens the onboarding sheet
   anytime (issue #7)
 - `layout-list-import-button` — toolbar button opening `.fileImporter` (issue #8)
+- `layout-list-scratch` — scratchpad `TextField` under the Active-section
+  preview (issue #103; a real text field so the enabled keyboard extension can
+  type into it — match `app.textFields`, placeholder "Type here to try the
+  keyboard…"); `layout-list-scratch-clear` — its clear button, rendered only
+  while non-empty. Both sit inside the Active section, where per-row ids have
+  historically failed to surface (LibraryScreen.swift caveat) — verify against
+  a runtime snapshot before relying on them.
 - After PR #31 (issue #9): section identifiers live on the header `Text`s, not
   the `Section` (Section-level ids bleed onto every descendant on iOS 26), and
   rows surface as `Button`s inside cells — query `app.buttons`, not `app.cells`.
