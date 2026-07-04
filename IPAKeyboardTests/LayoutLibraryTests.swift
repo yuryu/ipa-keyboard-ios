@@ -54,7 +54,8 @@ struct LayoutLibraryTests {
         let library = LayoutLibrary(
             store: LayoutStore(containerURL: containerURL),
             preferences: KeyboardPreferences(defaults: UserDefaults(suiteName: suiteName)!),
-            environment: [:]) // no UI-test launch import/reset hooks
+            environment: [:], // no UI-test launch import/reset hooks
+            launchArguments: []) // isolate from the host runner's real arguments
         return World(
             library: library,
             containerURL: containerURL,
@@ -354,7 +355,8 @@ struct LayoutLibraryTests {
         let relaunched = LayoutLibrary(
             store: LayoutStore(containerURL: world.containerURL),
             preferences: KeyboardPreferences(defaults: world.defaults),
-            environment: [:])
+            environment: [:],
+            launchArguments: []) // isolate from the host runner's real arguments
         #expect(relaunched.hiddenSymbols(for: layout) == ["ə", "ɡ"])
     }
 
