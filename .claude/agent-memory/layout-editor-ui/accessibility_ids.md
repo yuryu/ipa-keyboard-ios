@@ -10,6 +10,13 @@ Accessibility identifiers in the host app, for `ui-test-author` to match in
 
 Layout library (`LayoutListView`):
 - `layout-list` — the root List
+- `layout-list-active-section` — the "Active" section header `Text`
+- `layout-list-active-preview` — live `KeyboardView` preview of the active
+  layout in the Active section (`.accessibilityElement(children: .contain)` so
+  the id names one element instead of bleeding onto every key — see issue #25)
+- `layout-list-selection-unavailable` — Active-section footer shown only when
+  the active selection can't yet reach the keyboard (App Group shared storage
+  not set up, i.e. before provisioning)
 - `layout-list-builtin-section` / `layout-list-user-section`
 - `layout-row-<layout.id.uuidString>` — each row. Keyed by the layout's UUID
   (stable) rather than name (user-mutable). Built-in UUIDs are pinned in the
@@ -19,6 +26,13 @@ Layout library (`LayoutListView`):
 - `layout-list-help-button` — toolbar button that reopens the onboarding sheet
   anytime (issue #7)
 - `layout-list-import-button` — toolbar button opening `.fileImporter` (issue #8)
+- `layout-list-scratch` — scratchpad `TextField` under the Active-section
+  preview (issue #103; a real text field so the enabled keyboard extension can
+  type into it — match `app.textFields`, placeholder "Type here to try the
+  keyboard…"); `layout-list-scratch-clear` — its clear button, rendered only
+  while non-empty. Both sit inside the Active section, where per-row ids have
+  historically failed to surface (LibraryScreen.swift caveat) — verify against
+  a runtime snapshot before relying on them.
 - After PR #31 (issue #9): section identifiers live on the header `Text`s, not
   the `Section` (Section-level ids bleed onto every descendant on iOS 26), and
   rows surface as `Button`s inside cells — query `app.buttons`, not `app.cells`.
