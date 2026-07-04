@@ -128,22 +128,43 @@ final class KeyEditorUITests: XCTestCase {
     private func duplicateBuiltInLayout(from builtInDetail: LayoutDetailScreen, library: LibraryScreen) -> Bool {
         builtInDetail.duplicateButton.tap()
 
+        // Whichever condition actually materialises: the save-failure alert,
+        // or the forked row under "My Layouts". A one-sided fixed-window
+        // probe here could pick the wrong branch on a slow runner (issue
+        // #99), so both are polled under one shared deadline. The success
+        // condition must be the forked row, not the library reappearing:
+        // `LayoutDetailView` pops back unconditionally after `fork`, so the
+        // library's navigation bar shows up on the failure path too — often
+        // before the root-presented alert — and only the row is exclusive to
+        // a persisted fork.
         let errorAlert = app.alerts["Something went wrong"]
-        if errorAlert.waitForExistence(timeout: 5) {
+        let forkedRow = library.row(labelContains: Self.forkedLayoutName)
+        switch waitForEither(
+            errorAlert, forkedRow, scrollingSecondIn: library.layoutList, timeout: .postNavigation
+        ) {
+        case .first:
             XCTAssertTrue(
                 errorAlert.staticTexts[Self.sharedStorageUnavailableMessage].exists,
                 "Unexpected error-alert message when the shared container is unavailable")
             errorAlert.buttons["OK"].tap()
+            // The library's nav bar stays in the hierarchy *beneath* the
+            // alert, so waitForContent alone would pass vacuously if the OK
+            // tap silently failed — pin dismissal itself first.
+            XCTAssertTrue(
+                errorAlert.waitForNonExistence(timeout: .postNavigation),
+                "Save-failure alert did not dismiss")
             XCTAssertTrue(
                 library.waitForContent(timeout: .postNavigation),
                 "Library did not remain usable after dismissing the save-failure alert")
             return false
+        case .second:
+            return true
+        case nil:
+            XCTFail(
+                "Neither the save-failure alert nor the forked row appeared within "
+                    + "\(TimeInterval.postNavigation)s of tapping 'Duplicate to Edit'")
+            return false
         }
-
-        XCTAssertTrue(
-            library.waitForContent(timeout: .postNavigation),
-            "Did not return to the library after duplicating")
-        return true
     }
 
     /// Opens the built-in "IPA — Full (QWERTY)" layout's detail screen from

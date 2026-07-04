@@ -48,6 +48,55 @@ func waitForRevealed(
     }
 }
 
+/// Which of the two candidate elements passed to `waitForEither` actually
+/// appeared.
+enum EitherOutcome {
+    case first
+    case second
+}
+
+/// Waits until `first` or `second` exists — whichever happens first —
+/// polling both under one shared `timeout` deadline, for branch decisions
+/// between two possible outcomes (e.g. "degraded-state alert" vs. "success").
+/// A one-sided `waitForExistence` probe on a fixed window used to make this
+/// call: on an overloaded runner the *other* branch's condition can still be
+/// on its way when the probe's window expires, so the test falls into the
+/// wrong branch instead of waiting for whichever outcome actually happened
+/// (issue #99). Pass `.postNavigation` as `timeout` when this follows a
+/// navigation event (cold launch, push, sheet/alert presentation). If
+/// `second` lives in a lazily-composed scroll view (see `waitForRevealed`),
+/// pass `scrollingSecondIn:` so it can be swiped into range while polling —
+/// `first` (typically a system alert) is assumed reachable without
+/// scrolling. Returns `nil` if neither appeared by the deadline.
+@MainActor
+func waitForEither(
+    _ first: XCUIElement, _ second: XCUIElement,
+    scrollingSecondIn scrollView: XCUIElement? = nil,
+    timeout: TimeInterval, maxSwipes: Int = 6
+) -> EitherOutcome? {
+    let deadline = Date().addingTimeInterval(timeout)
+    var swipes = 0
+    while true {
+        if first.exists { return .first }
+        if second.exists { return .second }
+        let remaining = deadline.timeIntervalSinceNow
+        if remaining <= 0 { return nil }
+        // Only swipe once the scroll view is actually there and interactable:
+        // this helper can run right after launch (import flow) while the list
+        // is still composing, and XCUITest gestures on a non-existent element
+        // hard-fail rather than no-op. `isHittable` is false for a missing
+        // element, so it covers both. Deferring the swipe never truncates the
+        // deadline — the loop keeps polling both conditions in place.
+        if let scrollView, swipes < maxSwipes, scrollView.isHittable {
+            scrollView.swipeUp()
+            swipes += 1
+        }
+        // Poll in short slices so neither condition can appear and sit
+        // unnoticed until the next swipe.
+        RunLoop.current.run(until: Date().addingTimeInterval(min(0.5, remaining)))
+    }
+}
+
 // MARK: - LibraryScreen
 
 /// Page object wrapping all XCUIElement queries for the root `LayoutListView`.
