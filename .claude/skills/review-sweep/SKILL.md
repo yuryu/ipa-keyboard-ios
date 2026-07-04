@@ -46,11 +46,11 @@ include the PR number and head branch. Per-agent instructions:
    `git checkout -B review-fix-<PR> origin/<head-branch>` (the distinct
    local branch name avoids colliding with branches checked out in other
    worktrees).
-2. Read `.claude/skills/codex-review/SKILL.md` and
-   `.claude/skills/copilot-review/SKILL.md`; follow their steps 1–2 only:
-   fetch the summary review and inline comments, judge each on its
-   merits, apply the fixes you agree with on the branch. **Do not** push,
-   reply, resolve threads, or trigger reviews — report instead.
+2. Read `.claude/skills/review-feedback/SKILL.md`; follow its steps 1–2
+   only: fetch the summary reviews and inline comments from both bots,
+   group overlapping comments, judge each on its merits, apply the fixes
+   you agree with on the branch. **Do not** push, reply, resolve threads,
+   or trigger reviews — report instead.
 3. If code changed, run the relevant tests with **raw `xcodebuild`**
    inside the worktree (e.g. the unsigned kit tests:
    `xcodebuild -project IPAKeyboard.xcodeproj -scheme IPAKeyboardKit
@@ -71,13 +71,13 @@ pushable from here by SHA. For each report:
    forward rejection means the branch moved under the agent — re-dispatch
    that one PR rather than force-pushing.
 2. Post each draft reply via the replies endpoint, ending with the
-   `*— written by Claude*` attribution line (see the per-PR skills for
+   `*— written by Claude*` attribution line (see `review-feedback` for
    the exact command).
-3. Resolve the threads whose fix landed (GraphQL mutation from the per-PR
-   skills), after the push. Leave declined threads open.
-4. Follow each skill's re-review policy: never re-request Codex by
-   default; re-request Copilot per `copilot-review` step 3 only if
-   Copilot is still enabled on the repo.
+3. Resolve the threads whose fix landed (GraphQL mutation in
+   `review-feedback`), after the push. Leave declined threads open.
+4. Follow `review-feedback`'s re-review policies: never re-request Codex
+   by default; re-request Copilot freely if it's still enabled on the
+   repo.
 
 ## 4. Report
 
