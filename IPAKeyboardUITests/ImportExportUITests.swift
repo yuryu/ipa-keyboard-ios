@@ -191,7 +191,11 @@ final class ImportExportUITests: XCTestCase {
     /// rather than relying on a single identifier — and the sheet can be
     /// hosted out of process (and, on iPad, presented in a popover), so
     /// each signature is probed in both the app's hierarchy and
-    /// SpringBoard's.
+    /// SpringBoard's. The visible Close/Cancel affordance is included too:
+    /// on a release that exposes only that button and none of the private
+    /// container identifiers, it's the sole appearance signal — and it
+    /// matches the affordance `dismissShareSheet` taps, so appearance and
+    /// dismissal stay in agreement.
     @MainActor
     private var shareSheetContainerCandidates: [XCUIElement] {
         let springboard = XCUIApplication(bundleIdentifier: "com.apple.springboard")
@@ -200,6 +204,8 @@ final class ImportExportUITests: XCTestCase {
             app.navigationBars["UIActivityContentView"],
             app.otherElements["ShareSheet.RemoteContainerView"],
             app.popovers.firstMatch,
+            app.buttons.matching(
+                NSPredicate(format: "label IN %@", ["Close", "Cancel"])).firstMatch,
             springboard.otherElements["ActivityListView"],
             springboard.navigationBars["UIActivityContentView"],
             springboard.otherElements["ShareSheet.RemoteContainerView"],
