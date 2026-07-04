@@ -174,12 +174,15 @@ final class KeyEditorUITests: XCTestCase {
     private func openSourceLayoutDetail() -> LayoutDetailScreen {
         let library = LibraryScreen(app: app)
         XCTAssertTrue(library.waitForContent(timeout: .postNavigation), "Library did not appear")
-        let builtInRow = library.waitForRow(
-            labelContainsAll: [Self.sourceLayoutName, "Built-in, read-only"], timeout: 5)
-        XCTAssertTrue(builtInRow.exists, "Built-in '\(Self.sourceLayoutName)' row not found")
-        builtInRow.tap()
-
         let detail = LayoutDetailScreen(app: app)
+        // Reveal + tap with a settle probe on the detail preview (the first
+        // element unique to the pushed screen) — see `revealTapAndSettle`.
+        XCTAssertTrue(
+            library.openRow(
+                labelContainsAll: [Self.sourceLayoutName, "Built-in, read-only"],
+                pushSentinel: detail.preview, timeout: .postNavigation),
+            "Built-in '\(Self.sourceLayoutName)' row not found")
+
         XCTAssertTrue(
             detail.waitForContent(timeout: .postNavigation),
             "'Duplicate to Edit' button did not appear on built-in detail screen")
@@ -244,14 +247,16 @@ final class KeyEditorUITests: XCTestCase {
                     + "provisioning lands.")
         }
 
-        // Open the forked user layout's detail screen.
-        let forkedRow = library.waitForRow(labelContains: Self.forkedLayoutName, timeout: 5)
-        XCTAssertTrue(
-            forkedRow.exists,
-            "Forked '\(Self.forkedLayoutName)' row not found under My Layouts")
-        forkedRow.tap()
-
+        // Open the forked user layout's detail screen — reveal + tap with a
+        // settle probe on "Edit Keys", the sentinel unique to a *user*
+        // layout's detail screen (see `revealTapAndSettle`).
         let userDetail = LayoutDetailScreen(app: app)
+        XCTAssertTrue(
+            library.openRow(
+                labelContains: Self.forkedLayoutName,
+                pushSentinel: userDetail.editKeysButton, timeout: 5),
+            "Forked '\(Self.forkedLayoutName)' row not found under My Layouts")
+
         XCTAssertTrue(
             userDetail.waitForUserLayoutContent(timeout: .postNavigation),
             "'Edit Keys' button did not appear on the forked layout's detail screen")
@@ -375,11 +380,13 @@ final class KeyEditorUITests: XCTestCase {
                     + "provisioning lands.")
         }
 
-        let forkedRow = library.waitForRow(labelContains: Self.forkedLayoutName, timeout: 5)
-        XCTAssertTrue(forkedRow.exists)
-        forkedRow.tap()
-
         let userDetail = LayoutDetailScreen(app: app)
+        XCTAssertTrue(
+            library.openRow(
+                labelContains: Self.forkedLayoutName,
+                pushSentinel: userDetail.editKeysButton, timeout: 5),
+            "Forked '\(Self.forkedLayoutName)' row not found under My Layouts")
+
         XCTAssertTrue(userDetail.waitForUserLayoutContent(timeout: .postNavigation))
         userDetail.editKeysButton.tap()
 
@@ -389,7 +396,11 @@ final class KeyEditorUITests: XCTestCase {
             keyEditor.saveButton.isEnabled,
             "Save should start disabled — the draft has no changes yet")
 
-        // Make an unsaved change: append an empty row.
+        // Make an unsaved change: append an empty row. "Add Row" sits below
+        // the rows section, so reveal it first (lazy List composition).
+        XCTAssertTrue(
+            keyEditor.waitForAddRowButton(timeout: 10).exists,
+            "'Add Row' button not found in the key editor")
         keyEditor.addRowButton.tap()
         XCTAssertTrue(
             keyEditor.saveButton.isEnabled,

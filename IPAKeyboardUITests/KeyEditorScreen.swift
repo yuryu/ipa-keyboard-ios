@@ -126,6 +126,17 @@ struct LayoutKeyEditorScreen {
         return element
     }
 
+    /// Returns `addRowButton`, scrolling the List up first if needed (see
+    /// `waitForRevealed`) — the "Add Row" control sits below the rows
+    /// section, usually below the visible viewport on layouts with more
+    /// content (e.g. "IPA — Full (QWERTY)").
+    @discardableResult
+    func waitForAddRowButton(timeout: TimeInterval = 10) -> XCUIElement {
+        let element = addRowButton
+        waitForRevealed(element, scrollingIn: list, timeout: timeout)
+        return element
+    }
+
     /// Blocks until the "Edit Keys" navigation bar appears, or `timeout`
     /// expires. Returns `true` when the sheet is ready.
     @discardableResult
@@ -222,18 +233,47 @@ struct KeyEditorFormScreen {
         app.buttons["key-form-cancel"]
     }
 
+    /// The form's `List` (type query — the identifier does not surface on
+    /// the scrollable container itself; see `LayoutKeyEditorScreen.list`).
+    /// Used to scroll a keyboard-occluded field back into view.
+    private var list: XCUIElement {
+        app.collectionViews.firstMatch
+    }
+
     /// Replaces `field`'s current text with `text` by deleting every existing
     /// character (one `XCUIKeyboardKey.delete` per Unicode scalar) then
     /// typing the replacement, rather than select-all — deterministic
     /// regardless of platform text-selection UI, and never trims/normalizes
     /// the typed string so combining marks and multi-scalar IPA text (e.g.
-    /// `q` + `ʰ`) round-trip exactly.
+    /// `q` + `ʰ`) round-trip exactly. The keyboard raised for a *previous*
+    /// field can occlude this one — a tap there lands on the keyboard
+    /// overlay instead — so the field is scrolled hittable first, and typing
+    /// only starts once it actually has keyboard focus (see
+    /// `waitForKeyboardFocus`).
     func replaceText(in field: XCUIElement, with text: String) {
+        if !field.isHittable {
+            waitForRevealed(field, scrollingIn: list, timeout: 10)
+        }
         field.tap()
+        if !waitForKeyboardFocus(on: field) {
+            field.tap()
+            _ = waitForKeyboardFocus(on: field, timeout: 2)
+        }
         if let current = field.value as? String, !current.isEmpty {
             let deletes = String(repeating: XCUIKeyboardKey.delete.rawValue, count: current.count)
             field.typeText(deletes)
         }
         field.typeText(text)
+    }
+
+    /// Bounded, event-driven wait for `field` to gain keyboard focus after
+    /// a tap. An `XCTNSPredicateExpectation` on `hasKeyboardFocus` fulfills
+    /// the moment focus lands; an `app.keyboards` poll would instead burn
+    /// its full timeout whenever the simulator's Connect Hardware Keyboard
+    /// setting suppresses the software keyboard.
+    private func waitForKeyboardFocus(on field: XCUIElement, timeout: TimeInterval = 5) -> Bool {
+        let focused = XCTNSPredicateExpectation(
+            predicate: NSPredicate(format: "hasKeyboardFocus == true"), object: field)
+        return XCTWaiter().wait(for: [focused], timeout: timeout) == .completed
     }
 }

@@ -59,14 +59,16 @@ final class AlternatesPopupUITests: XCTestCase {
     func test_detailPreview_longPressSlideOffAndRelease_closesAlternatesPopup() throws {
         app.launch()
         let library = LibraryScreen(app: app)
-        XCTAssertTrue(library.waitForContent(timeout: 10))
+        XCTAssertTrue(library.waitForContent(timeout: .postNavigation))
 
-        library.englishUSRow.tap()
+        XCTAssertTrue(
+            library.openEnglishUS(timeout: .postNavigation),
+            "English (US) built-in row not found or not hittable")
 
         let detail = LayoutDetailScreen(app: app)
         let rhotic = detail.previewKey(inserting: "ɹ")
         XCTAssertTrue(
-            rhotic.waitForExistence(timeout: 10),
+            rhotic.waitForExistence(timeout: .postNavigation),
             "Preview does not expose the 'ɹ' key via 'key-insert-ɹ'"
         )
         // ɹ's same-row left-hand neighbor on the en-US main panel — same
@@ -80,11 +82,13 @@ final class AlternatesPopupUITests: XCTestCase {
         rhotic.press(forDuration: 0.8, thenDragTo: neighbor)
 
         // The popup's alternate cell (`key-insert-r`, the alveolar trill)
-        // must not remain in the tree after release. Inverted wait: give a
-        // stranded popup a moment to prove it is stuck before failing.
+        // must not remain in the tree after release. The popup legitimately
+        // existed mid-gesture and is dismissing now — assert the eventual
+        // state (nonexistence), not a fixed-window snapshot that races the
+        // dismissal animation.
         let alternateCell = detail.previewKey(inserting: "r")
-        XCTAssertFalse(
-            alternateCell.waitForExistence(timeout: 2),
+        XCTAssertTrue(
+            alternateCell.waitForNonExistence(timeout: .postNavigation),
             "Alternates popup stayed on screen after the key was released (issue #104)"
         )
         // Belt and braces: a stranded popup can also surface as a *second*
@@ -114,13 +118,15 @@ final class AlternatesPopupUITests: XCTestCase {
     func test_editorPreview_longPressSlideToPopup_commitsAlternateOnce() throws {
         app.launch()
         let library = LibraryScreen(app: app)
-        XCTAssertTrue(library.waitForContent(timeout: 10))
+        XCTAssertTrue(library.waitForContent(timeout: .postNavigation))
 
-        library.englishUSRow.tap()
+        XCTAssertTrue(
+            library.openEnglishUS(timeout: .postNavigation),
+            "English (US) built-in row not found or not hittable")
 
         let detail = LayoutDetailScreen(app: app)
         XCTAssertTrue(
-            detail.waitForContent(timeout: 10),
+            detail.waitForContent(timeout: .postNavigation),
             "Detail action section did not appear"
         )
         let customize = app.descendants(matching: .any)["layout-detail-customize-link"].firstMatch
@@ -128,13 +134,33 @@ final class AlternatesPopupUITests: XCTestCase {
         customize.tap()
 
         let editorPreview = app.otherElements["layout-editor-preview"]
-        XCTAssertTrue(editorPreview.waitForExistence(timeout: 10), "Editor preview missing")
+        XCTAssertTrue(editorPreview.waitForExistence(timeout: .postNavigation), "Editor preview missing")
         let rhotic = editorPreview.descendants(matching: .any)["key-insert-ɹ"].firstMatch
         XCTAssertTrue(rhotic.waitForExistence(timeout: 10), "ɹ key missing from editor preview")
 
+        // The editor screen was just pushed: wait for ɹ's frame to stop
+        // moving before deriving gesture coordinates from it — a start point
+        // resolved from a still-settling frame puts the whole fixed-offset
+        // drag in the wrong place (CI sightings 2026-07-03/-04 on two
+        // unrelated branches: the slide committed nothing and the scratchpad
+        // kept its placeholder).
+        var previousFrame = CGRect.null
+        let frameDeadline = Date().addingTimeInterval(10)
+        while rhotic.frame != previousFrame, Date() < frameDeadline {
+            previousFrame = rhotic.frame
+            RunLoop.current.run(until: Date().addingTimeInterval(0.2))
+        }
+
         let start = rhotic.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5))
         let inPopup = start.withOffset(CGVector(dx: 0, dy: -55))
-        start.press(forDuration: 0.8, thenDragTo: inPopup)
+        // Hold briefly inside the popup before releasing: the release
+        // commits whatever cell the last *processed* drag position selected,
+        // and on a slow runner a release issued in the same frame as the
+        // final move can land before SwiftUI has observed the drag entering
+        // the popup at all.
+        start.press(
+            forDuration: 0.8, thenDragTo: inPopup,
+            withVelocity: .default, thenHoldForDuration: 0.3)
 
         let scratch = app.staticTexts["layout-editor-scratch"]
         XCTAssertTrue(scratch.waitForExistence(timeout: 5), "Editor scratchpad missing")

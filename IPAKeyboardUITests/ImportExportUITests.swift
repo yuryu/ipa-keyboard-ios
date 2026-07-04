@@ -67,7 +67,10 @@ final class ImportExportUITests: XCTestCase {
 
     @MainActor
     override func tearDown() async throws {
-        if let runningApp = app {
+        // Teardown blocks run before tearDown(), so the export test's
+        // terminate backstop may already have killed the process — don't
+        // try to screenshot one that is no longer running.
+        if let runningApp = app, runningApp.state != .notRunning {
             let screenshot = runningApp.screenshot()
             let attachment = XCTAttachment(screenshot: screenshot)
             attachment.name = "tearDown – \(name)"
@@ -174,29 +177,127 @@ final class ImportExportUITests: XCTestCase {
             "Alert message does not contain '\(Self.importFailurePrefix)' and '\(fragment)'")
 
         alert.buttons["OK"].tap()
+        XCTAssertTrue(
+            alert.waitForNonExistence(timeout: .postNavigation),
+            "Import-error alert did not dismiss")
         let library = LibraryScreen(app: app)
         XCTAssertTrue(
             library.waitForContent(timeout: .postNavigation),
             "Library not usable after dismissing the import-error alert")
     }
 
-    /// True once any recognizable share-sheet element exists. The share
-    /// sheet is system UI whose internals vary by OS release, so several
-    /// signatures are polled rather than relying on a single identifier.
+    /// Share-sheet container candidates. The share sheet is system UI whose
+    /// internals vary by OS release, so several signatures are recognized
+    /// rather than relying on a single identifier — and the sheet can be
+    /// hosted out of process (and, on iPad, presented in a popover), so
+    /// each signature is probed in both the app's hierarchy and
+    /// SpringBoard's. The visible Close/Cancel affordance is included too:
+    /// on a release that exposes only that button and none of the private
+    /// container identifiers, it's the sole appearance signal — and it
+    /// matches the affordance `dismissShareSheet` taps, so appearance and
+    /// dismissal stay in agreement.
     @MainActor
-    private func waitForShareSheet(timeout: TimeInterval) -> Bool {
-        let candidates: [XCUIElement] = [
+    private var shareSheetContainerCandidates: [XCUIElement] {
+        let springboard = XCUIApplication(bundleIdentifier: "com.apple.springboard")
+        return [
             app.otherElements["ActivityListView"],
             app.navigationBars["UIActivityContentView"],
             app.otherElements["ShareSheet.RemoteContainerView"],
-            app.buttons["Close"],
+            app.popovers.firstMatch,
+            app.buttons.matching(
+                NSPredicate(format: "label IN %@", ["Close", "Cancel"])).firstMatch,
+            springboard.otherElements["ActivityListView"],
+            springboard.navigationBars["UIActivityContentView"],
+            springboard.otherElements["ShareSheet.RemoteContainerView"],
         ]
+    }
+
+    /// True once any recognizable share-sheet container exists. On timeout,
+    /// attaches the app's element tree (kept even on failure) so the next
+    /// OS rename of the share sheet's internals is diagnosable straight
+    /// from CI artifacts.
+    @MainActor
+    private func waitForShareSheet(timeout: TimeInterval) -> Bool {
         let deadline = Date().addingTimeInterval(timeout)
         repeat {
-            if candidates.contains(where: { $0.exists }) { return true }
+            if shareSheetContainerCandidates.contains(where: { $0.exists }) { return true }
             RunLoop.current.run(until: Date().addingTimeInterval(0.5))
         } while Date() < deadline
+        let attachment = XCTAttachment(string: app.debugDescription)
+        attachment.name = "waitForShareSheet timeout — element tree"
+        attachment.lifetime = .keepAlways
+        add(attachment)
         return false
+    }
+
+    /// Dismisses the share sheet deterministically: taps a Close/Cancel
+    /// affordance when one is reachable, but on this OS the sheet's content
+    /// is hosted out of process and exposes NO Close/Cancel button to the
+    /// app's hierarchy (confirmed via the runtime activity log: a scoped
+    /// button probe inside the matched `ActivityListView` container found
+    /// nothing), so the canonical user gestures do the real work: a tap on
+    /// the dimmed area above the medium-detent sheet (which also dismisses
+    /// an iPad popover), then a drag of the sheet down past the bottom edge
+    /// as a fallback. Both are coordinate-based of necessity — the dimming
+    /// view and the sheet chrome expose no queryable element, the same
+    /// documented exception AlternatesPopupUITests uses. Asserts the sheet
+    /// actually left the tree: leaving it up hands the *next* test's
+    /// `launch()` a process with live remote UI to kill mid-presentation —
+    /// issue #119's flake, the same stale-process failure mode as issue
+    /// #62. Deliberately does NOT assert on the underlying screen: the
+    /// sheet dismisses back to the layout-detail screen, and the detail
+    /// list stays in the accessibility hierarchy beneath the sheet the
+    /// whole time, so any such check would be vacuous.
+    @MainActor
+    private func dismissShareSheet(timeout: TimeInterval) {
+        let deadline = Date().addingTimeInterval(timeout)
+
+        func sheetGone() -> Bool {
+            !shareSheetContainerCandidates.contains(where: { $0.exists })
+        }
+        // Polls for the signature's nonexistence within `window`, capped by
+        // the shared deadline — returns the instant no candidate remains.
+        func waitForSheetGone(window: TimeInterval) -> Bool {
+            let stepDeadline = min(deadline, Date().addingTimeInterval(window))
+            while !sheetGone() {
+                if Date() >= stepDeadline { return false }
+                RunLoop.current.run(until: Date().addingTimeInterval(0.5))
+            }
+            return true
+        }
+
+        // Preferred: an explicit, hittable Close/Cancel affordance. A fast
+        // no-op probe on this OS (see above); kept because other releases
+        // and the provisioned build may expose one.
+        let close = app.buttons.matching(
+            NSPredicate(format: "label IN %@", ["Close", "Cancel"])
+        ).firstMatch
+        if close.waitForExistence(timeout: 1), close.isHittable {
+            close.tap()
+            if waitForSheetGone(window: 5) { return }
+        }
+
+        // Canonical dismissal: tap the dimmed area above the sheet.
+        if !sheetGone() {
+            app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.1)).tap()
+            _ = waitForSheetGone(window: 5)
+        }
+
+        // Last resort: drag the sheet itself down past the bottom edge.
+        if !sheetGone(),
+            let container = shareSheetContainerCandidates.first(where: { $0.exists }) {
+            container.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.02))
+                .press(
+                    forDuration: 0.05,
+                    thenDragTo: app.coordinate(
+                        withNormalizedOffset: CGVector(dx: 0.5, dy: 1.0)))
+            _ = waitForSheetGone(window: max(1, deadline.timeIntervalSinceNow))
+        }
+
+        XCTAssertTrue(
+            sheetGone(),
+            "Share sheet did not dismiss (Close probe, outside tap, and "
+                + "swipe-down all left it on screen)")
     }
 
     // MARK: - Export
@@ -206,15 +307,27 @@ final class ImportExportUITests: XCTestCase {
     @MainActor
     func test_exportBuiltIn_presentsShareSheet() throws {
         launch()
+        // Terminate backstop (issue #62 hardening): continueAfterFailure =
+        // false stops a failed run at its first assert, which would
+        // otherwise leave this process — and any live remote share-sheet UI
+        // it hosts — running for the next test's launch() to kill
+        // mid-presentation. Teardown blocks run even after a failure (and
+        // before tearDown()), so the process is confirmed dead either way.
+        addTeardownBlock { @MainActor [app] in
+            guard let app else { return }
+            app.terminate()
+            _ = app.wait(for: .notRunning, timeout: 10)
+        }
 
         let library = LibraryScreen(app: app)
         XCTAssertTrue(library.waitForContent(timeout: .postNavigation), "Library did not appear")
-        let builtInRow = library.waitForRow(
-            labelContainsAll: [Self.builtInLayoutName, "Built-in, read-only"], timeout: 10)
-        XCTAssertTrue(builtInRow.exists, "Built-in '\(Self.builtInLayoutName)' row not found")
-        builtInRow.tap()
-
         let detail = LayoutDetailScreen(app: app)
+        XCTAssertTrue(
+            library.openRow(
+                labelContainsAll: [Self.builtInLayoutName, "Built-in, read-only"],
+                pushSentinel: detail.preview, timeout: .postNavigation),
+            "Built-in '\(Self.builtInLayoutName)' row not found")
+
         // waitForContent scrolls to the action section, which sits below the
         // export section — so success guarantees the export button is loaded.
         XCTAssertTrue(detail.waitForContent(timeout: .postNavigation), "Detail screen did not appear")
@@ -228,6 +341,10 @@ final class ImportExportUITests: XCTestCase {
         XCTAssertTrue(
             waitForShareSheet(timeout: .postNavigation),
             "Share sheet did not appear after tapping 'Export Layout'")
+
+        // Close the sheet deterministically rather than leaving live remote
+        // UI up for the next launch() to tear down (issue #119).
+        dismissShareSheet(timeout: .postNavigation)
     }
 
     // MARK: - Import (error paths, via the launch-environment hook)

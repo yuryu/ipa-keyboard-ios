@@ -17,15 +17,45 @@ final class IPAKeyboardUITestsLaunchTests: XCTestCase {
         true
     }
 
-    // Use the async variant for Swift 6 @MainActor compatibility.
+    // An instance property (matching every other suite), not a test-local:
+    // tearDown can only clean up what it can reach, and with
+    // continueAfterFailure = false a failed run stops at its first assert —
+    // a test-local app would escape the cleanup below on exactly the runs
+    // that need it most. @MainActor isolates the stored property so
+    // setUp/tearDown and the test (all @MainActor) can mutate it.
+    @MainActor private var app: XCUIApplication!
+
+    // Use the async variants for Swift 6 @MainActor compatibility.
+    @MainActor
     override func setUp() async throws {
         try await super.setUp()
         continueAfterFailure = false
+        app = XCUIApplication()
+    }
+
+    @MainActor
+    override func tearDown() async throws {
+        // Cause-removal for every functional suite's portrait reset: these
+        // per-configuration runs are the only thing that leaves the
+        // simulator in landscape, so restore portrait here and the other
+        // suites' setUp one-liners become no-ops with nothing to race.
+        XCUIDevice.shared.orientation = .portrait
+        // Leave a confirmed-dead process behind: each of the 4
+        // per-configuration runs — and the first test of whatever suite
+        // follows — would otherwise race launch()'s implicit termination of
+        // this one (issue #62's exact failure line). Event-driven bounded
+        // wait; no asserts in tearDown. Guarded for a failed setUp, where
+        // app is still nil.
+        if let app {
+            app.terminate()
+            _ = app.wait(for: .notRunning, timeout: 10)
+        }
+        app = nil
+        try await super.tearDown()
     }
 
     @MainActor
     func testLaunch() throws {
-        let app = XCUIApplication()
         // This test asserts on the 'Layouts' navigation bar, which the
         // first-run onboarding sheet would occlude on a fresh simulator.
         // Force-skip so the assertion is hermetic regardless of prior runs'
