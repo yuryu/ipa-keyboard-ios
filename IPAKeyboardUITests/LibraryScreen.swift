@@ -81,7 +81,13 @@ func waitForEither(
         if second.exists { return .second }
         let remaining = deadline.timeIntervalSinceNow
         if remaining <= 0 { return nil }
-        if let scrollView, swipes < maxSwipes {
+        // Only swipe once the scroll view is actually there and interactable:
+        // this helper can run right after launch (import flow) while the list
+        // is still composing, and XCUITest gestures on a non-existent element
+        // hard-fail rather than no-op. `isHittable` is false for a missing
+        // element, so it covers both. Deferring the swipe never truncates the
+        // deadline — the loop keeps polling both conditions in place.
+        if let scrollView, swipes < maxSwipes, scrollView.isHittable {
             scrollView.swipeUp()
             swipes += 1
         }
