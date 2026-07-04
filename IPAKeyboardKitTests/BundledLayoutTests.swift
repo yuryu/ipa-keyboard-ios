@@ -181,14 +181,18 @@ struct BundledLayoutTests {
     }
 
     /// Issue #101: the QWERTY panel's top three rows mirror the system English
-    /// keyboard's geometry so letter keys render at equal widths. All three
-    /// rows sit on a shared 10-unit grid: row 1 is the full ten keys; row 2's
+    /// keyboard's geometry — every letter key carries a uniform 1.0 width
+    /// factor on a shared 10-unit grid. Row 1 is the full ten keys; row 2's
     /// nine keys are indented half a key on each side; row 3's seven keys are
     /// flanked by 1.5-unit placeholders where the system puts shift and
     /// backspace. Because every row's total width factor equals the panel's
     /// grid reference (the densest row, 10.0), the renderer's spacers sit at
     /// their fixed minimum instead of stretching — the geometry is fully
-    /// deterministic (see `KeyboardView.gridReferenceFactor`).
+    /// deterministic (see `KeyboardView.gridReferenceFactor`). Rendered key
+    /// widths across rows are near-equal rather than pixel-identical: the
+    /// renderer subtracts `keySpacing * (keys.count - 1)` per row before
+    /// dividing by the grid reference, so rows with different element counts
+    /// leave slightly different per-unit widths.
     @Test func genericFullQwertyPanelMatchesSystemKeyboardGeometry() throws {
         let arrangement = try #require(try genericFullLayout().primaryArrangement)
         let panel = try #require(arrangement.primaryPanel)
