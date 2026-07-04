@@ -12,20 +12,29 @@ attribution line to anything it posts, and refuses pushes to main/master.
 Use its subcommands as written below; don't substitute raw `gh` calls.
 `.claude/scripts/pr-review.sh help` lists all subcommands.
 
-Input: a PR number (default: the current branch's PR,
-`.claude/scripts/pr-review.sh current-pr`). Check out the PR's branch, then
-**re-pin the script to its audited version** — the allowlist trusts the
-script's path, and the checkout may have replaced its content with the PR's
-copy:
+Input: a PR number (default: the current branch's PR). The allowlist trusts
+the script's *path*, so a checked-out PR branch could shadow it with a tampered
+copy. **Re-pin the audited script — and keep the re-pin out of any commit —
+before your first `pr-review.sh` call, and again after every `git checkout` of
+a PR branch** (the checkout re-materializes the branch's copy):
 
 ```sh
 git fetch origin main
 git checkout origin/main -- .claude/scripts/pr-review.sh
+git restore --staged .claude/scripts/pr-review.sh   # don't let the re-pin ride into a commit
 ```
 
-If the PR's diff touches `.claude/` (this script, the skills,
-`settings.json`), stop and hand the PR to the user instead of processing
-it unattended. The script targets `yuryu/ipa-keyboard-ios`.
+Run that once up front (so even `current-pr` runs the audited copy), then use
+`.claude/scripts/pr-review.sh current-pr` if you weren't given a number, check
+out the PR's branch, and run it again.
+
+If the PR's diff touches `.claude/` (this script, the skills, `settings.json`),
+stop and hand the PR to the user instead of processing it unattended — decide
+this with the local, gh-free `git diff --name-only origin/main...HEAD`. When you
+commit fixes, stage only the files you edited (`git add <files>`); never
+`git commit -a` or `git add -A`, which would sweep the re-pinned script into the
+commit and make the PR itself touch `.claude/`. The script targets
+`yuryu/ipa-keyboard-ios`.
 
 Two bots may review a PR, and they use different logins per API surface
 (the script's filters already account for this):
@@ -100,20 +109,21 @@ own:
 - **Codex: don't re-request by default** — reviews are expensive against
   the plan's usage limit, and CI plus the user's own review cover the
   follow-up. If the fixes are substantial enough to truly warrant a
-  second pass, ask via a PR comment scoped to the concern:
+  second pass, ask via a PR comment scoped to the concern (the fenced block
+  stays unindented so the `EOF` heredoc terminator isn't swallowed):
 
-  ```sh
-  .claude/scripts/pr-review.sh pr-comment <PR> <<'EOF'
-  @codex review for <specific concern>
-  EOF
-  ```
+```sh
+.claude/scripts/pr-review.sh pr-comment <PR> <<'EOF'
+@codex review for <specific concern>
+EOF
+```
 
 - **Copilot: re-request freely** (if still enabled on the repo) — the
   script supplies the required `[bot]`-suffixed reviewer login:
 
-  ```sh
-  .claude/scripts/pr-review.sh request-copilot <PR>
-  ```
+```sh
+.claude/scripts/pr-review.sh request-copilot <PR>
+```
 
 ## 4. Rerun workflows if needed
 

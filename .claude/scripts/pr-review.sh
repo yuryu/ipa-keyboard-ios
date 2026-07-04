@@ -25,12 +25,14 @@ REPO_NAME='ipa-keyboard-ios'
 REPO="$REPO_OWNER/$REPO_NAME"
 ATTRIBUTION='*— written by Claude*'
 
-# Bot logins differ per API surface:
+# Bot logins differ per API surface. The patterns are fully anchored so a
+# registrable look-alike login (e.g. "chatgpt-codex-connector2") can't be
+# mistaken for a bot and have its text treated as trusted review feedback.
 #   gh pr view reviews / GraphQL threads: chatgpt-codex-connector, copilot-pull-request-reviewer
 #   REST inline comments:                 chatgpt-codex-connector[bot], Copilot
-BOTS_REVIEWS='chatgpt-codex-connector|copilot-pull-request-reviewer'
-BOTS_REST='^Copilot$|^chatgpt-codex-connector'
-BOTS_THREADS='copilot-pull-request-reviewer|chatgpt-codex-connector'
+# (reviews and GraphQL threads share one login set, so one constant serves both).
+BOTS_GRAPHQL='^(chatgpt-codex-connector|copilot-pull-request-reviewer)$'
+BOTS_REST='^(Copilot|chatgpt-codex-connector\[bot\])$'
 
 usage() {
   cat <<'EOF'
@@ -68,7 +70,10 @@ read_body() {
   local body
   body=$(cat)
   [[ -n "${body//[[:space:]]/}" ]] || die 'empty body on stdin'
-  if [[ "$body" == *"$ATTRIBUTION"* ]]; then
+  # Suffix match, not "contains": a body that merely quotes an earlier reply's
+  # attribution line mid-text still needs its own trailing one. $(cat) has
+  # already stripped trailing newlines, so *"$ATTRIBUTION" means "ends with it".
+  if [[ "$body" == *"$ATTRIBUTION" ]]; then
     printf '%s\n' "$body"
   else
     printf '%s\n\n%s\n' "$body" "$ATTRIBUTION"
@@ -76,12 +81,18 @@ read_body() {
 }
 
 # Stream of {id, commentId, author} for every unresolved review thread of a PR.
+# --paginate + pageInfo walks past the first 100 threads (resolved ones occupy
+# the window too, so a long-lived PR's newest unresolved threads can sit beyond
+# it). author is null for a deleted account; callers guard test() with `// ""`.
 unresolved_threads() {
-  gh api graphql -f owner="$REPO_OWNER" -f repo="$REPO_NAME" -F pr="$1" -f query='
-    query($owner:String!,$repo:String!,$pr:Int!){
+  gh api graphql --paginate \
+    -f owner="$REPO_OWNER" -f repo="$REPO_NAME" -F pr="$1" -f query='
+    query($owner:String!,$repo:String!,$pr:Int!,$endCursor:String){
       repository(owner:$owner,name:$repo){ pullRequest(number:$pr){
-        reviewThreads(first:100){ nodes{
-          id isResolved comments(first:1){ nodes{ databaseId author{login} } } } } } } }' \
+        reviewThreads(first:100, after:$endCursor){
+          pageInfo{ hasNextPage endCursor }
+          nodes{
+            id isResolved comments(first:1){ nodes{ databaseId author{login} } } } } } } }' \
     --jq '.data.repository.pullRequest.reviewThreads.nodes[]
           | select(.isResolved | not)
           | {id, commentId: .comments.nodes[0].databaseId,
@@ -106,50 +117,59 @@ cmd_current_pr() {
 }
 
 cmd_candidates() {
-  local num branch title count
-  gh pr list --repo "$REPO" --state open \
-      --json number,headRefName,title \
-      --jq '.[] | [.number, .headRefName, .title] | @tsv' |
-  while IFS=$'\t' read -r num branch title; do
+  local prs num count
+  prs=$(gh pr list --repo "$REPO" --state open --json number,headRefName,title)
+  # Iterate PR numbers only (integers — no shell-quoting hazard); branch and
+  # title are pulled from $prs by jq at emit time, so a title containing a tab
+  # or backslash can't be mangled by an @tsv/read round-trip.
+  while read -r num; do
+    [[ -n "$num" ]] || continue
+    # `// ""` keeps a deleted-account (null) author from crashing test(); the
+    # `|| continue` isolates a single PR's failure (transient gh/GraphQL error)
+    # so it can't abort the whole sweep after partial output.
     count=$(unresolved_threads "$num" \
-      | jq -s --arg bots "$BOTS_THREADS" '[.[] | select(.author | test($bots))] | length')
+      | jq -s --arg bots "$BOTS_GRAPHQL" '[.[] | select((.author // "") | test($bots))] | length') \
+      || { printf 'pr-review.sh: warning: skipping PR %s (thread query failed)\n' "$num" >&2; continue; }
     if (( count > 0 )); then
-      jq -n --argjson number "$num" --arg headBranch "$branch" --arg title "$title" \
-            --argjson unresolvedBotThreads "$count" \
-            '{number: $number, headBranch: $headBranch, title: $title,
-              unresolvedBotThreads: $unresolvedBotThreads}'
+      jq -n --argjson prs "$prs" --argjson number "$num" --argjson count "$count" \
+            '$prs[] | select(.number == $number)
+             | {number, headBranch: .headRefName, title, unresolvedBotThreads: $count}'
     fi
-  done
+  done < <(jq -r '.[].number' <<<"$prs")
 }
 
 cmd_summaries() {
-  require_pr "$1"
+  require_pr "${1:-}"
+  # Pass the pattern via --arg (gh's --jq can't take --arg), which also lets the
+  # regex hold `\[...\]` safely, and null-guard the author of a deleted account.
   gh pr view "$1" --repo "$REPO" --json reviews \
-    --jq "[.reviews[] | select(.author.login | test(\"$BOTS_REVIEWS\"))]
-          | group_by(.author.login) | map(last | {author: .author.login, body})"
+    | jq --arg bots "$BOTS_GRAPHQL" \
+        '[.reviews[] | select((.author.login // "") | test($bots))]
+         | group_by(.author.login) | map(last | {author: .author.login, body})'
 }
 
 cmd_comments() {
-  require_pr "$1"
-  # --paginate, or comments past the first 30 are silently missed; the jq
-  # filter runs per page, so output is one object per comment.
-  gh api --paginate "repos/$REPO/pulls/$1/comments" \
-    --jq ".[] | select((.user.login | test(\"$BOTS_REST\"))
-                       and .in_reply_to_id == null)
-          | {id, author: .user.login, path, line, body}"
+  require_pr "${1:-}"
+  # --paginate, or comments past the first 30 are silently missed; gh's per-page
+  # `--jq '.[]'` emits one comment object per line, then a second jq filters via
+  # --arg (so BOTS_REST's `\[bot\]` isn't mangled) and null-guards a deleted user.
+  gh api --paginate "repos/$REPO/pulls/$1/comments" --jq '.[]' \
+    | jq -c --arg bots "$BOTS_REST" \
+        'select(((.user.login // "") | test($bots)) and .in_reply_to_id == null)
+         | {id, author: .user.login, path, line, body}'
 }
 
 cmd_threads() {
-  require_pr "$1"
+  require_pr "${1:-}"
   case "${2:-}" in
-    --bots) unresolved_threads "$1" | jq --arg bots "$BOTS_THREADS" 'select(.author | test($bots))' ;;
+    --bots) unresolved_threads "$1" | jq --arg bots "$BOTS_GRAPHQL" 'select((.author // "") | test($bots))' ;;
     '')     unresolved_threads "$1" ;;
     *)      die "unknown flag '${2}' (only --bots is supported)" ;;
   esac
 }
 
 cmd_reply() {
-  require_pr "$1"
+  require_pr "${1:-}"
   [[ "${2:-}" =~ ^[0-9]+$ ]] || die "expected a numeric comment id, got '${2:-}'"
   local body
   body=$(read_body)  # separate assignment so a read_body failure aborts (set -e)
@@ -157,7 +177,7 @@ cmd_reply() {
 }
 
 cmd_pr_comment() {
-  require_pr "$1"
+  require_pr "${1:-}"
   local body
   body=$(read_body)
   gh pr comment "$1" --repo "$REPO" --body "$body"
@@ -170,7 +190,7 @@ cmd_resolve() {
 }
 
 cmd_request_copilot() {
-  require_pr "$1"
+  require_pr "${1:-}"
   # The [bot] suffix is required; the bare login is rejected with HTTP 422.
   gh api "repos/$REPO/pulls/$1/requested_reviewers" \
     -f 'reviewers[]=copilot-pull-request-reviewer[bot]'

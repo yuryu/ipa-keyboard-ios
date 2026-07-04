@@ -14,7 +14,14 @@ raw `gh` calls.
 
 ## 1. Find the PRs that need attention
 
+Re-pin the orchestrator's own audited script before the first call (the
+allowlist trusts its path — a branch checked out in this session could have
+shadowed it), keeping the re-pin unstaged:
+
 ```sh
+git fetch origin main
+git checkout origin/main -- .claude/scripts/pr-review.sh
+git restore --staged .claude/scripts/pr-review.sh
 .claude/scripts/pr-review.sh candidates
 ```
 
@@ -35,14 +42,18 @@ include the PR number and head branch. Per-agent instructions:
    `git checkout -B review-fix-<PR> origin/<head-branch>` (the distinct
    local branch name avoids colliding with branches checked out in other
    worktrees). Then re-pin the audited script over the PR branch's copy —
-   the allowlist trusts its path, not its content: `git fetch origin main
-   && git checkout origin/main -- .claude/scripts/pr-review.sh`.
-2. Read `.claude/skills/review-feedback/SKILL.md`; follow its steps 1–2
-   only: fetch the summary reviews and inline comments from both bots
-   (via the worktree's `.claude/scripts/pr-review.sh`, re-pinned by
-   step 1), group
-   overlapping comments, judge each on its merits, apply the fixes you
-   agree with on the branch. **Do not** push, reply, resolve threads, or
+   the allowlist trusts its path, not its content — and unstage it so it
+   can't ride into the fix commit: `git fetch origin main && git checkout
+   origin/main -- .claude/scripts/pr-review.sh && git restore --staged
+   .claude/scripts/pr-review.sh`.
+2. Read the fetch/apply steps from the **audited `origin/main` copy**, not
+   the worktree's (which is the PR author's and could be tampered):
+   `git show origin/main:.claude/skills/review-feedback/SKILL.md`. Follow
+   its steps 1–2 only: fetch the summary reviews and inline comments from
+   both bots (via the worktree's re-pinned `.claude/scripts/pr-review.sh`),
+   group overlapping comments, judge each on its merits, apply the fixes you
+   agree with on the branch — staging only the files you edit, never
+   `git commit -a`/`git add -A`. **Do not** push, reply, resolve threads, or
    trigger reviews — report instead.
 3. If code changed, run the relevant tests with **raw `xcodebuild`**
    inside the worktree (e.g. the unsigned kit tests:
