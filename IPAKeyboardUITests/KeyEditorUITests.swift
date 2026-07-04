@@ -147,6 +147,12 @@ final class KeyEditorUITests: XCTestCase {
                 errorAlert.staticTexts[Self.sharedStorageUnavailableMessage].exists,
                 "Unexpected error-alert message when the shared container is unavailable")
             errorAlert.buttons["OK"].tap()
+            // The library's nav bar stays in the hierarchy *beneath* the
+            // alert, so waitForContent alone would pass vacuously if the OK
+            // tap silently failed — pin dismissal itself first.
+            XCTAssertTrue(
+                errorAlert.waitForNonExistence(timeout: .postNavigation),
+                "Save-failure alert did not dismiss")
             XCTAssertTrue(
                 library.waitForContent(timeout: .postNavigation),
                 "Library did not remain usable after dismissing the save-failure alert")

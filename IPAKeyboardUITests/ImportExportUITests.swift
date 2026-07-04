@@ -295,6 +295,12 @@ final class ImportExportUITests: XCTestCase {
                 message.exists,
                 "Valid-import failure alert should carry the shared-storage message")
             alert.buttons["OK"].tap()
+            // The library's nav bar stays in the hierarchy *beneath* the
+            // alert, so waitForContent alone would pass vacuously if the OK
+            // tap silently failed — pin dismissal itself first.
+            XCTAssertTrue(
+                alert.waitForNonExistence(timeout: .postNavigation),
+                "Shared-storage alert did not dismiss")
             XCTAssertTrue(
                 library.waitForContent(timeout: .postNavigation),
                 "Library not usable after dismissing the shared-storage alert")
