@@ -43,6 +43,13 @@ The host app's layout-management UI follows these patterns (library increment
   Transferable's nonisolated static requirement. Import errors flow through
   `LayoutLibrary.perform`, so `LayoutImportError` carries user-facing
   `errorDescription`s.
+- **Symbol-reference ranking (issue #98)** lives app-side, not in the kit:
+  `SymbolReferenceModel.rank(_:matching:)` is a `nonisolated static` pure
+  stable 3-tier partition (scalar-exact via `codePointNotation` comparison →
+  glyph/label-contains → rest in inventory order) applied on top of
+  `SymbolInventory.filter`, unit-tested in app-hosted `IPAKeyboardTests`
+  (fixtures + bundled-data acceptance). Kit keeps matching; model owns display
+  order — chosen so a concurrent wave didn't have to touch kit files.
 - **Unicode exactness in editors**: every editing TextField sets
   `.autocorrectionDisabled(true)` + `.textInputAutocapitalization(.never)`; no
   trimming/normalization anywhere; `KeyEditorForm` shows a code-point readout

@@ -7,8 +7,10 @@
 //  layouts/panels contain it — derived at runtime via `SymbolInventory` over
 //  `LayoutStore` (see SymbolReferenceModel.swift). Search matches spoken-name
 //  fragments ("nasal"), pasted glyphs (scalar-exact: ASCII g never finds ɡ),
-//  and code-point queries ("U+0261" or "0261"). Presented as a sheet from the
-//  layout list's toolbar.
+//  and code-point queries ("U+0261" or "0261"); a query that IS a symbol's
+//  exact text ranks that symbol first (issue #98 — searching "i" surfaces
+//  /i/ on top, ahead of the many spoken names containing the letter i).
+//  Presented as a sheet from the layout list's toolbar.
 //
 //  Tap a symbol for its detail: exact per-scalar code points with Unicode
 //  names, copy-to-pasteboard, and an add-to-scratchpad action that collects
