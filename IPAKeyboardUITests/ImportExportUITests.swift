@@ -275,11 +275,17 @@ final class ImportExportUITests: XCTestCase {
 
         let library = LibraryScreen(app: app)
         let alert = app.alerts["Something went wrong"]
+        let importedRow = library.row(labelContains: Self.importedLayoutName)
 
-        // Whichever comes first: the degraded-state alert, or the imported row.
-        _ = alert.waitForExistence(timeout: 10)
-
-        if alert.exists {
+        // Whichever condition actually materialises: the degraded-state
+        // alert, or the imported row. A one-sided fixed-window probe here
+        // could pick the wrong branch on a slow runner (issue #99), so both
+        // are polled under one shared deadline and the branch below follows
+        // whichever one actually appeared.
+        switch waitForEither(
+            alert, importedRow, scrollingSecondIn: library.layoutList, timeout: .postNavigation
+        ) {
+        case .first:
             let message = alert.staticTexts.matching(
                 NSPredicate(
                     format: "label CONTAINS %@ AND label CONTAINS %@",
@@ -295,15 +301,17 @@ final class ImportExportUITests: XCTestCase {
             XCTAssertFalse(
                 library.waitForRow(labelContains: Self.importedLayoutName, timeout: 2).exists,
                 "No imported row should exist when persistence was unavailable")
-        } else {
+        case .second:
             XCTAssertTrue(library.waitForContent(timeout: .postNavigation), "Library did not appear")
-            let importedRow = library.waitForRow(
-                labelContains: Self.importedLayoutName, timeout: 10)
             XCTAssertTrue(
                 importedRow.exists,
                 "Imported layout row not found under 'My Layouts' after a successful import")
             // Hermeticity: no manual cleanup needed — the next launch (this
             // suite or any other) resets user layouts before rendering.
+        case nil:
+            XCTFail(
+                "Neither the shared-storage alert nor the imported row appeared within "
+                    + "\(TimeInterval.postNavigation)s of a valid import")
         }
 
         XCTAssertTrue(library.layoutList.exists, "Layout list not usable after importing")

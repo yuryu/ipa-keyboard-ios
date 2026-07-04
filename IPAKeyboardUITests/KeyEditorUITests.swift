@@ -128,8 +128,14 @@ final class KeyEditorUITests: XCTestCase {
     private func duplicateBuiltInLayout(from builtInDetail: LayoutDetailScreen, library: LibraryScreen) -> Bool {
         builtInDetail.duplicateButton.tap()
 
+        // Whichever condition actually materialises: the save-failure alert
+        // (stays on the detail screen), or a successful pop back to the
+        // library. A one-sided fixed-window probe here could pick the wrong
+        // branch on a slow runner (issue #99), so both are polled under one
+        // shared deadline.
         let errorAlert = app.alerts["Something went wrong"]
-        if errorAlert.waitForExistence(timeout: 5) {
+        switch waitForEither(errorAlert, library.navigationBar, timeout: .postNavigation) {
+        case .first:
             XCTAssertTrue(
                 errorAlert.staticTexts[Self.sharedStorageUnavailableMessage].exists,
                 "Unexpected error-alert message when the shared container is unavailable")
@@ -138,12 +144,14 @@ final class KeyEditorUITests: XCTestCase {
                 library.waitForContent(timeout: .postNavigation),
                 "Library did not remain usable after dismissing the save-failure alert")
             return false
+        case .second:
+            return true
+        case nil:
+            XCTFail(
+                "Neither the save-failure alert nor the library reappeared within "
+                    + "\(TimeInterval.postNavigation)s of tapping 'Duplicate to Edit'")
+            return false
         }
-
-        XCTAssertTrue(
-            library.waitForContent(timeout: .postNavigation),
-            "Did not return to the library after duplicating")
-        return true
     }
 
     /// Opens the built-in "IPA — Full (QWERTY)" layout's detail screen from
