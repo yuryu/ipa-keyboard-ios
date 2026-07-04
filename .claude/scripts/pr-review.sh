@@ -61,6 +61,11 @@ EOF
 
 die() { echo "pr-review.sh: $*" >&2; exit 1; }
 
+# jq is a hard dependency (candidates/summaries/comments/threads filter with
+# it; gh's --jq can't take --arg). Fail fast with a clear message instead of
+# letting a subcommand die mid-pipeline on a stock machine without jq.
+command -v jq >/dev/null || die "jq is required but not installed (e.g. 'brew install jq')"
+
 require_pr() {
   [[ "${1:-}" =~ ^[0-9]+$ ]] || die "expected a numeric PR number, got '${1:-}'"
 }
