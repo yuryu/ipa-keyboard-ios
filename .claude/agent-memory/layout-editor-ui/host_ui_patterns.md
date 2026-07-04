@@ -29,6 +29,11 @@ The host app's layout-management UI follows these patterns (library increment
   `onDelete`/`onMove` (IndexSet + pre-removal destination).
 - **Live preview** reuses the kit's `KeyboardView(layout:) { _ in }` with a no-op
   onAction, framed at `KeyboardMetrics().totalHeight(for: layout.primaryArrangement)`.
+  Full-bleed previews (zero `listRowInsets` + flat chrome background) MUST add
+  `.padding(PreviewChrome.padding)` before the background (issue #100): the
+  insetGrouped card's corner mask clips corner keycaps otherwise. Never fix
+  with a clip — the long-press alternates popup floats past the keyboard's
+  bounds. Non-bleed alternative: LayoutListView's shaped-background pattern.
 - **Reset-to-default** is a *draft* operation: `LayoutDraft.resetToDefault()`
   re-derives content from `builtInSource` (lookup of `original.derivedFrom` in
   `library.builtInLayouts` — bundled JSON pins stable UUIDs, so this works
