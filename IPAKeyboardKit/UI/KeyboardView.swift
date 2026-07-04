@@ -454,13 +454,28 @@ private struct KeyButton: View {
                 }
             }
             .overlay(alignment: popupEdge == .top ? .top : .bottom) {
-                if showingAlternates {
+                // Mounted (invisibly) from the first touch, not from popup-
+                // open, so the cells are laid out and their frames reported
+                // during the 0.3 s hold — before the release can possibly
+                // need them. Revealing on open is then a pure opacity flip
+                // with no layout. If the popup instead mounted at open, the
+                // commit would depend on a render pass landing between the
+                // long-press's `.began` and `.ended`: on a starved main
+                // thread (slow CI runner) the queued finger-up can be
+                // processed first, and the release — with every cell frame
+                // still unmeasured — would classify as `.dismiss` and type
+                // nothing (the CI-only slide-to-select regression on #71).
+                if hasAlternates && (isPressed || showingAlternates) {
                     AlternatesPopup(
                         alternates: key.alternates,
                         edge: popupEdge,
                         highlightedIndex: highlightedAlternateIndex,
                         cellSpaceName: Self.coordinateSpaceName,
                         onCellFrameChange: { alternateCellFrames[$0] = $1 })
+                        .opacity(showingAlternates ? 1 : 0)
+                        // Out of the accessibility tree until it is really
+                        // shown, so a plain tap never surfaces phantom cells.
+                        .accessibilityHidden(!showingAlternates)
                         // Purely visual — selection is by sliding the finger
                         // that opened it, so it must never swallow touches.
                         .allowsHitTesting(false)
@@ -830,8 +845,13 @@ private struct AlternatesPopup: View {
 
 /// A pressed key's request for the preview balloon: the glyph to magnify
 /// and where the key cap sits, resolved against the keyboard's bounds by
-/// the keyboard-level overlay in `KeyboardView`.
-private struct KeyPreviewRequest: Identifiable {
+/// the keyboard-level overlay in `KeyboardView`. `Equatable`
+/// (`Anchor: Equatable` since iOS 15) so the preference system can skip
+/// re-evaluating that overlay when a key re-render republishes an unchanged
+/// value — a pressed key re-renders on every slide sample while its
+/// alternates popup is open, and that dead work competes with the gesture's
+/// own event handling on slow machines.
+private struct KeyPreviewRequest: Identifiable, Equatable {
     /// The pressed key's `id` — unique per rendered key, so simultaneous
     /// presses on different keys each get their own balloon.
     let id: UUID
