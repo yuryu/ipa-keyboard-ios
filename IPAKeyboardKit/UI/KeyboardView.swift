@@ -671,12 +671,16 @@ private struct KeyButton: View {
 /// cap):
 ///
 /// - raw `touchesBegan`/`touchesEnded`/`touchesCancelled` overrides are the
-///   key-down/key-up signal (highlight + input click);
+///   key-down/key-up signal (highlight + input click); `touchesMoved` also
+///   ends the press when the hold recognizer has silently `.failed` (a drag
+///   past `allowableMovement` — no action message accompanies that
+///   transition), so a drag-cancelled key doesn't stay highlighted with its
+///   preview balloon stuck until finger-up;
 /// - a `UILongPressGestureRecognizer` drives the popup: `.began` opens it
 ///   after the stationary hold, `.changed` streams the sliding finger,
-///   `.ended` is the real finger-up (commit), and `.cancelled`/`.failed`
-///   fire on every other teardown (an enclosing scroll view stealing the
-///   touch, the app resigning active) so the popup always closes;
+///   `.ended` is the real finger-up (commit), and `.cancelled` fires on
+///   every other teardown (an enclosing scroll view stealing the touch, the
+///   app resigning active) so the popup always closes;
 /// - a `UITapGestureRecognizer` that `require(toFail:)`s the long-press
 ///   inserts the base symbol on a quick tap. The failure requirement makes
 ///   double-emission impossible by construction: once the hold begins, the
@@ -711,6 +715,7 @@ private struct AlternatesPressTracker: UIViewRepresentable {
         // the recognizer has claimed the gesture.
         longPress.cancelsTouchesInView = false
         view.addGestureRecognizer(longPress)
+        view.holdRecognizer = longPress
 
         let tap = UITapGestureRecognizer(
             target: context.coordinator,
@@ -763,19 +768,42 @@ private struct AlternatesPressTracker: UIViewRepresentable {
     /// press signal (recognizers only report from the 0.3 s mark onward).
     final class TouchObservingView: UIView {
         var onPressChanged: ((Bool) -> Void)?
+        /// The hold recognizer, consulted from `touchesMoved`: a drag past
+        /// `allowableMovement` before the hold completes moves it to
+        /// `.failed`, and UIKit sends no action message for that transition —
+        /// so without polling it here the key would stay pressed (highlight
+        /// and preview balloon frozen on the key) until finger-up.
+        weak var holdRecognizer: UIGestureRecognizer?
+        /// Whether a key-down has been reported without its matching key-up,
+        /// so a drag-cancelled press isn't ended twice.
+        private var isReportingPress = false
 
         override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) {
             super.touchesBegan(touches, with: event)
+            isReportingPress = true
             onPressChanged?(true)
+        }
+
+        override func touchesMoved(_ touches: Set<UITouch>, with event: UIEvent?) {
+            super.touchesMoved(touches, with: event)
+            if holdRecognizer?.state == .failed {
+                endPress()
+            }
         }
 
         override func touchesEnded(_ touches: Set<UITouch>, with event: UIEvent?) {
             super.touchesEnded(touches, with: event)
-            onPressChanged?(false)
+            endPress()
         }
 
         override func touchesCancelled(_ touches: Set<UITouch>, with event: UIEvent?) {
             super.touchesCancelled(touches, with: event)
+            endPress()
+        }
+
+        private func endPress() {
+            guard isReportingPress else { return }
+            isReportingPress = false
             onPressChanged?(false)
         }
     }
