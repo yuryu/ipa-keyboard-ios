@@ -204,6 +204,18 @@ final class LayoutLibrary {
     /// false is *not* an error — it's the normal answer for files already
     /// inside our sandbox — so the read is attempted either way and a real
     /// permission failure surfaces through the thrown read error.
+    ///
+    /// Deliberately has no injection seam (issue #82): everything downstream
+    /// of the read — decode/validation, store persistence, error surfacing —
+    /// is covered hermetically by `LayoutLibraryTests.importLayout…` and
+    /// `LayoutTransferTests`. Only this security-scoped read itself is
+    /// untested, and XCUITest can't drive the system document picker to
+    /// exercise it either (see `ImportExportUITests`'s file-level comment).
+    /// A stored-closure seam was considered and rejected: this function's
+    /// `@concurrent` executor hop (see above) is exactly the subtle bit such
+    /// a seam risks disturbing, for a branch that's really only exercisable
+    /// against a real sandboxed file URL. Deferred to a signed/provisioned
+    /// UI test once the App Group is set up (CLAUDE.md's signing note).
     @concurrent
     private nonisolated static func readPickedDocument(at url: URL) async throws -> Data {
         let accessing = url.startAccessingSecurityScopedResource()
