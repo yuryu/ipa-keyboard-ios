@@ -12,6 +12,11 @@
 //  Accessibility identifier scheme (for ui-test-author):
 //    layout-list                    — the List
 //    layout-list-active-section     — the "Active" section header
+//    layout-list-active-preview     — live KeyboardView preview of the active
+//                                     layout in the Active section
+//    layout-list-selection-unavailable — Active-section footer shown when the
+//                                     active selection can't yet reach the
+//                                     keyboard (shared storage not set up)
 //    layout-list-builtin-section    — the "Built-in" section header
 //    layout-list-user-section       — the "My Layouts" section header
 //    layout-row-<layout.id>         — each row (stable UUID; name is mutable)

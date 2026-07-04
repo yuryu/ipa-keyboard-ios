@@ -10,6 +10,13 @@ Accessibility identifiers in the host app, for `ui-test-author` to match in
 
 Layout library (`LayoutListView`):
 - `layout-list` — the root List
+- `layout-list-active-section` — the "Active" section header `Text`
+- `layout-list-active-preview` — live `KeyboardView` preview of the active
+  layout in the Active section (`.accessibilityElement(children: .contain)` so
+  the id names one element instead of bleeding onto every key — see issue #25)
+- `layout-list-selection-unavailable` — Active-section footer shown only when
+  the active selection can't yet reach the keyboard (App Group shared storage
+  not set up, i.e. before provisioning)
 - `layout-list-builtin-section` / `layout-list-user-section`
 - `layout-row-<layout.id.uuidString>` — each row. Keyed by the layout's UUID
   (stable) rather than name (user-mutable). Built-in UUIDs are pinned in the
