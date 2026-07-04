@@ -102,6 +102,10 @@ struct LayoutDetailView: View {
                 // individually navigable for VoiceOver.
                 .accessibilityElement(children: .contain)
                 .accessibilityIdentifier("layout-detail-preview")
+                // Inset the keys clear of the list card's rounded-corner
+                // mask (issue #100); the chrome color below still bleeds to
+                // the card edge.
+                .padding(PreviewChrome.padding)
                 .listRowInsets(EdgeInsets())
                 // The keyboard-chrome color (adapts light/dark) instead of the
                 // plain background, so white keycaps stay visible in light mode.

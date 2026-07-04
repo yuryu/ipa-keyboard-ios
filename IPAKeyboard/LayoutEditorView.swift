@@ -60,6 +60,10 @@ struct LayoutEditorView: View {
                 // same pattern as LayoutDetailView's preview).
                 .accessibilityElement(children: .contain)
                 .accessibilityIdentifier("layout-editor-preview")
+                // Inset the keys clear of the list card's rounded-corner
+                // mask (issue #100); the chrome color below still bleeds to
+                // the card edge.
+                .padding(PreviewChrome.padding)
                 .listRowInsets(EdgeInsets())
                 // Keyboard-chrome color so white keycaps stay visible in light.
                 .background(Color(uiColor: KeyboardChrome.background))
