@@ -108,6 +108,7 @@
             },
             {
               "keys": [
+                { "action": { "type": "spacer" }, "widthFactor": 0.5 },
                 {
                   "action": { "type": "insert", "text": "a" },
                   "accessibilityLabel": "open front unrounded vowel",
@@ -184,11 +185,13 @@
                     { "action": { "type": "insert", "text": "ɫ" }, "accessibilityLabel": "velarized alveolar lateral approximant" },
                     { "action": { "type": "insert", "text": "ɬ" }, "accessibilityLabel": "voiceless alveolar lateral fricative" }
                   ]
-                }
+                },
+                { "action": { "type": "spacer" }, "widthFactor": 0.5 }
               ]
             },
             {
               "keys": [
+                { "action": { "type": "spacer" }, "widthFactor": 1.5 },
                 {
                   "action": { "type": "insert", "text": "z" },
                   "accessibilityLabel": "voiced alveolar fricative",
@@ -247,7 +250,8 @@
                   "alternates": [
                     { "action": { "type": "insert", "text": "ɱ" }, "accessibilityLabel": "labiodental nasal" }
                   ]
-                }
+                },
+                { "action": { "type": "spacer" }, "widthFactor": 1.5 }
               ]
             }
           ]
