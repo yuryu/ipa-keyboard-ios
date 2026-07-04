@@ -115,17 +115,18 @@ struct SymbolReferenceScreen {
 
     /// Back button from the detail screen. UIKit labels it with the parent
     /// screen's title ("Symbol Reference") when it fits, or the generic
-    /// "Back" when it doesn't — accept either rather than guessing which.
+    /// "Back" when it doesn't — one query accepts either, so no
+    /// instantaneous `exists` snapshot has to pick a branch before the
+    /// button has composed (callers can simply `waitForExistence` on it).
     /// The library's own toolbar entry is *also* labelled "Symbol Reference"
     /// and stays in the accessibility hierarchy under the sheet, so a bare
     /// label query is ambiguous — exclude it by its custom identifier.
     var backButton: XCUIElement {
-        let byTitle = app.navigationBars.buttons.matching(
+        app.navigationBars.buttons.matching(
             NSPredicate(
-                format: "label == %@ AND identifier != %@",
-                "Symbol Reference", "layout-list-symbol-reference-button")
+                format: "(label == %@ OR label == %@) AND identifier != %@",
+                "Symbol Reference", "Back", "layout-list-symbol-reference-button")
         ).firstMatch
-        return byTitle.exists ? byTitle : app.navigationBars.buttons["Back"]
     }
 
     // MARK: Flows
@@ -144,29 +145,53 @@ struct SymbolReferenceScreen {
     /// keystroke needed. ASCII-only queries are used in tests because
     /// XCUITest's typeText cannot synthesize characters that have no
     /// hardware-keyboard equivalent (glyph *matching* itself is covered by
-    /// the kit unit tests in SymbolInventoryTests).
+    /// the kit unit tests in SymbolInventoryTests). Typing only starts once
+    /// the field actually has keyboard focus, with one re-tap on a miss
+    /// (see `waitForKeyboardFocus`).
     func search(_ query: String) {
         searchField.tap()
+        if !waitForKeyboardFocus(on: searchField) {
+            searchField.tap()
+            _ = waitForKeyboardFocus(on: searchField, timeout: 2)
+        }
         searchField.typeText(query)
+    }
+
+    /// Bounded, event-driven wait for `field` to gain keyboard focus after
+    /// a tap. An `XCTNSPredicateExpectation` on `hasKeyboardFocus` fulfills
+    /// the moment focus lands; an `app.keyboards` poll would instead burn
+    /// its full timeout whenever the simulator's Connect Hardware Keyboard
+    /// setting suppresses the software keyboard. (Duplicated in
+    /// KeyEditorScreen.swift — this file stays self-contained, see the
+    /// header.)
+    private func waitForKeyboardFocus(on field: XCUIElement, timeout: TimeInterval = 5) -> Bool {
+        let focused = XCTNSPredicateExpectation(
+            predicate: NSPredicate(format: "hasKeyboardFocus == true"), object: field)
+        return XCTWaiter().wait(for: [focused], timeout: timeout) == .completed
     }
 
     /// Waits for `element`, swiping the reference list up between checks —
     /// SwiftUI lists compose rows lazily, so a row below the fold does not
     /// exist until scrolled into range. Termination is progress-based, not
-    /// wall-clock: the loop stops when a swipe reveals no new bottom row
-    /// (the whole list has been traversed), so the reach scales with the
-    /// inventory instead of failing when new bundled layouts grow it. The
-    /// swipe cap is only a runaway backstop, sized well past the row count
-    /// a full traversal of today's inventory needs.
+    /// wall-clock: the loop stops once *two consecutive* swipes reveal no
+    /// new bottom row (the whole list has been traversed — a single
+    /// unchanged observation can be a mid-composition coincidence; a nil
+    /// sample never counts), so the reach scales with the inventory instead
+    /// of failing when new bundled layouts grow it. The swipe cap is only a
+    /// runaway backstop, sized well past the row count a full traversal of
+    /// today's inventory needs.
     @discardableResult
     func waitForRevealed(_ element: XCUIElement, maxSwipes: Int = 40) -> Bool {
         var swipes = 0
+        var stallStrikes = 0
         var previousBottomRow: String?
         while !element.waitForExistence(timeout: 1) {
             let bottomRow = lastVisibleRowIdentifier
-            let stalled = bottomRow != nil && bottomRow == previousBottomRow
-            if stalled || swipes >= maxSwipes { return element.exists }
-            previousBottomRow = bottomRow
+            if let bottomRow {
+                stallStrikes = bottomRow == previousBottomRow ? stallStrikes + 1 : 0
+                previousBottomRow = bottomRow
+            }
+            if stallStrikes >= 2 || swipes >= maxSwipes { return element.exists }
             list.swipeUp()
             swipes += 1
         }

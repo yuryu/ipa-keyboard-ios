@@ -118,7 +118,9 @@ final class IPAKeyboardUITests: XCTestCase {
         let library = LibraryScreen(app: app)
         XCTAssertTrue(library.waitForContent(timeout: .postNavigation))
 
-        library.englishUSRow.tap()
+        XCTAssertTrue(
+            library.openEnglishUS(timeout: .postNavigation),
+            "English (US) built-in row not found or not hittable")
 
         let detail = LayoutDetailScreen(app: app)
         // Preview assertions first: the preview section sits at the top of

@@ -16,16 +16,43 @@
 
 import XCTest
 
-/// Blocks until `element` exists, swiping `scrollView` up between checks.
+/// Blocks until `element` exists, scrolling `scrollView` between checks.
 /// Both `LayoutListView` and `LayoutDetailView` are plain SwiftUI `List`s
 /// (`UICollectionView`-backed) tall enough that rows/sections below the
 /// visible viewport are not yet composed — confirmed via the runtime
 /// accessibility snapshot — so a bare `waitForExistence` can time out on
 /// content that would render once scrolled into range. Shared by both page
 /// objects below rather than duplicated per screen.
-/// `maxSwipes` bounds how far it scrolls; `timeout` bounds how long it
-/// waits — after the swipe budget is exhausted it keeps polling in place
-/// until the deadline, so a generous caller deadline (`.postNavigation`,
+///
+/// Hardened against the flake modes of the original swipe loop:
+/// - Scroll steps are stationary press-drags between two in-list
+///   coordinates, ending with zero deceleration — gesture geometry on a
+///   located element (the documented exception AlternatesPopupUITests also
+///   uses), not element location by coordinate. An inertial `swipeUp`
+///   leaves the list decelerating, and a tap issued into that residual
+///   motion is swallowed as a scroll-stop touch instead of activating.
+/// - Never scrolls until the list exists and has composed at least one
+///   cell (a generic `cells` query — the Section identifier-bleed breaks
+///   identifier-prefix matches, see `row(labelContains:)`), so an empty or
+///   mid-composition screen is never flung past the target.
+/// - Spends the scroll budget on fast `exists` checks decoupled from
+///   wall-clock, so inflated CI existence polls (issue #96) can't eat the
+///   budget; `timeout` stays as the runaway backstop.
+/// - Terminates on progress, not guesswork: the bottom-most composed cell
+///   (identifier + frame) must be unchanged for two consecutive steps
+///   before the downward scan counts as exhausted, then the same bounded
+///   budget scans back toward the top and the loop keeps polling in place
+///   until the deadline. `false` therefore always means the whole list was
+///   scanned without a match — absence probes hold despite lazy
+///   composition — and a near-top row overshot mid-composition is
+///   recovered on the way back.
+/// - Once any scroll step was issued, success additionally requires the
+///   element to be hittable with an identical frame across two consecutive
+///   snapshots, so a caller's immediate tap can't land on a still-settling
+///   row. Found without scrolling returns immediately, unchanged from the
+///   original happy path.
+/// `maxSwipes` bounds each directional scan; `timeout` bounds how long the
+/// whole reveal may take, so a generous caller deadline (`.postNavigation`,
 /// issue #96) is never truncated by the scroll cap.
 @MainActor
 @discardableResult
@@ -34,18 +61,85 @@ func waitForRevealed(
     timeout: TimeInterval, maxSwipes: Int = 6
 ) -> Bool {
     let deadline = Date().addingTimeInterval(timeout)
-    var swipes = 0
-    while true {
-        let remaining = deadline.timeIntervalSinceNow
-        if remaining <= 0 { return element.exists }
-        // Poll in ~1s slices (capped by the remaining budget) so the loop can
-        // swipe between checks without ever starting a poll past the deadline.
-        if element.waitForExistence(timeout: min(1, remaining)) { return true }
-        if swipes < maxSwipes {
-            scrollView.swipeUp()
-            swipes += 1
+    var scrolled = false
+
+    // Post-scroll settle gate: hittable, and a stable frame across two
+    // consecutive snapshots (a short poll slice apart). Zero scroll steps
+    // means the screen was never disturbed — success as-is.
+    func settled() -> Bool {
+        guard scrolled else { return true }
+        var previousFrame: CGRect?
+        while Date() < deadline {
+            if element.exists, element.isHittable {
+                let frame = element.frame
+                if let previousFrame, frame == previousFrame { return true }
+                previousFrame = frame
+            } else {
+                previousFrame = nil
+            }
+            RunLoop.current.run(until: Date().addingTimeInterval(0.1))
+        }
+        return element.exists
+    }
+
+    // One bounded directional scan. Each step is a deceleration-free
+    // stationary press-drag; between steps only fast `exists` checks run,
+    // so all `maxSwipes` steps execute even under issue-#96-scale poll
+    // inflation. A two-strike stall counter on the edge-most composed cell
+    // (nil samples never count) detects the end of the list.
+    func scan(towardTop: Bool) -> Bool {
+        var steps = 0
+        var strikes = 0
+        var previousEdge: (identifier: String, frame: CGRect)?
+        while steps < maxSwipes, strikes < 2, Date() < deadline {
+            scrollView.coordinate(
+                withNormalizedOffset: CGVector(dx: 0.5, dy: towardTop ? 0.25 : 0.75)
+            ).press(
+                forDuration: 0.05,
+                thenDragTo: scrollView.coordinate(
+                    withNormalizedOffset: CGVector(dx: 0.5, dy: towardTop ? 0.75 : 0.25)))
+            scrolled = true
+            steps += 1
+            if element.exists { return true }
+            let cells = scrollView.cells.allElementsBoundByIndex
+            if let edge = towardTop ? cells.first : cells.last {
+                let sample = (identifier: edge.identifier, frame: edge.frame)
+                if let previousEdge, previousEdge == sample {
+                    strikes += 1
+                } else {
+                    strikes = 0
+                }
+                previousEdge = sample
+            }
+        }
+        return element.exists
+    }
+
+    // Happy path first: one ~1s existence poll (capped by the remaining
+    // budget) before any gesture — already-composed content returns here
+    // at zero added cost over the original loop.
+    if element.waitForExistence(timeout: min(1, max(0, deadline.timeIntervalSinceNow))) {
+        return true
+    }
+    // Composition gate: never scroll an empty or still-composing list.
+    while Date() < deadline, !(scrollView.exists && scrollView.cells.firstMatch.exists) {
+        if element.exists { return true }
+        RunLoop.current.run(until: Date().addingTimeInterval(0.25))
+    }
+    if element.exists { return true }
+
+    // Scan down; on exhaustion without a match, recover back toward the top.
+    if scan(towardTop: false) { return settled() }
+    if scan(towardTop: true) { return settled() }
+
+    // Both scans exhausted: the whole list has been traversed. Keep polling
+    // in place until the deadline in case the element composes in late.
+    while Date() < deadline {
+        if element.waitForExistence(timeout: min(1, max(0, deadline.timeIntervalSinceNow))) {
+            return settled()
         }
     }
+    return element.exists
 }
 
 // MARK: - LibraryScreen
@@ -111,6 +205,26 @@ struct LibraryScreen {
     /// query `buttons`, not `cells`.
     var englishUSRow: XCUIElement {
         app.buttons["layout-row-\(LibraryScreen.englishUSLayoutID)"]
+    }
+
+    /// Waits for `englishUSRow` to exist *and* be hittable, then taps it.
+    /// The row sits above the fold in portrait (Active section + first
+    /// built-in), so no reveal scroll is needed — deliberately
+    /// self-sufficient rather than depending on `waitForRevealed`. Both
+    /// conditions are polled under the one shared deadline (an
+    /// instantaneous hittability snapshot right after existence could catch
+    /// the row mid-composition and fail a healthy screen). Returns `false`
+    /// when the row never becomes tappable, so callers assert with their
+    /// own message.
+    @discardableResult
+    func openEnglishUS(timeout: TimeInterval = 10) -> Bool {
+        let deadline = Date().addingTimeInterval(timeout)
+        while !(englishUSRow.exists && englishUSRow.isHittable) {
+            if Date() >= deadline { return false }
+            RunLoop.current.run(until: Date().addingTimeInterval(0.25))
+        }
+        englishUSRow.tap()
+        return true
     }
 
     // MARK: Convenience lookup
@@ -180,6 +294,69 @@ struct LibraryScreen {
         waitForRevealed(element, scrollingIn: layoutList, timeout: timeout)
         return element
     }
+
+    // MARK: Open a row (reveal + tap + settle probe)
+
+    /// Reveals the row matched by `row(labelContains:)`, taps it, and
+    /// re-taps once if `pushSentinel` — an element that only exists on the
+    /// destination screen — hasn't shown up after a short probe (see
+    /// `revealTapAndSettle`). Returns `false` only when the row itself
+    /// never revealed; the caller's own `.postNavigation` first-wait on the
+    /// destination supplies the full navigation window.
+    @discardableResult
+    func openRow(
+        labelContains name: String, pushSentinel: XCUIElement,
+        timeout: TimeInterval = 10
+    ) -> Bool {
+        revealTapAndSettle(
+            row(labelContains: name), scrollingIn: layoutList,
+            pushSentinel: pushSentinel, timeout: timeout)
+    }
+
+    /// Like `openRow(labelContains:pushSentinel:timeout:)`, for rows
+    /// located by `row(labelContainsAll:)`.
+    @discardableResult
+    func openRow(
+        labelContainsAll substrings: [String], pushSentinel: XCUIElement,
+        timeout: TimeInterval = 10
+    ) -> Bool {
+        revealTapAndSettle(
+            row(labelContainsAll: substrings), scrollingIn: layoutList,
+            pushSentinel: pushSentinel, timeout: timeout)
+    }
+}
+
+// MARK: - Reveal + tap + settle probe
+
+/// Reveals `element` in `scrollView` (see `waitForRevealed`), taps it, then
+/// probes `pushSentinel` — an element that only exists on the destination
+/// screen — for a few seconds and re-taps once on a miss. The single retry
+/// covers the two ways a correctly-located tap can silently do nothing: it
+/// was swallowed as a scroll-stop touch by residual list motion, or it was
+/// invalidated by a system interruption. Deliberately does NOT wait out the
+/// caller's full navigation deadline here: it returns as soon as the tap
+/// has been (re)issued, and the caller's own `.postNavigation` first-wait
+/// on the destination supplies the full settling window. Returns `false`
+/// only when `element` itself never revealed.
+@MainActor
+@discardableResult
+func revealTapAndSettle(
+    _ element: XCUIElement, scrollingIn scrollView: XCUIElement,
+    pushSentinel: XCUIElement, timeout: TimeInterval
+) -> Bool {
+    guard waitForRevealed(element, scrollingIn: scrollView, timeout: timeout) else {
+        return false
+    }
+    element.tap()
+    if pushSentinel.waitForExistence(timeout: 3) { return true }
+    // The sentinel may legitimately still be composing (or sit below the
+    // destination's fold — e.g. LayoutDetailScreen's action buttons), so
+    // only re-tap while the tapped element is still there to receive it: a
+    // vanished element means the push is already underway.
+    if element.exists, element.isHittable {
+        element.tap()
+    }
+    return true
 }
 
 // MARK: - LayoutDetailScreen
@@ -252,19 +429,16 @@ struct LayoutDetailScreen {
 
     // MARK: Scrolling
 
-    /// Scrolls the detail list until `element` exists, swiping up at most
-    /// `maxSwipes` times. Needed because SwiftUI lists are lazy: the action
-    /// section ("Duplicate to Edit" / "Edit Keys" / "Delete") sits below the
-    /// fold on iPhone-sized screens and is absent from the accessibility
-    /// hierarchy until scrolled into view.
+    /// Reveals `element` by scrolling the detail List (see `waitForRevealed`
+    /// — deceleration-free steps, settle gate, full-scan guarantee). Needed
+    /// because SwiftUI lists are lazy: the action section ("Duplicate to
+    /// Edit" / "Edit Keys" / "Delete") sits below the fold on iPhone-sized
+    /// screens and is absent from the accessibility hierarchy until scrolled
+    /// into view. Scrolls the List element itself, never the whole app — a
+    /// whole-app swipe can land on the navigation bar and go nowhere.
     @discardableResult
-    func scrollTo(_ element: XCUIElement, maxSwipes: Int = 4) -> Bool {
-        var swipes = 0
-        while !element.exists && swipes < maxSwipes {
-            app.swipeUp()
-            swipes += 1
-        }
-        return element.waitForExistence(timeout: 2)
+    func scrollTo(_ element: XCUIElement, timeout: TimeInterval = 10, maxSwipes: Int = 4) -> Bool {
+        waitForRevealed(element, scrollingIn: list, timeout: timeout, maxSwipes: maxSwipes)
     }
 
     // MARK: Synchronised wait

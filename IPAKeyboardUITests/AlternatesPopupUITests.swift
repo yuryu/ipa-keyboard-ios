@@ -59,14 +59,16 @@ final class AlternatesPopupUITests: XCTestCase {
     func test_detailPreview_longPressSlideOffAndRelease_closesAlternatesPopup() throws {
         app.launch()
         let library = LibraryScreen(app: app)
-        XCTAssertTrue(library.waitForContent(timeout: 10))
+        XCTAssertTrue(library.waitForContent(timeout: .postNavigation))
 
-        library.englishUSRow.tap()
+        XCTAssertTrue(
+            library.openEnglishUS(timeout: .postNavigation),
+            "English (US) built-in row not found or not hittable")
 
         let detail = LayoutDetailScreen(app: app)
         let rhotic = detail.previewKey(inserting: "ɹ")
         XCTAssertTrue(
-            rhotic.waitForExistence(timeout: 10),
+            rhotic.waitForExistence(timeout: .postNavigation),
             "Preview does not expose the 'ɹ' key via 'key-insert-ɹ'"
         )
         // ɹ's same-row left-hand neighbor on the en-US main panel — same
@@ -80,11 +82,13 @@ final class AlternatesPopupUITests: XCTestCase {
         rhotic.press(forDuration: 0.8, thenDragTo: neighbor)
 
         // The popup's alternate cell (`key-insert-r`, the alveolar trill)
-        // must not remain in the tree after release. Inverted wait: give a
-        // stranded popup a moment to prove it is stuck before failing.
+        // must not remain in the tree after release. The popup legitimately
+        // existed mid-gesture and is dismissing now — assert the eventual
+        // state (nonexistence), not a fixed-window snapshot that races the
+        // dismissal animation.
         let alternateCell = detail.previewKey(inserting: "r")
-        XCTAssertFalse(
-            alternateCell.waitForExistence(timeout: 2),
+        XCTAssertTrue(
+            alternateCell.waitForNonExistence(timeout: .postNavigation),
             "Alternates popup stayed on screen after the key was released (issue #104)"
         )
         // Belt and braces: a stranded popup can also surface as a *second*
@@ -114,13 +118,15 @@ final class AlternatesPopupUITests: XCTestCase {
     func test_editorPreview_longPressSlideToPopup_commitsAlternateOnce() throws {
         app.launch()
         let library = LibraryScreen(app: app)
-        XCTAssertTrue(library.waitForContent(timeout: 10))
+        XCTAssertTrue(library.waitForContent(timeout: .postNavigation))
 
-        library.englishUSRow.tap()
+        XCTAssertTrue(
+            library.openEnglishUS(timeout: .postNavigation),
+            "English (US) built-in row not found or not hittable")
 
         let detail = LayoutDetailScreen(app: app)
         XCTAssertTrue(
-            detail.waitForContent(timeout: 10),
+            detail.waitForContent(timeout: .postNavigation),
             "Detail action section did not appear"
         )
         let customize = app.descendants(matching: .any)["layout-detail-customize-link"].firstMatch
@@ -128,7 +134,7 @@ final class AlternatesPopupUITests: XCTestCase {
         customize.tap()
 
         let editorPreview = app.otherElements["layout-editor-preview"]
-        XCTAssertTrue(editorPreview.waitForExistence(timeout: 10), "Editor preview missing")
+        XCTAssertTrue(editorPreview.waitForExistence(timeout: .postNavigation), "Editor preview missing")
         let rhotic = editorPreview.descendants(matching: .any)["key-insert-ɹ"].firstMatch
         XCTAssertTrue(rhotic.waitForExistence(timeout: 10), "ɹ key missing from editor preview")
 

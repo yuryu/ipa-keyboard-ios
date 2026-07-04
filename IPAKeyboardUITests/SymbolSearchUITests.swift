@@ -182,22 +182,24 @@ final class SymbolSearchUITests: XCTestCase {
         rowCopy.tap()
 
         // The label flips to "Copied" (sticky, race-free) — proof the tap
-        // landed on the button, and enough settle time that a (wrong)
-        // navigation push would have completed by now.
+        // landed on the button. The flip is synchronous with the tap, so
+        // the expectation fulfills on its first evaluation — it buys no
+        // settle time for a (wrong) navigation push.
         let copied = NSPredicate(format: "label == %@", "Copied")
         expectation(for: copied, evaluatedWith: rowCopy)
         waitForExpectations(timeout: 10)
 
-        // Copying must not navigate: the reference list and its row are
-        // still on screen, and the detail screen's copy button never
-        // appeared.
+        // Copying must not navigate. The negative probe runs first: its 2s
+        // window doubles as the settle time a wrongful push would need to
+        // surface the detail screen's copy button, so the positive checks
+        // below can't pass while a push is still animating in.
+        XCTAssertFalse(
+            reference.copyButton.waitForExistence(timeout: 2),
+            "Detail screen appeared — the row copy button must not navigate")
         XCTAssertTrue(
             reference.list.exists,
             "Reference list left the screen after a row copy")
         XCTAssertTrue(gRow.exists, "ɡ row disappeared after a row copy")
-        XCTAssertFalse(
-            reference.copyButton.exists,
-            "Detail screen appeared — the row copy button must not navigate")
     }
 
     @MainActor
@@ -222,6 +224,9 @@ final class SymbolSearchUITests: XCTestCase {
         // collected at the top of the reference list.
         XCTAssertTrue(reference.addToScratchpadButton.exists, "Add to Scratchpad not found")
         reference.addToScratchpadButton.tap()
+        XCTAssertTrue(
+            reference.backButton.waitForExistence(timeout: 10),
+            "Back button not found on the symbol detail screen")
         reference.backButton.tap()
 
         XCTAssertTrue(
