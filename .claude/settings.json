@@ -1,7 +1,9 @@
 {
   "permissions": {
     "allow": [
-      "Bash(.claude/scripts/pr-review.sh:*)"
+      "Bash(.claude/scripts/pr-review.sh:*)",
+      "Bash(git fetch origin main)",
+      "Bash(git checkout origin/main -- .claude/scripts/pr-review.sh)"
     ]
   }
 }

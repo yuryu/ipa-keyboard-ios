@@ -13,8 +13,19 @@ Use its subcommands as written below; don't substitute raw `gh` calls.
 `.claude/scripts/pr-review.sh help` lists all subcommands.
 
 Input: a PR number (default: the current branch's PR,
-`.claude/scripts/pr-review.sh current-pr`). Check out the PR's branch; the
-script targets `yuryu/ipa-keyboard-ios`.
+`.claude/scripts/pr-review.sh current-pr`). Check out the PR's branch, then
+**re-pin the script to its audited version** — the allowlist trusts the
+script's path, and the checkout may have replaced its content with the PR's
+copy:
+
+```sh
+git fetch origin main
+git checkout origin/main -- .claude/scripts/pr-review.sh
+```
+
+If the PR's diff touches `.claude/` (this script, the skills,
+`settings.json`), stop and hand the PR to the user instead of processing
+it unattended. The script targets `yuryu/ipa-keyboard-ios`.
 
 Two bots may review a PR, and they use different logins per API surface
 (the script's filters already account for this):

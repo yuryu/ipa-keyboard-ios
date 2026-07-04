@@ -11,6 +11,11 @@
 #   - `push` refuses main/master, requires the commit to exist locally, and
 #     never force-pushes (a non-fast-forward is rejected by the server).
 #   - There is deliberately no merge, close, branch-delete, or force subcommand.
+#   - The Bash allowlist trusts this *path*, not this content, so the copy that
+#     runs must be the audited one: after checking out a PR branch, the skills
+#     re-pin this file from origin/main (git checkout origin/main -- <this
+#     file>) before invoking it, and PRs whose diff touches .claude/ are
+#     handed to the user instead of being processed unattended.
 #
 # Usage: .claude/scripts/pr-review.sh <subcommand> [args]   (run from repo root)
 set -euo pipefail
@@ -84,7 +89,20 @@ unresolved_threads() {
 }
 
 cmd_current_pr() {
-  gh pr view --json number --jq .number
+  # Resolve against the hard-coded repo, never gh's remote inference: in a
+  # clone whose default gh repo is a fork, `gh pr view` could return a PR
+  # number from that other repo, which every write subcommand would then
+  # apply to "$REPO". Prefer the upstream branch name (worktrees often use
+  # a local name that differs from the head branch), else the local name.
+  local branch num
+  branch=$(git rev-parse --abbrev-ref '@{upstream}' 2>/dev/null || true)
+  branch="${branch#*/}"
+  [[ -n "$branch" ]] || branch=$(git rev-parse --abbrev-ref HEAD)
+  [[ "$branch" != HEAD ]] || die 'detached HEAD: pass a PR number explicitly'
+  num=$(gh pr list --repo "$REPO" --state open --head "$branch" \
+          --json number --jq '.[0].number // empty')
+  [[ -n "$num" ]] || die "no open PR in $REPO with head branch '$branch'"
+  printf '%s\n' "$num"
 }
 
 cmd_candidates() {
