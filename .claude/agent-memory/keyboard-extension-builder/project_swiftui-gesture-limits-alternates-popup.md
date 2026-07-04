@@ -1,6 +1,6 @@
 ---
 name: swiftui-gesture-limits-alternates-popup
-description: Why the alternates popup uses a UIKit recognizer overlay — SwiftUI gesture compositions freeze List scrolling, and other verified gesture/XCUITest gotchas from issue #104
+description: Why the alternates popup uses a UIKit recognizer overlay — SwiftUI gesture compositions freeze List scrolling, mid-gesture render races on slow CI runners, and gesture/XCUITest gotchas from issues #104/#71
 metadata:
   type: project
 ---
@@ -47,3 +47,30 @@ XCUITest gotchas hit while writing the regression tests:
   actions; the popup cell can't be queried mid-gesture, so the drag endpoint
   must be a coordinate offset (documented exception in
   AlternatesPopupUITests).
+
+Mid-gesture render races (the #71 balloon CI regression, PR #108):
+
+- Nothing a UIKit-recognizer commit path reads may depend on a SwiftUI
+  render pass landing *between* recognizer callbacks. `onGeometryChange`
+  frames for a view mounted at `.began` arrive only when that render
+  commits — 3 ms locally, but on a starved GitHub runner the queued
+  finger-up can be processed first, so the commit classifies against
+  all-`.null` frames and silently does nothing. Pre-mount such overlays
+  invisibly at touch-down (opacity 0 + accessibilityHidden) so measurement
+  happens in the touch-down turn's commit; revealing later is a pure
+  opacity flip. **How to apply:** audit any new hold/slide interaction for
+  reads of render-produced state (geometry, preference values) inside
+  recognizer callbacks.
+- These starvation failures are NOT locally reproducible: CPU-stress is
+  denied by the permission classifier, and simulator
+  `UIAnimationDragCoefficient` (via `simctl spawn <sim> defaults write
+  com.apple.UIKit ...`) slows animations, not main-thread throughput — the
+  gesture still passed at 10x. Diagnose instead by (a) reading the CI
+  xcodebuild activity log: multi-second gaps between "Find the ..." lines
+  inside "Synthesize event" mean the app couldn't idle mid-gesture, and
+  (b) temporary NSLog instrumentation in the tracker/commit path read back
+  with `xcrun simctl spawn <sim> log show --predicate 'eventMessage
+  CONTAINS "..."'` to get the healthy event ordering to reason from.
+- The dismiss-side UI test (popup gone after release) passes even when the
+  long-press never began at all — absence assertions give no signal that
+  the interaction ran; only the scratchpad commit test proves it.
