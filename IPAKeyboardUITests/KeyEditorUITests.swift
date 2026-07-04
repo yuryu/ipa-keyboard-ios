@@ -128,13 +128,20 @@ final class KeyEditorUITests: XCTestCase {
     private func duplicateBuiltInLayout(from builtInDetail: LayoutDetailScreen, library: LibraryScreen) -> Bool {
         builtInDetail.duplicateButton.tap()
 
-        // Whichever condition actually materialises: the save-failure alert
-        // (stays on the detail screen), or a successful pop back to the
-        // library. A one-sided fixed-window probe here could pick the wrong
-        // branch on a slow runner (issue #99), so both are polled under one
-        // shared deadline.
+        // Whichever condition actually materialises: the save-failure alert,
+        // or the forked row under "My Layouts". A one-sided fixed-window
+        // probe here could pick the wrong branch on a slow runner (issue
+        // #99), so both are polled under one shared deadline. The success
+        // condition must be the forked row, not the library reappearing:
+        // `LayoutDetailView` pops back unconditionally after `fork`, so the
+        // library's navigation bar shows up on the failure path too — often
+        // before the root-presented alert — and only the row is exclusive to
+        // a persisted fork.
         let errorAlert = app.alerts["Something went wrong"]
-        switch waitForEither(errorAlert, library.navigationBar, timeout: .postNavigation) {
+        let forkedRow = library.row(labelContains: Self.forkedLayoutName)
+        switch waitForEither(
+            errorAlert, forkedRow, scrollingSecondIn: library.layoutList, timeout: .postNavigation
+        ) {
         case .first:
             XCTAssertTrue(
                 errorAlert.staticTexts[Self.sharedStorageUnavailableMessage].exists,
@@ -148,7 +155,7 @@ final class KeyEditorUITests: XCTestCase {
             return true
         case nil:
             XCTFail(
-                "Neither the save-failure alert nor the library reappeared within "
+                "Neither the save-failure alert nor the forked row appeared within "
                     + "\(TimeInterval.postNavigation)s of tapping 'Duplicate to Edit'")
             return false
         }
