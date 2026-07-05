@@ -1029,10 +1029,18 @@ private struct KeyPreviewPreferenceKey: PreferenceKey {
 /// the pressed glyph large enough to confirm the right key was hit before
 /// lifting the finger. iPhone only, following platform convention — system
 /// iPad keyboards show no key balloons (`KeyButton.showsPreviewBalloon`
-/// gates this). Purely visual: it never takes touches, and it is hidden
-/// from accessibility because the key cap underneath already carries the
-/// spoken label and identifier.
+/// gates this). Purely visual: it never takes touches, and it surfaces as a
+/// single *unlabeled* accessibility element (identifier
+/// `key-preview-balloon`, issue #120) so UI tests can assert its
+/// press-scoped lifecycle without VoiceOver gaining a second spoken copy of
+/// the glyph — the key cap underneath already carries the spoken label and
+/// identifier.
 private struct KeyPreviewBalloon: View {
+    /// Stable accessibility identifier for the balloon (issue #120). One
+    /// balloon per pressed key, so simultaneous multi-touch presses surface
+    /// one element each under this same identifier.
+    static let accessibilityIdentifier = "key-preview-balloon"
+
     let text: String
 
     var body: some View {
@@ -1047,7 +1055,15 @@ private struct KeyPreviewBalloon: View {
                     .lineLimit(1)
                     .padding(.horizontal, 2)
             )
-            .accessibilityHidden(true)
+            // `children: .ignore` keeps the magnified glyph out of the
+            // accessibility tree (VoiceOver must not announce it a second
+            // time), while the identifier on the collapsed element lets UI
+            // tests observe when the balloon is on screen — shown while an
+            // insert key is held, gone on release and while the alternates
+            // popup is open. Deliberately no label or traits, so VoiceOver
+            // has nothing to speak here.
+            .accessibilityElement(children: .ignore)
+            .accessibilityIdentifier(Self.accessibilityIdentifier)
     }
 }
 
