@@ -320,9 +320,11 @@ private struct KeyRowView: View {
 /// slide to highlight one and
 /// release to commit it, release on the key cap to type the base symbol, or
 /// release anywhere else to cancel — the popup always closes when the finger
-/// lifts. Backspace instead acts on key-down and autorepeats while held —
-/// one `.backspace` per tick, which the extension applies
-/// grapheme-cluster-aware.
+/// lifts. Under VoiceOver, where that slide isn't operable, the alternates
+/// are also exposed as accessibility custom actions on the key
+/// (`AlternatesAccessibility`). Backspace instead acts on key-down and
+/// autorepeats while held — one `.backspace` per tick, which the extension
+/// applies grapheme-cluster-aware.
 @MainActor
 private struct KeyButton: View {
     let key: Key
@@ -519,6 +521,17 @@ private struct KeyButton: View {
             .accessibilityLabel(spokenLabel)
             .accessibilityIdentifier(key.accessibilityIdentifier)
             .accessibilityAddTraits(.isKeyboardKey)
+            // VoiceOver's non-drag path to the alternates (issue #114):
+            // hold-slide-release is not operable under VoiceOver, so each
+            // alternate is also a custom action on the base key (swipe
+            // up/down to choose, double-tap to commit), emitting the same
+            // action a slide-and-release on its popup cell would. Adds
+            // nothing for keys without alternates.
+            .accessibilityActions {
+                ForEach(AlternatesAccessibility.customActions(for: key)) { custom in
+                    Button(custom.name) { onAction(custom.action) }
+                }
+            }
     }
 
     /// The key cap with its press handling attached. Keys without alternates
@@ -855,13 +868,15 @@ private struct AlternatesPopup: View {
     private func cell(for alt: Key, isHighlighted: Bool) -> some View {
         Text(alt.displayLabel)
             .font(.title3)
-            .foregroundStyle(isHighlighted ? Color.white : Color(uiColor: .label))
+            .foregroundStyle(Color(uiColor: isHighlighted
+                ? KeyPalette.alternateHighlightText
+                : .label))
             .frame(minWidth: 36, minHeight: 40)
             .background(
                 RoundedRectangle(cornerRadius: 6, style: .continuous)
-                    .fill(isHighlighted
-                        ? Color(uiColor: .systemBlue)
-                        : Color(uiColor: KeyPalette.characterKey))
+                    .fill(Color(uiColor: isHighlighted
+                        ? KeyPalette.alternateHighlight
+                        : KeyPalette.characterKey))
             )
             .accessibilityLabel(alt.accessibilityLabel ?? alt.displayLabel)
             .accessibilityIdentifier(alt.accessibilityIdentifier)

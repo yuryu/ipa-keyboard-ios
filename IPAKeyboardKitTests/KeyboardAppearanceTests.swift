@@ -71,6 +71,24 @@ struct KeyboardAppearanceTests {
         }
     }
 
+    @Test func alternateHighlightStandsOutAndStaysLegible() {
+        // The popup's selected cell must be visibly distinct from unselected
+        // cells (which use the character-key fill), with legible text, in
+        // both schemes (issue #114).
+        for style in [UIUserInterfaceStyle.light, .dark] {
+            let traits = UITraitCollection(userInterfaceStyle: style)
+            let highlight = KeyPalette.alternateHighlight.resolvedColor(with: traits)
+            #expect(highlight != KeyPalette.characterKey.resolvedColor(with: traits))
+            #expect(highlight != KeyPalette.alternateHighlightText.resolvedColor(with: traits))
+        }
+    }
+
+    @Test func alternateHighlightSharesTheKeyboardAccent() {
+        // One accent tier: the popup highlight and the prominent return key
+        // must retint together under any future custom theme.
+        #expect(KeyPalette.alternateHighlight == KeyPalette.prominentReturn)
+    }
+
     @Test func pressedFillsDifferFromRestingFills() {
         let light = UITraitCollection(userInterfaceStyle: .light)
         for style in [KeyStyle.character, .function, .prominentReturn] {
