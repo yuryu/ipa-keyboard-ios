@@ -11,8 +11,8 @@
 		93118D362FF2226100FA84C3 /* IPAKeyboardKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 931AFC912FF16DC000E0A44F /* IPAKeyboardKit.framework */; };
 		931AFC862FF16D6200E0A44F /* KeyboardExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 931AFC7F2FF16D6200E0A44F /* KeyboardExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		931AFC992FF16DC000E0A44F /* IPAKeyboardKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 931AFC912FF16DC000E0A44F /* IPAKeyboardKit.framework */; };
-		937766122FF3000100000009 /* IPAKeyboardKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 931AFC912FF16DC000E0A44F /* IPAKeyboardKit.framework */; };
 		931AFC9A2FF16DC000E0A44F /* IPAKeyboardKit.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = 931AFC912FF16DC000E0A44F /* IPAKeyboardKit.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
+		937766122FF3000100000009 /* IPAKeyboardKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 931AFC912FF16DC000E0A44F /* IPAKeyboardKit.framework */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -37,13 +37,6 @@
 			remoteGlobalIDString = 931AFC6C2FF169A600E0A44F;
 			remoteInfo = IPAKeyboard;
 		};
-		937766112FF3000100000008 /* PBXContainerItemProxy */ = {
-			isa = PBXContainerItemProxy;
-			containerPortal = 931AFC652FF169A600E0A44F /* Project object */;
-			proxyType = 1;
-			remoteGlobalIDString = 931AFC6C2FF169A600E0A44F;
-			remoteInfo = IPAKeyboard;
-		};
 		931AFC842FF16D6200E0A44F /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
 			containerPortal = 931AFC652FF169A600E0A44F /* Project object */;
@@ -57,6 +50,13 @@
 			proxyType = 1;
 			remoteGlobalIDString = 931AFC902FF16DC000E0A44F;
 			remoteInfo = IPAKeyboardKit;
+		};
+		937766112FF3000100000008 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 931AFC652FF169A600E0A44F /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 931AFC6C2FF169A600E0A44F;
+			remoteInfo = IPAKeyboard;
 		};
 /* End PBXContainerItemProxy section */
 
@@ -88,10 +88,10 @@
 /* Begin PBXFileReference section */
 		93118D322FF2226100FA84C3 /* IPAKeyboardKitTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = IPAKeyboardKitTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		93118D402FF222C100FA84C3 /* IPAKeyboardUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = IPAKeyboardUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
-		9377660B2FF3000100000002 /* IPAKeyboardTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = IPAKeyboardTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		931AFC6D2FF169A600E0A44F /* IPAKeyboard.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = IPAKeyboard.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		931AFC7F2FF16D6200E0A44F /* KeyboardExtension.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = KeyboardExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		931AFC912FF16DC000E0A44F /* IPAKeyboardKit.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = IPAKeyboardKit.framework; sourceTree = BUILT_PRODUCTS_DIR; };
+		9377660B2FF3000100000002 /* IPAKeyboardTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = IPAKeyboardTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
@@ -123,11 +123,6 @@
 			path = IPAKeyboardUITests;
 			sourceTree = "<group>";
 		};
-		9377660C2FF3000100000003 /* IPAKeyboardTests */ = {
-			isa = PBXFileSystemSynchronizedRootGroup;
-			path = IPAKeyboardTests;
-			sourceTree = "<group>";
-		};
 		931AFC6F2FF169A600E0A44F /* IPAKeyboard */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			path = IPAKeyboard;
@@ -136,6 +131,11 @@
 		931AFC922FF16DC000E0A44F /* IPAKeyboardKit */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			path = IPAKeyboardKit;
+			sourceTree = "<group>";
+		};
+		9377660C2FF3000100000003 /* IPAKeyboardTests */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = IPAKeyboardTests;
 			sourceTree = "<group>";
 		};
 /* End PBXFileSystemSynchronizedRootGroup section */
@@ -164,14 +164,6 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
-		9377660E2FF3000100000005 /* Frameworks */ = {
-			isa = PBXFrameworksBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-				937766122FF3000100000009 /* IPAKeyboardKit.framework in Frameworks */,
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
 		931AFC7C2FF16D6200E0A44F /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
@@ -184,6 +176,14 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		9377660E2FF3000100000005 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				937766122FF3000100000009 /* IPAKeyboardKit.framework in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -258,29 +258,6 @@
 			);
 			productName = IPAKeyboardKitTests;
 			productReference = 93118D322FF2226100FA84C3 /* IPAKeyboardKitTests.xctest */;
-			productType = "com.apple.product-type.bundle.unit-test";
-		};
-		9377660A2FF3000100000001 /* IPAKeyboardTests */ = {
-			isa = PBXNativeTarget;
-			buildConfigurationList = 937766132FF300010000000A /* Build configuration list for PBXNativeTarget "IPAKeyboardTests" */;
-			buildPhases = (
-				9377660D2FF3000100000004 /* Sources */,
-				9377660E2FF3000100000005 /* Frameworks */,
-				9377660F2FF3000100000006 /* Resources */,
-			);
-			buildRules = (
-			);
-			dependencies = (
-				937766102FF3000100000007 /* PBXTargetDependency */,
-			);
-			fileSystemSynchronizedGroups = (
-				9377660C2FF3000100000003 /* IPAKeyboardTests */,
-			);
-			name = IPAKeyboardTests;
-			packageProductDependencies = (
-			);
-			productName = IPAKeyboardTests;
-			productReference = 9377660B2FF3000100000002 /* IPAKeyboardTests.xctest */;
 			productType = "com.apple.product-type.bundle.unit-test";
 		};
 		93118D3F2FF222C100FA84C3 /* IPAKeyboardUITests */ = {
@@ -378,6 +355,29 @@
 			productReference = 931AFC912FF16DC000E0A44F /* IPAKeyboardKit.framework */;
 			productType = "com.apple.product-type.framework";
 		};
+		9377660A2FF3000100000001 /* IPAKeyboardTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 937766132FF300010000000A /* Build configuration list for PBXNativeTarget "IPAKeyboardTests" */;
+			buildPhases = (
+				9377660D2FF3000100000004 /* Sources */,
+				9377660E2FF3000100000005 /* Frameworks */,
+				9377660F2FF3000100000006 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				937766102FF3000100000007 /* PBXTargetDependency */,
+			);
+			fileSystemSynchronizedGroups = (
+				9377660C2FF3000100000003 /* IPAKeyboardTests */,
+			);
+			name = IPAKeyboardTests;
+			packageProductDependencies = (
+			);
+			productName = IPAKeyboardTests;
+			productReference = 9377660B2FF3000100000002 /* IPAKeyboardTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
@@ -395,10 +395,6 @@
 						CreatedOnToolsVersion = 26.6;
 						TestTargetID = 931AFC6C2FF169A600E0A44F;
 					};
-					9377660A2FF3000100000001 = {
-						CreatedOnToolsVersion = 26.6;
-						TestTargetID = 931AFC6C2FF169A600E0A44F;
-					};
 					931AFC6C2FF169A600E0A44F = {
 						CreatedOnToolsVersion = 26.6;
 					};
@@ -407,6 +403,10 @@
 					};
 					931AFC902FF16DC000E0A44F = {
 						CreatedOnToolsVersion = 26.6;
+					};
+					9377660A2FF3000100000001 = {
+						CreatedOnToolsVersion = 26.6;
+						TestTargetID = 931AFC6C2FF169A600E0A44F;
 					};
 				};
 			};
@@ -540,11 +540,6 @@
 			target = 931AFC6C2FF169A600E0A44F /* IPAKeyboard */;
 			targetProxy = 93118D462FF222C100FA84C3 /* PBXContainerItemProxy */;
 		};
-		937766102FF3000100000007 /* PBXTargetDependency */ = {
-			isa = PBXTargetDependency;
-			target = 931AFC6C2FF169A600E0A44F /* IPAKeyboard */;
-			targetProxy = 937766112FF3000100000008 /* PBXContainerItemProxy */;
-		};
 		931AFC852FF16D6200E0A44F /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
 			target = 931AFC7E2FF16D6200E0A44F /* KeyboardExtension */;
@@ -554,6 +549,11 @@
 			isa = PBXTargetDependency;
 			target = 931AFC902FF16DC000E0A44F /* IPAKeyboardKit */;
 			targetProxy = 931AFC972FF16DC000E0A44F /* PBXContainerItemProxy */;
+		};
+		937766102FF3000100000007 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 931AFC6C2FF169A600E0A44F /* IPAKeyboard */;
+			targetProxy = 937766112FF3000100000008 /* PBXContainerItemProxy */;
 		};
 /* End PBXTargetDependency section */
 
@@ -593,48 +593,6 @@
 				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
 				SWIFT_VERSION = 6.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
-			};
-			name = Release;
-		};
-		937766142FF300010000000B /* Debug */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				BUNDLE_LOADER = "$(TEST_HOST)";
-				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = G3N78ZRFEH;
-				GENERATE_INFOPLIST_FILE = YES;
-				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = net.yuryu.IPAKeyboardTests;
-				PRODUCT_NAME = "$(TARGET_NAME)";
-				STRING_CATALOG_GENERATE_SYMBOLS = NO;
-				SWIFT_APPROACHABLE_CONCURRENCY = YES;
-				SWIFT_EMIT_LOC_STRINGS = NO;
-				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
-				SWIFT_VERSION = 6.0;
-				TARGETED_DEVICE_FAMILY = "1,2";
-				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/IPAKeyboard.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/IPAKeyboard";
-			};
-			name = Debug;
-		};
-		937766152FF300010000000C /* Release */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				BUNDLE_LOADER = "$(TEST_HOST)";
-				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = G3N78ZRFEH;
-				GENERATE_INFOPLIST_FILE = YES;
-				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = net.yuryu.IPAKeyboardTests;
-				PRODUCT_NAME = "$(TARGET_NAME)";
-				STRING_CATALOG_GENERATE_SYMBOLS = NO;
-				SWIFT_APPROACHABLE_CONCURRENCY = YES;
-				SWIFT_EMIT_LOC_STRINGS = NO;
-				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
-				SWIFT_VERSION = 6.0;
-				TARGETED_DEVICE_FAMILY = "1,2";
-				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/IPAKeyboard.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/IPAKeyboard";
 			};
 			name = Release;
 		};
@@ -1003,6 +961,48 @@
 			};
 			name = Release;
 		};
+		937766142FF300010000000B /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = G3N78ZRFEH;
+				GENERATE_INFOPLIST_FILE = YES;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = net.yuryu.IPAKeyboardTests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				STRING_CATALOG_GENERATE_SYMBOLS = NO;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 6.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/IPAKeyboard.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/IPAKeyboard";
+			};
+			name = Debug;
+		};
+		937766152FF300010000000C /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = G3N78ZRFEH;
+				GENERATE_INFOPLIST_FILE = YES;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = net.yuryu.IPAKeyboardTests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				STRING_CATALOG_GENERATE_SYMBOLS = NO;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 6.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/IPAKeyboard.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/IPAKeyboard";
+			};
+			name = Release;
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
@@ -1011,15 +1011,6 @@
 			buildConfigurations = (
 				93118D392FF2226100FA84C3 /* Debug */,
 				93118D3A2FF2226100FA84C3 /* Release */,
-			);
-			defaultConfigurationIsVisible = 0;
-			defaultConfigurationName = Release;
-		};
-		937766132FF300010000000A /* Build configuration list for PBXNativeTarget "IPAKeyboardTests" */ = {
-			isa = XCConfigurationList;
-			buildConfigurations = (
-				937766142FF300010000000B /* Debug */,
-				937766152FF300010000000C /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
@@ -1065,6 +1056,15 @@
 			buildConfigurations = (
 				931AFC9C2FF16DC000E0A44F /* Debug */,
 				931AFC9D2FF16DC000E0A44F /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		937766132FF300010000000A /* Build configuration list for PBXNativeTarget "IPAKeyboardTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				937766142FF300010000000B /* Debug */,
+				937766152FF300010000000C /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
