@@ -66,5 +66,9 @@ build/
 DerivedData/
 *.xcuserstate
 
+# Claude Code subagent memory — local working notes, never shared source.
+# Durable findings get promoted into .claude/agents/*.md or CLAUDE.md instead.
+.claude/agent-memory/
+
 # macOS
 .DS_Store

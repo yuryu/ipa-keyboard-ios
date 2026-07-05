@@ -1,3 +1,0 @@
-- [Host UI patterns](host_ui_patterns.md) — @Observable VM + value-based nav; LayoutDraft/sheet pattern for the key editor; app target defaults to MainActor
-- [Accessibility IDs](accessibility_ids.md) — a11y identifiers on library/detail/curation/key-editor/onboarding screens, plus onboarding UI-test launch args
-- [Graceful degradation](graceful_degradation.md) — lazy flip-on-failure detection of nil App Group container in the host UI

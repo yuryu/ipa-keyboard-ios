@@ -38,6 +38,27 @@ The `IPAKeyboard` host target's user-facing surface:
 - Use SwiftUI previews freely; they run against bundled defaults via the store's graceful-degradation path, so previews work without provisioning.
 - Keep views small and the logic in view models so it stays unit-testable.
 
+## Established patterns (extend these, don't diverge)
+
+- **The app target defaults to MainActor** (`SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor`; the kit and extension targets do NOT) — app-side view inits can construct `@MainActor` objects freely; kit code must stay nonisolated-safe. A type conforming to a nonisolated protocol requirement (e.g. `Transferable`) needs the explicit `nonisolated` keyword — see `LayoutExportItem`.
+- **Error surfacing:** `LayoutLibrary` (`@Observable @MainActor`) sets `errorMessage` for root-list operations (fork/delete/import → root alert), but `update(_:)` **throws** — the key-editor sheet presents its own error alert because the root alert can't present under a sheet.
+- **Navigation:** value-based `.navigationDestination(for: KeyboardLayout.self)`; a pushed detail view resolves a fresh copy by id from the library (the navigation value is a stale snapshot). No `ObservableObject`, no `NavigationView`.
+- **Cancelable editing:** editors are sheets with their own `NavigationStack` over a draft VM (`LayoutDraft`: `workingCopy` + `original`; value-equality `hasChanges` drives Save, the discard-confirm, and `interactiveDismissDisabled`). All mutations go through the kit's pure editing API (`Model/LayoutEditing.swift`) so the engine stays unit-testable; offset semantics match SwiftUI `onDelete`/`onMove`. Reset-to-default is a *draft* operation (re-derive content via the `derivedFrom` lookup among built-ins; nothing persists until Save). Reuse this whole shape for future editors.
+- **Live previews** reuse `KeyboardView(layout:) { _ in }` framed at `KeyboardMetrics().totalHeight(for:)`. Full-bleed previews MUST add `.padding(PreviewChrome.padding)` *before* the background — the insetGrouped card's corner mask clips corner keycaps otherwise. Never fix that with a clip: the long-press alternates popup floats past the keyboard's bounds.
+- **Graceful degradation stays lazy:** there's no kit API to probe the container without a write, so `LayoutLibrary.containerAvailable` starts `true` and flips on the first `sharedContainerUnavailable` failure (footer notice + alert). Don't add eager availability checks or new kit probing API before provisioning lands.
+- **Unicode exactness in editors:** every editing `TextField` sets `.autocorrectionDisabled(true)` + `.textInputAutocapitalization(.never)`; no trimming or normalization anywhere; `KeyEditorForm` shows a code-point readout ("U+0261") under the symbol field; only exactly-empty alternate texts are dropped on commit.
+
+## Accessibility identifiers — the contract with ui-test-author
+
+Every screen documents its identifiers in the view file's header comment; keep that current — it's what `ui-test-author` reads. Naming scheme: kebab-case, screen-prefixed (`layout-list-…`, `layout-detail-…`, `layout-editor-…`, `key-editor-…`, `key-form-…`, `symbol-reference-…`, `onboarding-…`); dynamic rows keyed by stable data (`layout-row-<UUID>`, `symbol-reference-row-<text>`), indexes 0-based.
+
+Identifier-bleed traps on iOS 26 (both confirmed via runtime accessibility dumps):
+
+- `.accessibilityIdentifier` on a SwiftUI `Section` stamps the section's id onto **every descendant** — put section ids on the header `Text`, never on the `Section`.
+- `.accessibilityIdentifier` applied directly to a `KeyboardView(...)` call bleeds onto every rendered key. Where one container element is wanted, use `.accessibilityElement(children: .contain)` (see `layout-list-active-preview`).
+
+UI-test hooks (extend these established patterns rather than inventing new ones): launch arguments `--uitest-show-onboarding` / `--uitest-skip-onboarding` (checked in `OnboardingState.init`; skip wins) and `--uitest-reset-layouts` (checked in `LayoutLibrary.init`, applied before the first reload); launch *environment* `UITEST_IMPORT_JSON` (fed through the real import pipeline from `LayoutListView.onAppear`, because XCUITest can't drive the system document picker). Declare each hook as a named constant in app code so the test target can mirror it.
+
 ## Commands
 
 You have no Bash or build tools — you do not run builds. When a change needs verifying in the simulator, write out the XcodeBuildMCP steps from CLAUDE.md's Commands section (set `scheme` = `IPAKeyboard` via `session_set_defaults`, then `build_sim`; signing currently deferred) for the user or the relevant agent to run, and report which views and view models you changed and how they read/write through `LayoutStore`.
