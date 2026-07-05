@@ -228,6 +228,21 @@ struct SymbolInventoryTests {
         #expect(SymbolInventory.codePointNotation(fromCodePointQuery: "") == nil)
     }
 
+    @Test func codePointNotationFromQueryRejectsInvalidScalarValues() {
+        // Well-shaped hex that denotes no valid Unicode scalar — surrogates
+        // and values past U+10FFFF — is nil too: such values can never occur
+        // in any entry's text, so treating them as code-point queries would
+        // break the "nil means not a code-point query" contract.
+        #expect(SymbolInventory.codePointNotation(fromCodePointQuery: "U+D800") == nil)
+        #expect(SymbolInventory.codePointNotation(fromCodePointQuery: "DFFF") == nil)
+        #expect(SymbolInventory.codePointNotation(fromCodePointQuery: "U+110000") == nil)
+        #expect(SymbolInventory.codePointNotation(fromCodePointQuery: "FFFFFF") == nil)
+        // The scalar-range boundaries stay accepted.
+        #expect(SymbolInventory.codePointNotation(fromCodePointQuery: "U+D7FF") == "U+D7FF")
+        #expect(SymbolInventory.codePointNotation(fromCodePointQuery: "U+E000") == "U+E000")
+        #expect(SymbolInventory.codePointNotation(fromCodePointQuery: "U+10FFFF") == "U+10FFFF")
+    }
+
     // MARK: Search matching
 
     @Test func matchesNameFragmentCaseInsensitively() {

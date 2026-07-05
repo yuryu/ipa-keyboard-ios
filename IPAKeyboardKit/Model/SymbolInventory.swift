@@ -226,8 +226,9 @@ public enum SymbolInventory {
     /// "U+0069", "u+0069", and bare hex "0069" (the same shapes
     /// `SymbolEntry.matches` accepts) all yield "U+0069", normalized to the
     /// uppercase minimum-four-digit form entries carry in
-    /// `codePointNotation`. Nil when the query isn't a code-point query, so
-    /// callers can treat plain-text searches separately — the host app's
+    /// `codePointNotation`. Nil when the query isn't a code-point query
+    /// (including values that are no valid Unicode scalar, like surrogates),
+    /// so callers can treat plain-text searches separately — the host app's
     /// search ranking uses this to boost the exact symbol for code-point
     /// queries too (issue #116).
     public static func codePointNotation(fromCodePointQuery query: String) -> String? {
@@ -237,13 +238,18 @@ public enum SymbolInventory {
     /// Parse a code-point search query: "U+0261", "u+0261", or bare hex with
     /// 2–6 digits ("0261"). Returns nil when the query isn't one, so plain
     /// text searches are unaffected (code-point matching only ever adds
-    /// matches — it never suppresses a name or glyph match).
+    /// matches — it never suppresses a name or glyph match). Values that are
+    /// no valid Unicode scalar (surrogates like "U+D800", or anything past
+    /// "U+10FFFF") are rejected too — they can never occur in any
+    /// `SymbolEntry.text`.
     static func scalarValue(fromCodePointQuery query: String) -> UInt32? {
         var hex = Substring(query)
         if hex.count > 2, hex.hasPrefix("U+") || hex.hasPrefix("u+") {
             hex = hex.dropFirst(2)
         }
-        guard (2...6).contains(hex.count), hex.allSatisfy(\.isHexDigit) else { return nil }
-        return UInt32(hex, radix: 16)
+        guard (2...6).contains(hex.count), hex.allSatisfy(\.isHexDigit),
+              let value = UInt32(hex, radix: 16), Unicode.Scalar(value) != nil
+        else { return nil }
+        return value
     }
 }
