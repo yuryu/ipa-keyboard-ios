@@ -202,6 +202,9 @@ func waitForEither(
 ///   `layout-row-<UUID>`             — each row (a Button inside the cell)
 ///   `layout-list-help-button`       — toolbar button reopening onboarding
 ///                                     guidance (see OnboardingScreen.swift)
+///   `layout-list-active-preview`    — Active section's live keyboard preview
+///   `layout-list-scratch`           — scratchpad text field (issue #103)
+///   `layout-list-scratch-clear`     — clears the scratchpad (issue #103)
 @MainActor
 struct LibraryScreen {
     let app: XCUIApplication
@@ -239,6 +242,44 @@ struct LibraryScreen {
     /// sheet on demand. Always present, regardless of first-run state.
     var helpButton: XCUIElement {
         app.buttons["layout-list-help-button"]
+    }
+
+    // MARK: Active section (preview + scratchpad, issues #103/#115)
+
+    /// The Active section's live `KeyboardView` preview: one accessibility
+    /// container element (`.accessibilityElement(children: .contain)` + the
+    /// identifier, issue #25 — same pattern as `LayoutDetailScreen.preview`).
+    /// Verified against the runtime accessibility snapshot (2026-07-04):
+    /// exactly one `Other` element carries the identifier — the Section
+    /// identifier-bleed described at `row(labelContains:)` doesn't reach it,
+    /// because `LayoutListView` puts section identifiers on the header
+    /// `Text`, never on the `Section`.
+    var activePreview: XCUIElement {
+        app.otherElements["layout-list-active-preview"]
+    }
+
+    /// The active-preview key that inserts `text`, by the kit's stable
+    /// per-key scheme `key-insert-<text>` (exact IPA code points) — same
+    /// contract as `LayoutDetailScreen.previewKey(inserting:)`. Scoped to
+    /// the preview container, so a match also proves the key rendered
+    /// *inside* the Active section's preview.
+    func activePreviewKey(inserting text: String) -> XCUIElement {
+        activePreview.descendants(matching: .any)["key-insert-\(text)"].firstMatch
+    }
+
+    /// The scratchpad under the active preview (issue #103). Surfaces as a
+    /// `TextField` despite its `axis: .vertical` (confirmed via the runtime
+    /// accessibility snapshot, 2026-07-04); its `value` is the typed text,
+    /// or the placeholder while empty.
+    var scratchField: XCUIElement {
+        app.textFields["layout-list-scratch"]
+    }
+
+    /// Clears the scratchpad. Only rendered while the scratchpad has text —
+    /// its existence doubles as the sync point that a typed key press has
+    /// landed in the buffer.
+    var scratchClearButton: XCUIElement {
+        app.buttons["layout-list-scratch-clear"]
     }
 
     // MARK: Built-in row (stable identifier)
