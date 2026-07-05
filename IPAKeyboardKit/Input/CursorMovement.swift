@@ -12,13 +12,37 @@
 import CoreGraphics
 import Foundation
 
+/// A cursor-mode lifecycle event from the space bar's trackpad-style drag,
+/// delivered through `KeyboardView`'s `onCursorMove` callback.
+///
+/// The lifecycle matters, not just the steps: `adjustTextPosition` round-
+/// trips to the host process and the proxy's `documentContextBeforeInput`/
+/// `AfterInput` windows update asynchronously, so a consumer that re-read
+/// them per step could compute step N+1 from pre-step-N context and park
+/// the cursor inside a combining sequence. `began` (the completed hold,
+/// before any movement — the document has been quiet for the whole hold, so
+/// the context is settled) is the one safe moment to snapshot the context
+/// into a `CursorMovement.Context`; `ended` (finger up or cancelled)
+/// discards it.
+public enum CursorMoveEvent: Equatable, Sendable {
+    /// Cursor mode engaged (the 0.3 s hold completed); no movement yet.
+    case began
+    /// The drag crossed `steps` more grid cells: positive right, negative
+    /// left. Only sent for non-zero steps.
+    case moved(steps: Int)
+    /// The finger lifted or the gesture was cancelled; cursor mode ends.
+    case ended
+}
+
 /// Grapheme-cluster-aware cursor offsets for
 /// `UITextDocumentProxy.adjustTextPosition(byCharacterOffset:)`.
 ///
 /// Despite its parameter name, `adjustTextPosition` counts **UTF-16 code
-/// units** (UIKit text positions are `NSString`-indexed), not user-perceived
-/// characters — so moving "one character" over a base glyph plus combining
-/// diacritics, or over a non-BMP scalar, needs an offset larger than 1.
+/// units** (UIKit text positions are `NSString`-indexed; confirmed
+/// empirically on the iOS 26.5 simulator — see
+/// `SystemKeyboardSmokeUITests`), not user-perceived characters — so moving
+/// "one character" over a base glyph plus combining diacritics, or over a
+/// non-BMP scalar, needs an offset larger than 1.
 /// These helpers compute the correct offset from the visible document
 /// context so one cursor step always traverses one whole grapheme cluster
 /// and can never land inside a combining sequence — the cursor-movement
@@ -33,23 +57,86 @@ public enum CursorMovement {
     /// Movement clamps to the visible context (the proxy exposes a limited
     /// window around the cursor, and `nil` means nothing is visible on that
     /// side), so a burst of steps never overshoots into text the caller
-    /// cannot measure — the next drag sample sees fresh context and
-    /// continues from there. Returns 0 when there is nowhere to move.
+    /// cannot measure. Returns 0 when there is nowhere to move.
+    ///
+    /// Stateless convenience over `Context` for a *single* read-compute-apply
+    /// round. Successive calls against re-read proxy context are unsafe (the
+    /// windows update asynchronously after `adjustTextPosition`); a drag
+    /// session must instead seed one `Context` and step it locally.
     public static func utf16Offset(
         steps: Int,
         contextBefore: String?,
         contextAfter: String?
     ) -> Int {
-        if steps > 0 {
-            guard let after = contextAfter else { return 0 }
-            return after.prefix(steps).reduce(0) { $0 + $1.utf16.count }
+        var context = Context(contextBefore: contextBefore, contextAfter: contextAfter)
+        return context.utf16Offset(steps: steps)
+    }
+
+    /// A local mirror of the document context around the insertion point,
+    /// kept for the duration of one cursor-mode drag.
+    ///
+    /// `adjustTextPosition(byCharacterOffset:)` round-trips to the host app,
+    /// and the proxy's context windows update asynchronously — the proxy
+    /// cannot fully re-slice its limited cached window locally the way it
+    /// can for `insertText`/`deleteBackward`. A sustained drag emits a step
+    /// every few milliseconds, so recomputing each step's offset from a
+    /// fresh `documentContextBeforeInput`/`AfterInput` read can act on
+    /// pre-previous-step context and split a grapheme cluster — the exact
+    /// defect this feature exists to prevent. The mirror is seeded once,
+    /// when cursor mode engages (the hold guarantees the document has been
+    /// quiet, so the snapshot is settled), then advanced locally: each step
+    /// moves whole grapheme clusters between the before/after sides, which
+    /// is exactly how the real context evolves for pure cursor movement over
+    /// an unchanged document.
+    ///
+    /// Movement clamps to the seeded window on each side. That bounds a
+    /// single drag to what was visible when the hold began — in practice not
+    /// a limit, because one drag is itself bounded by the keyboard's width
+    /// (~48 steps across an iPhone), far less than the proxy's typical
+    /// sentence-or-paragraph window — and every new hold re-seeds fresh.
+    public struct Context: Equatable, Sendable {
+        /// The mirrored text left of the insertion point.
+        public private(set) var contextBefore: String
+        /// The mirrored text right of the insertion point.
+        public private(set) var contextAfter: String
+
+        /// Seeds the mirror from the proxy's context windows (`nil` — nothing
+        /// visible on that side — mirrors as empty).
+        public init(contextBefore: String?, contextAfter: String?) {
+            self.contextBefore = contextBefore ?? ""
+            self.contextAfter = contextAfter ?? ""
         }
-        if steps < 0 {
-            guard let before = contextBefore else { return 0 }
-            let magnitude = Int(clamping: steps.magnitude)
-            return before.suffix(magnitude).reduce(0) { $0 - $1.utf16.count }
+
+        /// Returns the value to pass to `adjustTextPosition(byCharacterOffset:)`
+        /// for `steps` user-perceived characters of movement, and advances the
+        /// mirror by the same clusters so the next call continues from the
+        /// new cursor position without re-reading the proxy.
+        ///
+        /// Clusters re-form at the seam exactly as they would in the real
+        /// document: e.g. stepping right from inside a base+mark sequence
+        /// escapes just the mark, after which the reunited cluster on the
+        /// before side traverses as one unit. Clamps to the mirrored window;
+        /// returns 0 when there is nowhere to move.
+        public mutating func utf16Offset(steps: Int) -> Int {
+            if steps > 0 {
+                let crossed = contextAfter.prefix(steps)
+                guard !crossed.isEmpty else { return 0 }
+                let moved = String(crossed)
+                contextAfter.removeSubrange(crossed.startIndex..<crossed.endIndex)
+                contextBefore.append(moved)
+                return moved.utf16.count
+            }
+            if steps < 0 {
+                let magnitude = Int(clamping: steps.magnitude)
+                let crossed = contextBefore.suffix(magnitude)
+                guard !crossed.isEmpty else { return 0 }
+                let moved = String(crossed)
+                contextBefore.removeSubrange(crossed.startIndex..<crossed.endIndex)
+                contextAfter.insert(contentsOf: moved, at: contextAfter.startIndex)
+                return -moved.utf16.count
+            }
+            return 0
         }
-        return 0
     }
 }
 

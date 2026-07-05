@@ -123,6 +123,107 @@ struct CursorMovementTests {
     }
 }
 
+/// The per-drag context mirror: successive steps must compute correct
+/// offsets *without* re-reading the proxy, whose context windows update
+/// asynchronously after `adjustTextPosition` (re-reading is what could
+/// split a cluster under a sustained drag — the staleness defect).
+struct CursorMovementContextTests {
+
+    @Test func successiveLeftStepsAdvanceLocally() {
+        // The staleness scenario: context before cursor is "ə̃a"
+        // (U+0259 U+0303 = one cluster, two code units; then "a").
+        // Two consecutive single steps left must yield -1 then -2 —
+        // a stale re-read would repeat -1 and park the cursor between
+        // U+0259 and U+0303.
+        var context = CursorMovement.Context(
+            contextBefore: "\u{0259}\u{0303}a", contextAfter: nil)
+        let first = context.utf16Offset(steps: -1)
+        let second = context.utf16Offset(steps: -1)
+        #expect(first == -1)
+        #expect(second == -2)
+        #expect(context.contextBefore.isEmpty)
+        #expect(context.contextAfter == "\u{0259}\u{0303}a")
+    }
+
+    @Test func successiveRightStepsAdvanceLocally() {
+        var context = CursorMovement.Context(
+            contextBefore: nil, contextAfter: "\u{0259}\u{0303}a")
+        let first = context.utf16Offset(steps: 1)
+        let second = context.utf16Offset(steps: 1)
+        #expect(first == 2)
+        #expect(second == 1)
+        #expect(context.contextBefore == "\u{0259}\u{0303}a")
+        #expect(context.contextAfter.isEmpty)
+    }
+
+    @Test func reversalRetraversesTheSameCluster() {
+        // Left over the nasalized schwa, then right again: the same
+        // two-code-unit cluster moves back, symmetric in magnitude.
+        var context = CursorMovement.Context(
+            contextBefore: "p\u{0259}\u{0303}", contextAfter: "t")
+        let left = context.utf16Offset(steps: -1)
+        let right = context.utf16Offset(steps: 1)
+        #expect(left == -2)
+        #expect(right == 2)
+        #expect(context.contextBefore == "p\u{0259}\u{0303}")
+        #expect(context.contextAfter == "t")
+    }
+
+    @Test func batchedStepsSumWithinOneCall() {
+        // One `.moved` can carry several steps (a fast sample); the batch
+        // sums the traversed clusters like the stateless helper does.
+        var context = CursorMovement.Context(
+            contextBefore: "pe\u{0303}t", contextAfter: nil)
+        let offset = context.utf16Offset(steps: -2)
+        #expect(offset == -3)
+        #expect(context.contextBefore == "p")
+        #expect(context.contextAfter == "e\u{0303}t")
+    }
+
+    @Test func clampsAtTheWindowEdgeAndStaysClamped() {
+        var context = CursorMovement.Context(contextBefore: "ab", contextAfter: nil)
+        let clamped = context.utf16Offset(steps: -5)
+        let after = context.utf16Offset(steps: -1)
+        #expect(clamped == -2)
+        #expect(after == 0)
+    }
+
+    @Test func nilContextMirrorsAsEmpty() {
+        var context = CursorMovement.Context(contextBefore: nil, contextAfter: nil)
+        let left = context.utf16Offset(steps: -1)
+        let right = context.utf16Offset(steps: 1)
+        #expect(left == 0)
+        #expect(right == 0)
+    }
+
+    @Test func midClusterSeamRejoinsLikeTheRealDocument() {
+        // Cursor parked *inside* a base+mark sequence (a host app can place
+        // it there): stepping right escapes just the mark (+1), after which
+        // the reunited cluster "ẽ" on the before side traverses as one unit
+        // (-2) — exactly what a fresh proxy read would report.
+        var context = CursorMovement.Context(
+            contextBefore: "e", contextAfter: "\u{0303}x")
+        let escape = context.utf16Offset(steps: 1)
+        let back = context.utf16Offset(steps: -1)
+        #expect(escape == 1)
+        #expect(back == -2)
+        #expect(context.contextBefore.isEmpty)
+        #expect(context.contextAfter == "e\u{0303}x")
+    }
+
+    @Test func statelessHelperMatchesASingleContextStep() {
+        // The static helper is a one-shot convenience over Context; the two
+        // must never disagree on a first step.
+        let before = "pe\u{0303}"
+        let after = "\u{0251}\u{02D0}t"
+        var context = CursorMovement.Context(contextBefore: before, contextAfter: after)
+        let stateless = CursorMovement.utf16Offset(
+            steps: -1, contextBefore: before, contextAfter: after)
+        let stateful = context.utf16Offset(steps: -1)
+        #expect(stateful == stateless)
+    }
+}
+
 struct CursorDragStepperTests {
 
     @Test func firstSampleAnchorsWithoutStepping() {

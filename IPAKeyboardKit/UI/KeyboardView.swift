@@ -27,9 +27,11 @@
 //  the sliding finger (hit-testing in the unit-tested
 //  `AlternatesSelection`), and always closes on release. The space bar
 //  doubles as a trackpad (issue #70): the same hold enters cursor mode and
-//  a horizontal drag emits cursor steps through `onCursorMove` (quantized
-//  by the unit-tested `CursorDragStepper`); the extension turns steps into
-//  grapheme-aware `adjustTextPosition` offsets, while the host previews
+//  a horizontal drag emits `CursorMoveEvent`s through `onCursorMove` —
+//  `began` on the completed hold, `moved(steps:)` per crossed grid cell
+//  (quantized by the unit-tested `CursorDragStepper`), `ended` on release;
+//  the extension turns the session into grapheme-aware `adjustTextPosition`
+//  offsets, while the host previews
 //  leave the callback a no-op. The extension can
 //  overlay the globe keycap with a UIKit control (`nextKeyboardOverlay`)
 //  so the system drives keyboard switching, including the long-press
@@ -140,7 +142,7 @@ public struct KeyboardView: View {
     private let metrics: KeyboardMetrics
     private let returnKeyType: UIReturnKeyType
     private let nextKeyboardOverlay: AnyView?
-    private let onCursorMove: (Int) -> Void
+    private let onCursorMove: (CursorMoveEvent) -> Void
     private let onAction: (KeyAction) -> Void
 
     /// Name of the panel currently shown within the primary arrangement.
@@ -178,18 +180,20 @@ public struct KeyboardView: View {
     ///   input-mode list). nil — the host app and previews — leaves the plain
     ///   SwiftUI key, whose tap emits `KeyAction.nextKeyboard`.
     /// - Parameter onCursorMove: receives the space bar's trackpad-style
-    ///   cursor steps (positive right, negative left) while it is held and
-    ///   dragged. A renderer-level event like panel switching — deliberately
+    ///   cursor session — `began` when the hold completes, `moved(steps:)`
+    ///   (positive right, negative left) while it is dragged, `ended` on
+    ///   release. A renderer-level event like panel switching — deliberately
     ///   not a `KeyAction`, which is the persisted layout schema. The
-    ///   extension maps steps to `adjustTextPosition` offsets via
-    ///   `CursorMovement`; the default no-op keeps host previews inert while
-    ///   rendering the identical interaction.
+    ///   extension snapshots the document context at `began` and maps steps
+    ///   to `adjustTextPosition` offsets via `CursorMovement.Context`; the
+    ///   default no-op keeps host previews inert while rendering the
+    ///   identical interaction.
     public init(
         layout: KeyboardLayout,
         metrics: KeyboardMetrics = KeyboardMetrics(),
         returnKeyType: UIReturnKeyType = .default,
         nextKeyboardOverlay: AnyView? = nil,
-        onCursorMove: @escaping (Int) -> Void = { _ in },
+        onCursorMove: @escaping (CursorMoveEvent) -> Void = { _ in },
         onAction: @escaping (KeyAction) -> Void
     ) {
         self.layout = layout
@@ -346,7 +350,7 @@ private struct KeyRowView: View {
     let keyboardSize: CGSize
     let returnKeyType: UIReturnKeyType
     let nextKeyboardOverlay: AnyView?
-    let onCursorMove: (Int) -> Void
+    let onCursorMove: (CursorMoveEvent) -> Void
     let onAction: (KeyAction) -> Void
     /// Reports popup open/close for any key in this row, so `KeyboardView`
     /// can raise the row above its siblings.
@@ -431,7 +435,7 @@ private struct KeyButton: View {
     let keyboardSize: CGSize
     let returnKeyType: UIReturnKeyType
     let nextKeyboardOverlay: AnyView?
-    let onCursorMove: (Int) -> Void
+    let onCursorMove: (CursorMoveEvent) -> Void
     let onAction: (KeyAction) -> Void
     /// Reports the alternates popup opening/closing, so the enclosing row
     /// and keyboard can raise this key's subtree in z-order while the popup
@@ -717,9 +721,12 @@ private struct KeyButton: View {
     /// reports the real release or cancellation.
     ///
     /// Space keys use the same tracker for cursor mode (issue #70): the
-    /// hold's `.began` anchors the drag, `.changed` samples feed the
-    /// stepper (whose quantized steps go out through `onCursorMove`), and
-    /// the release after a hold deliberately types nothing — tap-to-insert
+    /// hold's `.began` anchors the drag and opens the cursor session
+    /// (`CursorMoveEvent.began` — the extension snapshots the document
+    /// context here, while it is guaranteed settled), `.changed` samples
+    /// feed the stepper (whose quantized steps go out as `.moved(steps:)`),
+    /// and the release or cancellation closes the session (`.ended`) while
+    /// deliberately typing nothing — tap-to-insert
     /// still comes from the tap recognizer, which the completed hold has
     /// already defeated. No per-step feedback: haptics need Full Access in
     /// an extension, and replaying the input click per step would be noise.
@@ -739,15 +746,16 @@ private struct KeyButton: View {
                             var stepper = CursorDragStepper()
                             _ = stepper.steps(movingTo: location.x)
                             cursorStepper = stepper
+                            onCursorMove(.began)
                         },
                         onMoved: { location in
                             var stepper = cursorStepper
                             let steps = stepper.steps(movingTo: location.x)
                             cursorStepper = stepper
-                            if steps != 0 { onCursorMove(steps) }
+                            if steps != 0 { onCursorMove(.moved(steps: steps)) }
                         },
-                        onEnded: { _ in },
-                        onCancelled: {},
+                        onEnded: { _ in onCursorMove(.ended) },
+                        onCancelled: { onCursorMove(.ended) },
                         onTap: { tapped() })
                 }
         } else if hasAlternates {

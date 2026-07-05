@@ -6,9 +6,10 @@
 //
 //  Renders a bundled `KeyboardLayout` with the shared SwiftUI `KeyboardView`
 //  and applies each emitted `KeyAction` to the document via the text proxy;
-//  the space bar's trackpad-style cursor steps arrive through the separate
-//  `onCursorMove` callback and become grapheme-aware `adjustTextPosition`
-//  offsets.
+//  the space bar's trackpad-style cursor session arrives through the
+//  separate `onCursorMove` callback and becomes grapheme-aware
+//  `adjustTextPosition` offsets computed against a per-drag context mirror
+//  (`CursorMovement.Context`).
 //
 //  The extension-runtime feedback glue lives alongside in this target:
 //  `InputClickFeedback.swift` (the input view's `UIInputViewAudioFeedback`
@@ -165,8 +166,8 @@ class KeyboardViewController: UIInputViewController {
             metrics: metrics,
             returnKeyType: returnKeyType,
             nextKeyboardOverlay: globeOverlay,
-            onCursorMove: { [weak self] steps in
-                self?.moveCursor(bySteps: steps)
+            onCursorMove: { [weak self] event in
+                self?.handleCursorMove(event)
             }
         ) { [weak self] action in
             self?.handle(action)
@@ -216,21 +217,46 @@ class KeyboardViewController: UIInputViewController {
         }
     }
 
-    /// Move the insertion point by `steps` user-perceived characters
-    /// (negative = left), from the space bar's trackpad-style cursor mode.
+    /// Local mirror of the document context for the duration of one
+    /// space-bar cursor drag; nil between drags. `adjustTextPosition` round-
+    /// trips to the host and the proxy's context windows update
+    /// asynchronously, so re-reading `documentContextBeforeInput`/
+    /// `AfterInput` per step during a sustained drag (one step per touch
+    /// sample, milliseconds apart) can compute step N+1 from pre-step-N
+    /// context and park the cursor inside a combining sequence. The mirror
+    /// is seeded once at `.began` — after the 0.3 s stationary hold, so the
+    /// document has been quiet and the windows are settled — and advanced
+    /// locally per step (see `CursorMovement.Context`).
+    private var cursorContext: CursorMovement.Context?
+
+    /// Apply the space bar's trackpad-style cursor session (issue #70):
+    /// snapshot the settled context when cursor mode engages, then move the
+    /// insertion point by whole user-perceived characters per step —
     /// `adjustTextPosition(byCharacterOffset:)` counts UTF-16 code units,
-    /// not grapheme clusters, so the offset is computed by `CursorMovement`
-    /// from the clusters adjacent to the cursor in the visible document
-    /// context — a base glyph plus combining diacritics is traversed as one
-    /// unit, mirroring grapheme-aware deletion.
-    private func moveCursor(bySteps steps: Int) {
-        let proxy = textDocumentProxy
-        let offset = CursorMovement.utf16Offset(
-            steps: steps,
-            contextBefore: proxy.documentContextBeforeInput,
-            contextAfter: proxy.documentContextAfterInput)
-        guard offset != 0 else { return }
-        proxy.adjustTextPosition(byCharacterOffset: offset)
+    /// not grapheme clusters, so each offset sums the code units of the
+    /// clusters being traversed, mirroring grapheme-aware deletion.
+    private func handleCursorMove(_ event: CursorMoveEvent) {
+        switch event {
+        case .began:
+            cursorContext = CursorMovement.Context(
+                contextBefore: textDocumentProxy.documentContextBeforeInput,
+                contextAfter: textDocumentProxy.documentContextAfterInput)
+        case .moved(let steps):
+            // `.began` always precedes `.moved`; the fallback only covers a
+            // hypothetical dropped event, accepting one possibly-unsettled
+            // read rather than a dead drag.
+            var context = cursorContext ?? CursorMovement.Context(
+                contextBefore: textDocumentProxy.documentContextBeforeInput,
+                contextAfter: textDocumentProxy.documentContextAfterInput)
+            let offset = context.utf16Offset(steps: steps)
+            cursorContext = context
+            guard offset != 0 else { return }
+            textDocumentProxy.adjustTextPosition(byCharacterOffset: offset)
+        case .ended:
+            cursorContext = nil
+        @unknown default:
+            break
+        }
     }
 
     /// Delete one user-perceived character. Combining diacritics and other

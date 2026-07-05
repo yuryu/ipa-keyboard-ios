@@ -42,4 +42,5 @@ place.
 
 - ``GraphemeText``
 - ``CursorMovement``
+- ``CursorMoveEvent``
 - ``CursorDragStepper``
