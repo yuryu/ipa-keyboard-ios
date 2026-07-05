@@ -6,3 +6,4 @@
 - [Key editor flow (issue #6)](project_key_editor_flow.md) — KeyEditorScreen page objects, KeyEditorUITests, XCTSkip guard for App-Group-unavailable persistence tests
 - [Reset-layouts launch hook (issue #27)](project_reset_layouts_hook.md) — --uitest-reset-layouts arg, LayoutStore.deleteAllUserLayouts/KeyboardPreferences.resetAll, retired swipe-to-delete self-healing
 - [Flake hardening (issue #119, 2026-07-04)](project_flake_hardening.md) — settle-tap helpers, share-sheet lifecycle/terminate backstop, keyboard-focus gate, launch-tests tearDown, PR #118 coexistence
+- [Press interactions (issue #120)](project_press_interactions.md) — key-preview-balloon identifier, gesture-on-main + background-query observer for transient UI, cap-release commit test
