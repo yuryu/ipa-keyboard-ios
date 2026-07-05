@@ -50,20 +50,25 @@ final class SymbolReferenceModel {
     ///
     /// 1. The entry whose inserted text IS the query — searching "i" puts
     ///    /i/ on top instead of mid-list (nearly every spoken name contains
-    ///    the letter i, so name matches would otherwise bury it).
+    ///    the letter i, so name matches would otherwise bury it). A
+    ///    code-point query gets the same boost (issue #116): "U+0069",
+    ///    "u+0069", or bare hex "0069" put /i/ first, ahead of the
+    ///    multi-scalar entries (like /iː/) that merely contain the scalar.
     /// 2. Entries whose glyph merely contains the query, in text or in the
     ///    explicit display label (the label is how a bare combining mark
     ///    presents, e.g. "◌̃" for U+0303).
-    /// 3. Everything else (spoken-name fragments, code-point queries),
+    /// 3. Everything else (spoken-name fragments, code-point containment),
     ///    keeping today's first-seen inventory order.
     ///
     /// Exactness is scalar-exact, compared via `SymbolInventory
-    /// .codePointNotation(for:)` rather than String equality: Swift's `==`
-    /// is canonical-equivalence-based and would conflate the NFC/NFD
-    /// spellings the inventory deliberately keeps distinct (and ASCII "g"
-    /// must never rank as an exact hit for ɡ U+0261). The inventory dedups
-    /// entries by code points, so at most one entry lands in tier 1 and the
-    /// whole order stays deterministic. Pure, nonisolated, and internal so
+    /// .codePointNotation(for:)` — and, for code-point queries,
+    /// `codePointNotation(fromCodePointQuery:)` — rather than String
+    /// equality: Swift's `==` is canonical-equivalence-based and would
+    /// conflate the NFC/NFD spellings the inventory deliberately keeps
+    /// distinct (and ASCII "g" must never rank as an exact hit for ɡ
+    /// U+0261). The inventory dedups entries by code points, so each
+    /// exactness test admits at most one entry into tier 1 and the whole
+    /// order stays deterministic. Pure, nonisolated, and internal so
     /// IPAKeyboardTests can exercise it with fixture entries.
     nonisolated static func rank(
         _ matches: [SymbolEntry], matching query: String
@@ -71,11 +76,13 @@ final class SymbolReferenceModel {
         let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return matches }
         let exactNotation = SymbolInventory.codePointNotation(for: trimmed)
+        let queriedNotation = SymbolInventory.codePointNotation(fromCodePointQuery: trimmed)
         var exact: [SymbolEntry] = []
         var glyphContains: [SymbolEntry] = []
         var byNameOrCodePoint: [SymbolEntry] = []
         for entry in matches {
-            if entry.codePointNotation == exactNotation {
+            if entry.codePointNotation == exactNotation
+                || entry.codePointNotation == queriedNotation {
                 exact.append(entry)
             } else if entry.text.contains(trimmed) || entry.displayLabel.contains(trimmed) {
                 glyphContains.append(entry)
