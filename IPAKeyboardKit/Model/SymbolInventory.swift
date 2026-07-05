@@ -222,6 +222,18 @@ public enum SymbolInventory {
         }
     }
 
+    /// The scalar-exact notation a code-point search query denotes:
+    /// "U+0069", "u+0069", and bare hex "0069" (the same shapes
+    /// `SymbolEntry.matches` accepts) all yield "U+0069", normalized to the
+    /// uppercase minimum-four-digit form entries carry in
+    /// `codePointNotation`. Nil when the query isn't a code-point query, so
+    /// callers can treat plain-text searches separately — the host app's
+    /// search ranking uses this to boost the exact symbol for code-point
+    /// queries too (issue #116).
+    public static func codePointNotation(fromCodePointQuery query: String) -> String? {
+        scalarValue(fromCodePointQuery: query).map { String(format: "U+%04X", $0) }
+    }
+
     /// Parse a code-point search query: "U+0261", "u+0261", or bare hex with
     /// 2–6 digits ("0261"). Returns nil when the query isn't one, so plain
     /// text searches are unaffected (code-point matching only ever adds

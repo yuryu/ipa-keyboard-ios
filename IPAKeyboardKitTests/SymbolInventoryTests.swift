@@ -203,6 +203,31 @@ struct SymbolInventoryTests {
             == "LATIN SMALL LETTER SCRIPT G")
     }
 
+    @Test func codePointNotationFromQueryParsesTheSameShapesMatchingAccepts() {
+        // "U+XXXX", "u+xxxx", and bare hex (2–6 digits) all normalize to the
+        // uppercase four-digit-minimum notation entries carry, so the host
+        // app's ranking can boost the exact symbol for code-point queries
+        // (issue #116).
+        #expect(SymbolInventory.codePointNotation(fromCodePointQuery: "U+0069") == "U+0069")
+        #expect(SymbolInventory.codePointNotation(fromCodePointQuery: "u+0261") == "U+0261")
+        #expect(SymbolInventory.codePointNotation(fromCodePointQuery: "0261") == "U+0261")
+        #expect(SymbolInventory.codePointNotation(fromCodePointQuery: "69") == "U+0069")
+        #expect(SymbolInventory.codePointNotation(fromCodePointQuery: "U+1D15E") == "U+1D15E")
+    }
+
+    @Test func codePointNotationFromQueryRejectsNonCodePointQueries() {
+        // Plain text, name fragments, and out-of-shape hex are nil so text
+        // searches are never mistaken for code-point ones.
+        #expect(SymbolInventory.codePointNotation(fromCodePointQuery: "i") == nil)
+        #expect(SymbolInventory.codePointNotation(fromCodePointQuery: "nasal") == nil)
+        #expect(SymbolInventory.codePointNotation(fromCodePointQuery: "\u{0261}") == nil)
+        #expect(SymbolInventory.codePointNotation(fromCodePointQuery: "U+") == nil)
+        #expect(SymbolInventory.codePointNotation(fromCodePointQuery: "0") == nil)
+        #expect(SymbolInventory.codePointNotation(fromCodePointQuery: "1234567") == nil)
+        #expect(SymbolInventory.codePointNotation(fromCodePointQuery: "U+00GG") == nil)
+        #expect(SymbolInventory.codePointNotation(fromCodePointQuery: "") == nil)
+    }
+
     // MARK: Search matching
 
     @Test func matchesNameFragmentCaseInsensitively() {

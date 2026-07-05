@@ -2,15 +2,16 @@
 //  SymbolReferenceModelTests.swift
 //  IPAKeyboardTests
 //
-//  Display ranking of symbol-reference search results (issue #98).
+//  Display ranking of symbol-reference search results (issues #98, #116).
 //  `SymbolReferenceModel.rank(_:matching:)` is a pure, stable, order-only
-//  partition over the kit's match set: the scalar-exact symbol leads,
-//  glyph-contains matches follow, and spoken-name/code-point matches keep
-//  their first-seen inventory order behind them. Which entries match at all
-//  stays the kit's business (`SymbolInventory.filter`, tested in
-//  IPAKeyboardKitTests) — these tests cover only the ordering the model
-//  adds on top, plus the issue's acceptance criterion against the real
-//  bundled layouts.
+//  partition over the kit's match set: the scalar-exact symbol leads —
+//  whether the query is the glyph itself or names its code point (U+0069,
+//  u+0069, bare 0069) — glyph-contains matches follow, and spoken-name or
+//  code-point-containment matches keep their first-seen inventory order
+//  behind them. Which entries match at all stays the kit's business
+//  (`SymbolInventory.filter`, tested in IPAKeyboardKitTests) — these tests
+//  cover only the ordering the model adds on top, plus each issue's
+//  acceptance criterion against the real bundled layouts.
 //
 
 import Foundation
@@ -87,6 +88,27 @@ struct SymbolReferenceModelTests {
         #expect(ranked.map(\.codePointNotation) == ["U+00E9", "U+0065 U+0301"])
     }
 
+    // MARK: Code-point queries (issue #116)
+
+    @Test(arguments: ["U+0069", "u+0069", "0069"])
+    func codePointQueryBoostsTheExactScalarEntry(query: String) {
+        // Every shape the kit's parser accepts gets the exact boost: the
+        // entry that IS U+0069 leads, ahead of the multi-scalar /iː/ that
+        // merely contains the scalar (and would otherwise sit first in
+        // inventory order).
+        let ranked = filteredAndRanked(entries, query: query)
+        #expect(ranked.map(\.codePointNotation) == ["U+0069", "U+0069 U+02D0"])
+    }
+
+    @Test func codePointQueryBoostsOnlyItsOwnScalarNeverALookalike() {
+        // U+0261 names ɡ, not ASCII g — the code-point boost is as
+        // scalar-exact as the glyph one.
+        let asciiG = SymbolEntry(text: "g", spokenName: "hard g")
+        let scriptG = SymbolEntry(text: "\u{0261}", spokenName: "voiced velar plosive")
+        let ranked = SymbolReferenceModel.rank([asciiG, scriptG], matching: "U+0261")
+        #expect(ranked.map(\.codePointNotation) == ["U+0261", "U+0067"])
+    }
+
     // MARK: Order-only contract
 
     @Test func rankIsOrderOnlyAndTreatsTheDisplayLabelAsAGlyphAlias() {
@@ -118,5 +140,19 @@ struct SymbolReferenceModelTests {
         // Ranking reorders the kit's match set, never changes membership.
         #expect(Set(filtered.map(\.id))
             == Set(SymbolInventory.filter(model.entries, matching: "i").map(\.id)))
+    }
+
+    @Test func bundledInventoryPutsTheQueriedCodePointFirst() {
+        // Issue #116, against the real bundled layouts: searching "U+0069"
+        // must surface /i/ at the top — multi-scalar entries containing the
+        // scalar (like /iː/) and no-relation matches stay behind it.
+        let model = SymbolReferenceModel(store: LayoutStore(containerURL: nil))
+        model.query = "U+0069"
+        let filtered = model.filtered
+
+        #expect(filtered.first?.codePointNotation == "U+0069")
+        // Ranking reorders the kit's match set, never changes membership.
+        #expect(Set(filtered.map(\.id))
+            == Set(SymbolInventory.filter(model.entries, matching: "U+0069").map(\.id)))
     }
 }
