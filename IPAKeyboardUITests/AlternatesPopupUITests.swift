@@ -234,10 +234,12 @@ final class AlternatesPopupUITests: XCTestCase {
         // legitimate appearance.
         XCTAssertFalse(balloon.exists, "Preview balloon present before any key was pressed")
 
-        let balloonRef = balloon
+        let appRef: XCUIApplication = app
         let balloonAppeared = observe(
             whilePerforming: { lateral.press(forDuration: Self.pressHoldDuration) },
-            poll: { Self.existsOffMain(balloonRef) })
+            poll: {
+                !Self.presentIdentifiers(in: appRef, among: [Self.balloonID]).isEmpty
+            })
 
         XCTAssertTrue(
             balloonAppeared,
@@ -255,12 +257,14 @@ final class AlternatesPopupUITests: XCTestCase {
     /// While the alternates popup is open the balloon must be hidden — the
     /// two overlays must never fight (the balloon/slide-to-select
     /// interference regression on PR #108's first CI run). A stationary
-    /// hold on `ɹ` opens its popup after 0.3 s; from the moment the
-    /// popup's `r` cell is in the accessibility tree, the balloon must
-    /// already be gone — both flip on the same `showingAlternates` state
-    /// change, so no in-between state exists. The balloon legitimately
-    /// shows during the pre-popup 0.3 s, so it is only sampled while the
-    /// popup cell is present (a background observer samples mid-press; see
+    /// hold on `ɹ` opens its popup after 0.3 s; once the popup's `r` cell
+    /// is in the accessibility tree the balloon must leave it too — both
+    /// flip on the same `showingAlternates` state change, though each
+    /// element's accessibility exposure trails the render independently,
+    /// so one overlapping sample is tolerated (see the observer comment in
+    /// the body). The balloon legitimately shows during the pre-popup
+    /// 0.3 s, so it is only sampled while the popup cell is present (a
+    /// background observer samples mid-press; see
     /// `observe(whilePerforming:poll:)`). The release lands on the cap and
     /// types the base symbol, which the detail preview discards.
     @MainActor
@@ -284,26 +288,39 @@ final class AlternatesPopupUITests: XCTestCase {
 
         // The observer records two facts per sample while the finger is
         // down: whether the popup's `r` cell was in the tree, and — sampled
-        // only in that case — whether the balloon coexisted with it. The
-        // popup and the balloon flip on the same `showingAlternates` state
-        // change, so from popup-open to key-up "cell exists, balloon
-        // doesn't" is the only legal combination.
+        // only in that case — whether the balloon coexisted with it. Both
+        // come from the same snapshot, so a sample can't straddle a state
+        // change. The popup and the balloon flip on the same
+        // `showingAlternates` state change, but each element's *exposure in
+        // the accessibility tree* propagates on its own schedule, ~0.1–0.3 s
+        // behind the render (measured by sampling this very hold at ~0.2 s
+        // spacing: the balloon routinely misses the AX tree for its whole
+        // 0.3 s pre-popup showing, and one popup-open sample can still carry
+        // the removed balloon). So a single overlapping sample is
+        // propagation skew, not the bug: the regression this test pins
+        // (issue #71's overlays fighting) keeps the balloon up for the whole
+        // remaining hold — many consecutive overlapping samples. The
+        // observer therefore counts consecutive overlap samples from
+        // popup-open (it stops at the first clean one) and the test rejects
+        // only a persisting overlap.
         let alternateCell = detail.previewKey(inserting: "r")
-        let cellRef = alternateCell
-        let balloonRef = balloon
+        let alternateCellID = "key-insert-r"
+        let appRef: XCUIApplication = app
         let record = OSAllocatedUnfairLock(
-            initialState: (popupSeen: false, balloonWhilePopupOpen: false))
+            initialState: (popupSeen: false, balloonWhilePopupOpenSamples: 0))
         _ = observe(
             whilePerforming: { rhotic.press(forDuration: Self.pressHoldDuration) },
             poll: {
-                guard Self.existsOffMain(cellRef) else { return false }
-                let balloonNow = Self.existsOffMain(balloonRef)
+                let present = Self.presentIdentifiers(
+                    in: appRef, among: [alternateCellID, Self.balloonID])
+                guard present.contains(alternateCellID) else { return false }
+                let balloonNow = present.contains(Self.balloonID)
                 record.withLock {
                     $0.popupSeen = true
-                    if balloonNow { $0.balloonWhilePopupOpen = true }
+                    if balloonNow { $0.balloonWhilePopupOpenSamples += 1 }
                 }
                 // Keep sampling until the popup is open balloon-free, so a
-                // transient violation can't hide behind a later clean sample.
+                // persisting violation can't hide behind a later clean sample.
                 return !balloonNow
             })
         let observed = record.withLock { $0 }
@@ -312,9 +329,11 @@ final class AlternatesPopupUITests: XCTestCase {
             observed.popupSeen,
             "Alternates popup never opened during the stationary hold on 'ɹ'"
         )
-        XCTAssertFalse(
-            observed.balloonWhilePopupOpen,
-            "Preview balloon still on screen while the alternates popup is open (issue #71)"
+        XCTAssertLessThanOrEqual(
+            observed.balloonWhilePopupOpenSamples, 1,
+            "Preview balloon stayed on screen while the alternates popup was "
+                + "open (issue #71) — more than one consecutive overlap sample "
+                + "is a stuck balloon, not accessibility-tree propagation skew"
         )
         // And the release must close the popup (issue #104's invariant,
         // cheap to re-pin here since the gesture already happened).
@@ -326,6 +345,10 @@ final class AlternatesPopupUITests: XCTestCase {
 
     // MARK: - Helpers
 
+    /// The key-press preview balloon's accessibility identifier, stamped by
+    /// `KeyPreviewBalloon` in the kit's KeyboardView.swift (issue #120).
+    private static let balloonID = "key-preview-balloon"
+
     /// The key-press preview balloon: a single unlabeled element carrying
     /// the kit-side identifier (`KeyPreviewBalloon` in the kit's
     /// KeyboardView.swift, issue #120), present exactly while an insert key
@@ -334,7 +357,7 @@ final class AlternatesPopupUITests: XCTestCase {
     @MainActor
     private var balloon: XCUIElement {
         app.descendants(matching: .any)
-            .matching(identifier: "key-preview-balloon").firstMatch
+            .matching(identifier: Self.balloonID).firstMatch
     }
 
     /// The balloon is iPhone-only by design (`KeyButton.showsPreviewBalloon`
@@ -356,18 +379,41 @@ final class AlternatesPopupUITests: XCTestCase {
     /// pay it exactly once each.
     private static let pressHoldDuration: TimeInterval = 10
 
-    /// Reads `element.exists` from off the main thread, for
-    /// `observe(whilePerforming:poll:)` closures. XCUIAutomation's Swift
-    /// interface annotates the property `@MainActor`, but at runtime only
-    /// event *synthesis* enforces the main thread (see `observe`); the
-    /// existence query evaluates fine from a background thread — verified
-    /// on this toolchain by this file's balloon tests, which pass through
-    /// this very call. ObjC key-value coding reaches the same public
-    /// `exists` getter without a Swift-side isolation diagnostic; the
-    /// direct property reference would compile too, but only as a
-    /// "main actor-isolated property in a Sendable closure" warning.
-    private nonisolated static func existsOffMain(_ element: XCUIElement) -> Bool {
-        (element.value(forKey: "exists") as? Bool) ?? false
+    /// Returns which of `identifiers` are present in `app`'s accessibility
+    /// hierarchy right now, resolved from one raw snapshot — the only way
+    /// `observe(whilePerforming:poll:)` closures may look at the UI.
+    ///
+    /// Poll closures must not touch `XCUIElement`/`XCUIElementQuery` (not
+    /// even via KVC): query resolution logs an XCTest auto-activity
+    /// ("Checking existence of …"), and a bare background thread has no
+    /// XCTContext of its own (`XCTContext.runActivity` asserts "Current
+    /// context must not be nil" there — verified on this toolchain), so
+    /// that activity attaches to the *test thread's* current activity
+    /// record. During `observe` that record is the gesture's own transient
+    /// activity, and a poll straddling its completion trips
+    /// `XCActivityRecord _ensureValid` — "Activity cannot be used after its
+    /// scope has completed", aborting the test mid-run
+    /// (NSInternalInconsistencyException, CI run 28731666930 on this PR's
+    /// first push). `snapshotWithError:` (the ObjC spelling of public
+    /// `XCUIElementSnapshotProviding.snapshot()`, reached by selector so
+    /// the Swift interface's `@MainActor` annotation doesn't apply — at
+    /// runtime only event *synthesis* enforces the main thread) bypasses
+    /// the query-and-activity machinery entirely, and one snapshot answers
+    /// every identifier atomically.
+    private nonisolated static func presentIdentifiers(
+        in app: XCUIApplication, among identifiers: Set<String>
+    ) -> Set<String> {
+        guard
+            let root = app.perform(NSSelectorFromString("snapshotWithError:"), with: nil)?
+                .takeUnretainedValue() as? XCUIElementSnapshot
+        else { return [] }
+        var found: Set<String> = []
+        var stack: [any XCUIElementSnapshot] = [root]
+        while let node = stack.popLast(), found != identifiers {
+            if identifiers.contains(node.identifier) { found.insert(node.identifier) }
+            stack.append(contentsOf: node.children)
+        }
+        return found
     }
 
     /// Runs `gesture` — a blocking, main-thread-only event synthesis:
@@ -375,15 +421,17 @@ final class AlternatesPopupUITests: XCTestCase {
     /// ("Must be called on the main thread") when synthesis is attempted
     /// from any other thread — while a background thread repeatedly
     /// evaluates `poll`, and reports whether `poll` ever returned `true`
-    /// before the gesture finished. Element *queries*, unlike synthesis,
-    /// evaluate fine off the main thread (via `existsOffMain`), which is
-    /// what makes mid-gesture observation of transient, press-scoped UI
-    /// (the preview balloon, the alternates popup) possible at all: the
-    /// test thread is otherwise blocked for the whole synthesis.
+    /// before the gesture finished. That is what makes mid-gesture
+    /// observation of transient, press-scoped UI (the preview balloon, the
+    /// alternates popup) possible at all: the test thread is otherwise
+    /// blocked for the whole synthesis. Poll closures must read the UI
+    /// exclusively through `presentIdentifiers(in:among:)` — element
+    /// queries are activity-logging and race the gesture's own activity
+    /// records; see that helper's doc for the crash this prevents.
     ///
     /// The observer stops at the first `true` (or when the gesture ends),
     /// and this call always joins it before returning, so no orphaned
-    /// background queries survive into the next gesture, an assertion
+    /// background polls survive into the next gesture, an assertion
     /// failure, or teardown. Do all asserting on the returned value and
     /// on state the poll closure recorded itself.
     @MainActor
