@@ -52,7 +52,7 @@ struct LayoutEditorView: View {
 
     private var previewSection: some View {
         Section("Preview") {
-            KeyboardView(layout: curated, metrics: metrics) { handleScratch($0) }
+            KeyboardView(layout: curated, metrics: metrics) { ScratchInput.apply($0, to: &scratch) }
                 .frame(height: metrics.totalHeight(for: curated.primaryArrangement))
                 .frame(maxWidth: .infinity)
                 // Explicit accessibility container so the identifier names
@@ -148,22 +148,6 @@ struct LayoutEditorView: View {
         )
     }
 
-    // MARK: Scratchpad input
-
-    /// Apply a preview key press to the scratch buffer. Backspace removes one
-    /// grapheme cluster (`String.removeLast()` is cluster-aware), matching the
-    /// extension. Panel switches are handled inside `KeyboardView`; the globe and
-    /// spacers have no meaning in the preview.
-    private func handleScratch(_ action: KeyAction) {
-        switch action {
-        case .insert(let text): scratch += text
-        case .space: scratch += " "
-        case .return: scratch += "\n"
-        case .backspace: if !scratch.isEmpty { scratch.removeLast() }
-        case .nextKeyboard, .switchPanel, .spacer: break
-        @unknown default: break
-        }
-    }
 }
 
 #if DEBUG

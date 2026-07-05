@@ -13,7 +13,8 @@
 //    layout-list                    — the List
 //    layout-list-active-section     — the "Active" section header
 //    layout-list-active-preview     — live KeyboardView preview of the active
-//                                     layout in the Active section
+//                                     layout in the Active section; its keys
+//                                     type into the scratchpad (issue #115)
 //    layout-list-selection-unavailable — Active-section footer shown when the
 //                                     active selection can't yet reach the
 //                                     keyboard (shared storage not set up)
@@ -133,7 +134,10 @@ struct LayoutListView: View {
             VStack(alignment: .leading, spacing: 8) {
                 Text(active.name)
                     .font(.headline)
-                KeyboardView(layout: active, metrics: metrics) { _ in }
+                // Preview key presses feed the scratchpad below (issue #115,
+                // same reducer as LayoutEditorView), so the active layout is
+                // try-able right here even before the extension is enabled.
+                KeyboardView(layout: active, metrics: metrics) { ScratchInput.apply($0, to: &scratch) }
                     .frame(height: metrics.totalHeight(for: active.primaryArrangement))
                     .frame(maxWidth: .infinity)
                     // Explicit accessibility container so the identifier
