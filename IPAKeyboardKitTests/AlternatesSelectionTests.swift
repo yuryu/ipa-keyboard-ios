@@ -110,4 +110,19 @@ struct AlternatesSelectionTests {
             at: CGPoint(x: 2, y: -8), cellFrames: cells, keyCapBounds: keyCap)
             == .alternate(0))
     }
+
+    @Test func cellsClampedOverTheCapWinOverTheBaseKey() {
+        // Top-row keys clamp the popup down over their own cap — there is
+        // no headroom inside the keyboard (issue #122) — so the cells and
+        // the cap overlap. The visible highlight is the source of truth:
+        // a release on the cap commits the highlighted cell, not the base
+        // key, exactly what the popup showed the finger resting on.
+        let overlapping = [
+            CGRect(x: -16, y: -2, width: 36, height: 40),
+            CGRect(x: 24, y: -2, width: 36, height: 40),
+        ]
+        #expect(AlternatesSelection.releaseTarget(
+            at: CGPoint(x: 2, y: 20), cellFrames: overlapping, keyCapBounds: keyCap)
+            == .alternate(0))
+    }
 }

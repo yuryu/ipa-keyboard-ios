@@ -16,9 +16,13 @@
 //    balloon must track the press — shown while an insert key is held on
 //    iPhone, gone on release — and must yield while the alternates popup is
 //    open, so the two overlays never fight.
+//  - Issue #122: a *top-row* key's popup must open above the pressed key
+//    like every other row — it used to flip downward, rendering behind the
+//    next row's keys and out of reach of the release.
 //
-//  Exercised on the en-US layout: the `ɹ` key's long-press popup offers the
-//  `r` alternate; `l` is its plain (no-alternates) same-row neighbor.
+//  Exercised on the en-US `ɹ` key (alternate `r`; `l` is its plain
+//  no-alternates same-row neighbor) for the mid-row cases, and the ja-JP
+//  top-row `p` key (single alternate `pʲ`) for the top-row case.
 //
 
 import UIKit
@@ -124,8 +128,10 @@ final class AlternatesPopupUITests: XCTestCase {
     /// coordinate offset from the located key — an exception to the
     /// "identifiers, never coordinates" convention that is unavoidable here:
     /// the popup cell only exists mid-gesture, when no element query can
-    /// run. The offset is derived from the popup's fixed geometry (floats 56
-    /// pt above the cap, 40-pt-tall cells), well within the hit-testing
+    /// run. The offset is derived from the popup's placed geometry
+    /// (`AlternatesPopupPlacement`: bottom edge 4 pt above the cap,
+    /// 40-pt-tall cells inside 6 pt of padding — cells span 10–50 pt above
+    /// the cap for an unclamped mid-row key), well within the hit-testing
     /// slop; tests run in portrait, where key caps are the default 50 pt.
     @MainActor
     func test_editorPreview_longPressSlideToPopup_commitsAlternateOnce() throws {
@@ -499,5 +505,70 @@ final class AlternatesPopupUITests: XCTestCase {
         let rhotic = editorPreview.descendants(matching: .any)["key-insert-ɹ"].firstMatch
         XCTAssertTrue(rhotic.waitForExistence(timeout: 10), "ɹ key missing from editor preview")
         return rhotic
+    }
+
+    /// The issue #122 regression, end to end: a top-row key's popup used to
+    /// flip downward — rendered behind the next row's keys and out of reach
+    /// of the release. It now opens above the key like every other row,
+    /// clamped inside the keyboard's bounds (`AlternatesPopupPlacement`):
+    /// the top row has no headroom, so the clamp places the popup's cells
+    /// over the pressed cap itself. A stationary hold-and-release therefore
+    /// commits the cell under the finger — deterministic on the ja-JP
+    /// top-row `p`, whose popup has exactly one cell (`pʲ`). Under the old
+    /// downward placement the same release classified as on-cap and typed
+    /// the base `p`, so the scratchpad assertion fails without the fix.
+    @MainActor
+    func test_editorPreview_topRowHoldAndRelease_commitsClampedAlternate() throws {
+        // Hermetic hidden-symbol state: a stale per-layout curation from an
+        // earlier non-hermetic run could filter the key out of the preview.
+        app.launchArguments += [LibraryScreen.resetLayoutsArgument]
+        app.launch()
+        let library = LibraryScreen(app: app)
+        XCTAssertTrue(library.waitForContent(timeout: .postNavigation))
+
+        let detail = LayoutDetailScreen(app: app)
+        XCTAssertTrue(
+            library.openRow(labelContains: "Japanese", pushSentinel: detail.preview),
+            "Japanese (Japan) built-in row not found or not hittable")
+        XCTAssertTrue(
+            detail.preview.waitForExistence(timeout: .postNavigation),
+            "Detail preview did not appear")
+
+        // The customize link sits below the tall preview in the lazy detail
+        // List and doesn't exist in the accessibility tree until scrolled
+        // into the loaded range — reveal it rather than just waiting.
+        let customize = app.descendants(matching: .any)["layout-detail-customize-link"].firstMatch
+        XCTAssertTrue(
+            detail.scrollTo(customize, timeout: .postNavigation),
+            "Customize symbols link missing")
+        customize.tap()
+
+        let editorPreview = app.otherElements["layout-editor-preview"]
+        XCTAssertTrue(editorPreview.waitForExistence(timeout: .postNavigation), "Editor preview missing")
+        let plosive = editorPreview.descendants(matching: .any)["key-insert-p"].firstMatch
+        XCTAssertTrue(plosive.waitForExistence(timeout: 10), "p key missing from editor preview")
+
+        // Wait for the just-pushed screen's layout to settle before pressing
+        // — the same guard as the slide-to-select test above.
+        var previousFrame = CGRect.null
+        let frameDeadline = Date().addingTimeInterval(10)
+        while plosive.frame != previousFrame, Date() < frameDeadline {
+            previousFrame = plosive.frame
+            RunLoop.current.run(until: Date().addingTimeInterval(0.2))
+        }
+
+        // Hold past the 0.3 s threshold and release in place. No slide is
+        // needed (or wanted): the clamped popup is already under the finger,
+        // and a stationary press cannot end in a tap because the tap
+        // recognizer requires the already-begun long-press to fail.
+        plosive.press(forDuration: 0.8)
+
+        let scratch = app.staticTexts["layout-editor-scratch"]
+        XCTAssertTrue(scratch.waitForExistence(timeout: 5), "Editor scratchpad missing")
+        XCTAssertEqual(
+            scratch.label, "pʲ",
+            "Top-row hold-and-release should commit the popup cell clamped "
+                + "over the cap, not the base key (issue #122)"
+        )
     }
 }

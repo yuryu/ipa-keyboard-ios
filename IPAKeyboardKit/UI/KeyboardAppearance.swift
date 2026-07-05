@@ -72,6 +72,14 @@ enum KeyPalette {
     /// action (Search, Go, …), like the system keyboard's blue return key.
     static let prominentReturn = UIColor.systemBlue
     static let prominentReturnPressed = UIColor.systemBlue.withAlphaComponent(0.75)
+    /// The alternates popup's selected-cell fill: the same accent tier as
+    /// the prominent return key — not a hardcoded system color — so a future
+    /// custom theme retints the whole keyboard's accents together
+    /// (issue #114). `systemBlue` is dynamic, so light/dark stays sensible.
+    static let alternateHighlight = prominentReturn
+    /// Text on the highlighted popup cell; pairs with `alternateHighlight`
+    /// the way white pairs with the prominent return fill.
+    static let alternateHighlightText = UIColor.white
     /// The 1-pt drop shadow under every keycap, same in both schemes; it also
     /// keeps white keycaps legible on the host previews' light chrome.
     static let keycapShadow = UIColor.black.withAlphaComponent(0.3)
