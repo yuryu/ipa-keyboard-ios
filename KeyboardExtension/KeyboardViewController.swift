@@ -5,7 +5,10 @@
 //  Created by Emma Haruka Iwao on 6/28/26.
 //
 //  Renders a bundled `KeyboardLayout` with the shared SwiftUI `KeyboardView`
-//  and applies each emitted `KeyAction` to the document via the text proxy.
+//  and applies each emitted `KeyAction` to the document via the text proxy;
+//  the space bar's trackpad-style cursor steps arrive through the separate
+//  `onCursorMove` callback and become grapheme-aware `adjustTextPosition`
+//  offsets.
 //
 //  The extension-runtime feedback glue lives alongside in this target:
 //  `InputClickFeedback.swift` (the input view's `UIInputViewAudioFeedback`
@@ -161,7 +164,10 @@ class KeyboardViewController: UIInputViewController {
             layout: layout,
             metrics: metrics,
             returnKeyType: returnKeyType,
-            nextKeyboardOverlay: globeOverlay
+            nextKeyboardOverlay: globeOverlay,
+            onCursorMove: { [weak self] steps in
+                self?.moveCursor(bySteps: steps)
+            }
         ) { [weak self] action in
             self?.handle(action)
         }
@@ -208,6 +214,23 @@ class KeyboardViewController: UIInputViewController {
         @unknown default:
             break
         }
+    }
+
+    /// Move the insertion point by `steps` user-perceived characters
+    /// (negative = left), from the space bar's trackpad-style cursor mode.
+    /// `adjustTextPosition(byCharacterOffset:)` counts UTF-16 code units,
+    /// not grapheme clusters, so the offset is computed by `CursorMovement`
+    /// from the clusters adjacent to the cursor in the visible document
+    /// context — a base glyph plus combining diacritics is traversed as one
+    /// unit, mirroring grapheme-aware deletion.
+    private func moveCursor(bySteps steps: Int) {
+        let proxy = textDocumentProxy
+        let offset = CursorMovement.utf16Offset(
+            steps: steps,
+            contextBefore: proxy.documentContextBeforeInput,
+            contextAfter: proxy.documentContextAfterInput)
+        guard offset != 0 else { return }
+        proxy.adjustTextPosition(byCharacterOffset: offset)
     }
 
     /// Delete one user-perceived character. Combining diacritics and other

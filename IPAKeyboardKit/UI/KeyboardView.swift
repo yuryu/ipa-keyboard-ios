@@ -25,7 +25,12 @@
 //  unit-tested `AlternatesPopupPlacement`, clamped in-frame like the
 //  balloon and raised in z-order over neighboring keys and rows), tracks
 //  the sliding finger (hit-testing in the unit-tested
-//  `AlternatesSelection`), and always closes on release. The extension can
+//  `AlternatesSelection`), and always closes on release. The space bar
+//  doubles as a trackpad (issue #70): the same hold enters cursor mode and
+//  a horizontal drag emits cursor steps through `onCursorMove` (quantized
+//  by the unit-tested `CursorDragStepper`); the extension turns steps into
+//  grapheme-aware `adjustTextPosition` offsets, while the host previews
+//  leave the callback a no-op. The extension can
 //  overlay the globe keycap with a UIKit control (`nextKeyboardOverlay`)
 //  so the system drives keyboard switching, including the long-press
 //  picker.
@@ -135,6 +140,7 @@ public struct KeyboardView: View {
     private let metrics: KeyboardMetrics
     private let returnKeyType: UIReturnKeyType
     private let nextKeyboardOverlay: AnyView?
+    private let onCursorMove: (Int) -> Void
     private let onAction: (KeyAction) -> Void
 
     /// Name of the panel currently shown within the primary arrangement.
@@ -171,17 +177,26 @@ public struct KeyboardView: View {
     ///   system handles switching (tap advances; long-press shows the
     ///   input-mode list). nil — the host app and previews — leaves the plain
     ///   SwiftUI key, whose tap emits `KeyAction.nextKeyboard`.
+    /// - Parameter onCursorMove: receives the space bar's trackpad-style
+    ///   cursor steps (positive right, negative left) while it is held and
+    ///   dragged. A renderer-level event like panel switching — deliberately
+    ///   not a `KeyAction`, which is the persisted layout schema. The
+    ///   extension maps steps to `adjustTextPosition` offsets via
+    ///   `CursorMovement`; the default no-op keeps host previews inert while
+    ///   rendering the identical interaction.
     public init(
         layout: KeyboardLayout,
         metrics: KeyboardMetrics = KeyboardMetrics(),
         returnKeyType: UIReturnKeyType = .default,
         nextKeyboardOverlay: AnyView? = nil,
+        onCursorMove: @escaping (Int) -> Void = { _ in },
         onAction: @escaping (KeyAction) -> Void
     ) {
         self.layout = layout
         self.metrics = metrics
         self.returnKeyType = returnKeyType
         self.nextKeyboardOverlay = nextKeyboardOverlay
+        self.onCursorMove = onCursorMove
         self.onAction = onAction
     }
 
@@ -225,6 +240,7 @@ public struct KeyboardView: View {
                         keyboardSize: keyboardSize,
                         returnKeyType: returnKeyType,
                         nextKeyboardOverlay: nextKeyboardOverlay,
+                        onCursorMove: onCursorMove,
                         onAction: handle,
                         onPopupChange: { popupChanged(rowID: row.id, isOpen: $0) })
                         // The row with the open popup draws above its
@@ -243,6 +259,7 @@ public struct KeyboardView: View {
                     keyboardSize: keyboardSize,
                     returnKeyType: returnKeyType,
                     nextKeyboardOverlay: nextKeyboardOverlay,
+                    onCursorMove: onCursorMove,
                     onAction: handle,
                     // A later sibling of the symbol rows' stack, so its
                     // popup — floating up over the last symbol row — already
@@ -329,6 +346,7 @@ private struct KeyRowView: View {
     let keyboardSize: CGSize
     let returnKeyType: UIReturnKeyType
     let nextKeyboardOverlay: AnyView?
+    let onCursorMove: (Int) -> Void
     let onAction: (KeyAction) -> Void
     /// Reports popup open/close for any key in this row, so `KeyboardView`
     /// can raise the row above its siblings.
@@ -362,6 +380,7 @@ private struct KeyRowView: View {
                             keyboardSize: keyboardSize,
                             returnKeyType: returnKeyType,
                             nextKeyboardOverlay: nextKeyboardOverlay,
+                            onCursorMove: onCursorMove,
                             onAction: onAction,
                             onPopupChange: { popupChanged(keyID: key.id, isOpen: $0) })
                             .frame(width: max(unit * key.widthFactor, 0))
@@ -400,7 +419,10 @@ private struct KeyRowView: View {
 /// are also exposed as accessibility custom actions on the key
 /// (`AlternatesAccessibility`). Backspace instead acts on key-down and
 /// autorepeats while held — one `.backspace` per tick, which the extension
-/// applies grapheme-cluster-aware.
+/// applies grapheme-cluster-aware. Space keys hold-to-enter trackpad-style
+/// cursor mode (see `isCursorControlKey`): a horizontal drag emits steps
+/// through `onCursorMove`, and releasing after the hold types nothing, like
+/// the system space bar.
 @MainActor
 private struct KeyButton: View {
     let key: Key
@@ -409,6 +431,7 @@ private struct KeyButton: View {
     let keyboardSize: CGSize
     let returnKeyType: UIReturnKeyType
     let nextKeyboardOverlay: AnyView?
+    let onCursorMove: (Int) -> Void
     let onAction: (KeyAction) -> Void
     /// Reports the alternates popup opening/closing, so the enclosing row
     /// and keyboard can raise this key's subtree in z-order while the popup
@@ -422,7 +445,7 @@ private struct KeyButton: View {
     @State private var repeatTask: Task<Void, Never>?
 
     /// Whether the alternates popup is visible. Driven by the UIKit
-    /// long-press recognizer in `AlternatesPressTracker`, whose `.ended`,
+    /// long-press recognizer in `KeyPressTracker`, whose `.ended`,
     /// `.cancelled`, and `.failed` states cover every teardown path — the
     /// physical finger-up, a scrolling host list stealing the touch, the
     /// app resigning active — so the popup always closes when the finger
@@ -445,7 +468,26 @@ private struct KeyButton: View {
     /// `AlternatesSelection`.
     @State private var alternateCellFrames: [Int: CGRect] = [:]
 
+    /// Quantizes the cursor-mode drag into whole steps (kit logic,
+    /// unit-tested). Re-anchored each time the hold begins.
+    @State private var cursorStepper = CursorDragStepper()
+
     private var hasAlternates: Bool { !key.alternates.isEmpty }
+
+    /// Whether this key drives trackpad-style cursor movement on long-press
+    /// (issue #70): space keys, in every context — host previews render the
+    /// identical interaction and simply receive a no-op `onCursorMove`, so
+    /// the preview can never disagree with the extension. Cursor mode takes
+    /// precedence over `alternates` on a space key: hold-to-move-cursor on
+    /// the space bar is a platform-wide expectation, so a user layout that
+    /// adds alternates to space keeps tap-to-insert but gets no popup (and
+    /// no alternates dot — see `rendersAlternates`).
+    private var isCursorControlKey: Bool { key.action == .space }
+
+    /// Whether the alternates machinery (dot, popup, hold-slide-release
+    /// tracker) applies to this key. False for space keys even when the
+    /// layout declares alternates, per the precedence above.
+    private var rendersAlternates: Bool { hasAlternates && !isCursorControlKey }
 
     /// Whether the cap draws its pressed fill; an open popup keeps the cap
     /// highlighted like the system keyboard does.
@@ -532,6 +574,11 @@ private struct KeyButton: View {
     /// How long a key with alternates must be held before its popup opens.
     private static let alternatesHoldDuration: TimeInterval = 0.3
 
+    /// How long the space bar must be held before trackpad-style cursor
+    /// mode engages. Matches the alternates hold so every hold interaction
+    /// on the keyboard shares one rhythm.
+    private static let cursorModeHoldDuration: TimeInterval = alternatesHoldDuration
+
     /// Name of the coordinate space covering the key cap and its popup
     /// overlay, so drag locations and popup cell frames are directly
     /// comparable. Lookup resolves to the nearest ancestor declaring the
@@ -573,7 +620,7 @@ private struct KeyButton: View {
                 // processed first, and the release — with every cell frame
                 // still unmeasured — would classify as `.dismiss` and type
                 // nothing (the CI-only slide-to-select regression on #71).
-                if hasAlternates && (isPressed || showingAlternates) {
+                if rendersAlternates && (isPressed || showingAlternates) {
                     AlternatesPopup(
                         alternates: key.alternates,
                         highlightedIndex: highlightedAlternateIndex,
@@ -621,7 +668,7 @@ private struct KeyButton: View {
                     .padding(.horizontal, 2)
             )
             .overlay(alignment: .topTrailing) {
-                if hasAlternates {
+                if rendersAlternates {
                     Circle()
                         .fill(Color(uiColor: .label).opacity(0.4))
                         .frame(width: 4, height: 4)
@@ -656,7 +703,7 @@ private struct KeyButton: View {
     /// generous so a rolling fingertip doesn't cancel a held backspace.
     ///
     /// Keys *with* alternates are instead driven by a UIKit touch tracker
-    /// (`AlternatesPressTracker`) overlaid on the cap, the same pattern as
+    /// (`KeyPressTracker`) overlaid on the cap, the same pattern as
     /// the extension's globe-key overlay. SwiftUI's own gestures can't
     /// express this interaction correctly: a completed long-press modifier
     /// delivers no callback at the physical finger-up (which is what used to
@@ -668,8 +715,42 @@ private struct KeyButton: View {
     /// cooperative primitive: a scroll that starts early defeats it, while a
     /// 0.3 s stationary hold begins it, streams finger locations, and
     /// reports the real release or cancellation.
+    ///
+    /// Space keys use the same tracker for cursor mode (issue #70): the
+    /// hold's `.began` anchors the drag, `.changed` samples feed the
+    /// stepper (whose quantized steps go out through `onCursorMove`), and
+    /// the release after a hold deliberately types nothing — tap-to-insert
+    /// still comes from the tap recognizer, which the completed hold has
+    /// already defeated. No per-step feedback: haptics need Full Access in
+    /// an extension, and replaying the input click per step would be noise.
     @ViewBuilder private var pressableKeyCap: some View {
-        if hasAlternates {
+        if isCursorControlKey {
+            keyCap
+                .overlay {
+                    KeyPressTracker(
+                        holdDuration: Self.cursorModeHoldDuration,
+                        onPressChanged: { pressing in
+                            isPressed = pressing
+                            if pressing { UIDevice.current.playInputClick() }
+                        },
+                        onBegan: { location in
+                            // Fresh stepper per hold; the first sample only
+                            // anchors, so entering cursor mode never jumps.
+                            var stepper = CursorDragStepper()
+                            _ = stepper.steps(movingTo: location.x)
+                            cursorStepper = stepper
+                        },
+                        onMoved: { location in
+                            var stepper = cursorStepper
+                            let steps = stepper.steps(movingTo: location.x)
+                            cursorStepper = stepper
+                            if steps != 0 { onCursorMove(steps) }
+                        },
+                        onEnded: { _ in },
+                        onCancelled: {},
+                        onTap: { tapped() })
+                }
+        } else if hasAlternates {
             keyCap
                 .onGeometryChange(for: CGRect.self) { proxy in
                     proxy.frame(in: KeyboardView.keyboardSpace)
@@ -677,7 +758,7 @@ private struct KeyButton: View {
                     keyCapFrame = frame
                 }
                 .overlay {
-                    AlternatesPressTracker(
+                    KeyPressTracker(
                         holdDuration: Self.alternatesHoldDuration,
                         onPressChanged: { pressing in
                             isPressed = pressing
@@ -790,8 +871,10 @@ private struct KeyButton: View {
     }
 }
 
-/// The UIKit touch tracker behind a key's alternates interaction — hold to
-/// open the popup, slide to highlight, release to commit (issue #104). It
+/// The UIKit touch tracker behind a key's hold interactions — the
+/// alternates popup (hold to open, slide to highlight, release to commit;
+/// issue #104) and the space bar's trackpad-style cursor mode (hold, then
+/// drag; issue #70). It
 /// overlays the key cap (like the extension's globe-key overlay) and owns
 /// all of the key's touch handling; see `KeyButton.pressableKeyCap` for why
 /// SwiftUI's own gestures can't express this.
@@ -806,8 +889,9 @@ private struct KeyButton: View {
 ///   past `allowableMovement` — no action message accompanies that
 ///   transition), so a drag-cancelled key doesn't stay highlighted with its
 ///   preview balloon stuck until finger-up;
-/// - a `UILongPressGestureRecognizer` drives the popup: `.began` opens it
-///   after the stationary hold, `.changed` streams the sliding finger,
+/// - a `UILongPressGestureRecognizer` drives the hold phase: `.began` fires
+///   after the stationary hold (popup opens / cursor mode engages),
+///   `.changed` streams the sliding finger,
 ///   `.ended` is the real finger-up (commit), and `.cancelled` fires on
 ///   every other teardown (an enclosing scroll view stealing the touch, the
 ///   app resigning active) so the popup always closes;
@@ -815,7 +899,7 @@ private struct KeyButton: View {
 ///   inserts the base symbol on a quick tap. The failure requirement makes
 ///   double-emission impossible by construction: once the hold begins, the
 ///   tap can never fire, and vice versa.
-private struct AlternatesPressTracker: UIViewRepresentable {
+private struct KeyPressTracker: UIViewRepresentable {
     let holdDuration: TimeInterval
     var onPressChanged: (Bool) -> Void
     var onBegan: (CGPoint) -> Void
@@ -864,9 +948,9 @@ private struct AlternatesPressTracker: UIViewRepresentable {
 
     @MainActor
     final class Coordinator: NSObject {
-        var parent: AlternatesPressTracker
+        var parent: KeyPressTracker
 
-        init(parent: AlternatesPressTracker) {
+        init(parent: KeyPressTracker) {
             self.parent = parent
         }
 
@@ -945,7 +1029,7 @@ private struct AlternatesPressTracker: UIViewRepresentable {
 /// clamps it inside the keyboard's bounds (a custom keyboard cannot draw
 /// outside its own view), shifting top-row popups down over their own cap.
 /// Purely visual: selection is driven by the owning key's continuous press
-/// (`AlternatesPressTracker` — slide to highlight, release to commit), so
+/// (`KeyPressTracker` — slide to highlight, release to commit), so
 /// the cells carry no tap handlers of their own — they report their frames
 /// up for hit-testing instead — while keeping their accessibility labels
 /// and identifiers.
