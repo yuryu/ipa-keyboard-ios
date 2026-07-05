@@ -21,7 +21,10 @@
 //  Backspace acts on key-down and autorepeats while held, timed by the
 //  unit-tested `KeyRepeatCadence`. Keys with alternates use the system
 //  keyboard's hold-slide-release interaction: the popup opens after a
-//  0.3 s hold, tracks the sliding finger (hit-testing in the unit-tested
+//  0.3 s hold, floats above the pressed key on every row (placed by the
+//  unit-tested `AlternatesPopupPlacement`, clamped in-frame like the
+//  balloon and raised in z-order over neighboring keys and rows), tracks
+//  the sliding finger (hit-testing in the unit-tested
 //  `AlternatesSelection`), and always closes on release. The extension can
 //  overlay the globe keycap with a UIKit control (`nextKeyboardOverlay`)
 //  so the system drives keyboard switching, including the long-press
@@ -139,6 +142,25 @@ public struct KeyboardView: View {
     /// in place; the action never escapes to the host document.
     @State private var activePanelName: String?
 
+    /// Row containing the currently open alternates popup, raised above its
+    /// sibling rows (`zIndex`) so a popup clamped into another row's area —
+    /// the top row's, which has no headroom above and overlaps downward —
+    /// draws in front of that row's keys instead of behind them (issue #122).
+    @State private var popupRowID: UUID?
+
+    /// The keyboard's rendered size — the bounds the alternates popup's
+    /// placement clamps against.
+    @State private var keyboardSize: CGSize = .zero
+
+    /// Name of the coordinate space covering the whole keyboard (declared on
+    /// the same frame the key-preview overlay measures against), so pressed
+    /// keys can resolve their cap frames in keyboard coordinates for the
+    /// alternates popup's placement.
+    fileprivate static let keyboardSpaceName = "IPAKeyboardBounds"
+    fileprivate static var keyboardSpace: NamedCoordinateSpace {
+        .named(keyboardSpaceName)
+    }
+
     /// - Parameter returnKeyType: the host field's return-key type; `.return`
     ///   keys are relabeled to match (Go/Search/Done…) and tinted for the
     ///   non-default types, like the system keyboard. The extension passes
@@ -195,17 +217,21 @@ public struct KeyboardView: View {
         // for shorter panels.
         VStack(spacing: 0) {
             VStack(spacing: metrics.rowSpacing) {
-                ForEach(Array(symbolRows.enumerated()), id: \.element.id) { index, row in
-                    // The top row has no room above it within the keyboard's own
-                    // bounds, so its long-press popup opens downward instead.
+                ForEach(symbolRows) { row in
                     KeyRowView(
                         row: row,
                         metrics: metrics,
                         gridReferenceFactor: reference,
-                        popupEdge: index == 0 ? .bottom : .top,
+                        keyboardSize: keyboardSize,
                         returnKeyType: returnKeyType,
                         nextKeyboardOverlay: nextKeyboardOverlay,
-                        onAction: handle)
+                        onAction: handle,
+                        onPopupChange: { popupChanged(rowID: row.id, isOpen: $0) })
+                        // The row with the open popup draws above its
+                        // siblings: a top-row popup — clamped down into the
+                        // next row's area — must cover that row's keys, not
+                        // hide behind them (issue #122).
+                        .zIndex(row.id == popupRowID ? 1 : 0)
                 }
             }
             if let bottomBar {
@@ -214,10 +240,14 @@ public struct KeyboardView: View {
                     row: bottomBar,
                     metrics: metrics,
                     gridReferenceFactor: reference,
-                    popupEdge: .top,
+                    keyboardSize: keyboardSize,
                     returnKeyType: returnKeyType,
                     nextKeyboardOverlay: nextKeyboardOverlay,
-                    onAction: handle)
+                    onAction: handle,
+                    // A later sibling of the symbol rows' stack, so its
+                    // popup — floating up over the last symbol row — already
+                    // draws in front; no z-order bookkeeping needed.
+                    onPopupChange: { _ in })
             }
         }
         .padding(metrics.outerPadding)
@@ -225,6 +255,15 @@ public struct KeyboardView: View {
         // switching panels doesn't change the keyboard's size. Matches the
         // controller's height constraint (both via `metrics.totalHeight`).
         .frame(maxWidth: .infinity, minHeight: metrics.totalHeight(for: arrangement), alignment: .top)
+        // Name the keyboard's full bounds and record their rendered size:
+        // pressed keys measure their cap frames in this space and clamp
+        // their alternates popups against the size (`AlternatesPopupPlacement`).
+        .coordinateSpace(Self.keyboardSpace)
+        .onGeometryChange(for: CGSize.self) { proxy in
+            proxy.size
+        } action: { size in
+            keyboardSize = size
+        }
         // The key-press preview balloon renders here at the keyboard level —
         // not inside the pressed key like the alternates popup — so it can
         // never be underdrawn by a neighboring key or a later row, and so
@@ -262,6 +301,17 @@ public struct KeyboardView: View {
             onAction(action)
         }
     }
+
+    /// Tracks which row owns the open alternates popup, for the row-level
+    /// z-order raise. Closes are keyed to the opener so a stale dismissal
+    /// can't clear a popup another row just opened.
+    private func popupChanged(rowID: UUID, isOpen: Bool) {
+        if isOpen {
+            popupRowID = rowID
+        } else if popupRowID == rowID {
+            popupRowID = nil
+        }
+    }
 }
 
 /// One row of keys, sized to fill the available width. Key widths are
@@ -274,10 +324,20 @@ private struct KeyRowView: View {
     /// `KeyboardView.gridReferenceFactor`). Ignored by plain rows, which keep
     /// stretching to fill the width.
     let gridReferenceFactor: Double
-    let popupEdge: VerticalEdge
+    /// The keyboard's rendered size, forwarded to each key for its
+    /// alternates popup's placement.
+    let keyboardSize: CGSize
     let returnKeyType: UIReturnKeyType
     let nextKeyboardOverlay: AnyView?
     let onAction: (KeyAction) -> Void
+    /// Reports popup open/close for any key in this row, so `KeyboardView`
+    /// can raise the row above its siblings.
+    let onPopupChange: (Bool) -> Void
+
+    /// Key currently showing its alternates popup, raised above its row
+    /// neighbors: a top-row popup is clamped down over its own row, where
+    /// later siblings would otherwise draw over it (issue #122).
+    @State private var popupKeyID: UUID?
 
     var body: some View {
         GeometryReader { geo in
@@ -299,16 +359,32 @@ private struct KeyRowView: View {
                     } else {
                         KeyButton(
                             key: key,
-                            popupEdge: popupEdge,
+                            keyboardSize: keyboardSize,
                             returnKeyType: returnKeyType,
                             nextKeyboardOverlay: nextKeyboardOverlay,
-                            onAction: onAction)
+                            onAction: onAction,
+                            onPopupChange: { popupChanged(keyID: key.id, isOpen: $0) })
                             .frame(width: max(unit * key.widthFactor, 0))
+                            .zIndex(key.id == popupKeyID ? 1 : 0)
                     }
                 }
             }
         }
         .frame(height: metrics.rowHeight)
+    }
+
+    /// Tracks which key owns the open alternates popup (for the key-level
+    /// z-order raise) and forwards the change to `KeyboardView` (for the
+    /// row-level one). Closes are keyed to the opener so a stale dismissal
+    /// can't clear a popup another key just opened.
+    private func popupChanged(keyID: UUID, isOpen: Bool) {
+        if isOpen {
+            popupKeyID = keyID
+            onPopupChange(true)
+        } else if popupKeyID == keyID {
+            popupKeyID = nil
+            onPopupChange(false)
+        }
     }
 }
 
@@ -326,10 +402,16 @@ private struct KeyRowView: View {
 @MainActor
 private struct KeyButton: View {
     let key: Key
-    let popupEdge: VerticalEdge
+    /// The keyboard's rendered size — the bounds the alternates popup's
+    /// placement clamps against.
+    let keyboardSize: CGSize
     let returnKeyType: UIReturnKeyType
     let nextKeyboardOverlay: AnyView?
     let onAction: (KeyAction) -> Void
+    /// Reports the alternates popup opening/closing, so the enclosing row
+    /// and keyboard can raise this key's subtree in z-order while the popup
+    /// overlaps its neighbors.
+    let onPopupChange: (Bool) -> Void
 
     @State private var isPressed = false
     /// Set when the key-down handler already emitted the action (backspace),
@@ -347,9 +429,15 @@ private struct KeyButton: View {
     /// The finger's last reported position in the key's coordinate space,
     /// while the popup is open.
     @State private var alternatesFingerLocation: CGPoint?
-    /// The key cap's rendered size, so a release can be classified as on or
-    /// off the cap (release-on-cap types the base symbol).
-    @State private var keyCapSize: CGSize = .zero
+    /// The key cap's frame in the keyboard's coordinate space
+    /// (`KeyboardView.keyboardSpace`): its size classifies a release as on
+    /// or off the cap (release-on-cap types the base symbol), and its
+    /// position feeds the popup placement.
+    @State private var keyCapFrame: CGRect = .null
+    /// The popup's measured natural size (it self-sizes to its cells),
+    /// captured while it is still mounted invisibly during the hold — the
+    /// other input the placement math needs.
+    @State private var popupSize: CGSize = .zero
     /// The popup's cell frames in the key's coordinate space, reported by
     /// `AlternatesPopup` as it lays out and consumed by the hit-testing in
     /// `AlternatesSelection`.
@@ -389,6 +477,24 @@ private struct KeyButton: View {
         alternatesFingerLocation.flatMap {
             AlternatesSelection.highlightedIndex(at: $0, cellFrames: orderedCellFrames)
         }
+    }
+
+    /// Offset from the popup's natural overlay position (top-aligned and
+    /// centered over the key cap) to its placed frame — floating above the
+    /// cap on every row, clamped inside the keyboard so the top row's popup
+    /// shifts down over its own cap instead of rendering below the key
+    /// (issue #122). Zero until the pre-open measurements land, while the
+    /// popup is still invisible.
+    private var popupOffset: CGSize {
+        guard popupSize != .zero, !keyCapFrame.isNull, keyboardSize != .zero
+        else { return .zero }
+        let frame = AlternatesPopupPlacement.popupFrame(
+            popupSize: popupSize,
+            keyFrame: keyCapFrame,
+            keyboardBounds: CGRect(origin: .zero, size: keyboardSize))
+        return CGSize(
+            width: frame.midX - keyCapFrame.midX,
+            height: frame.minY - keyCapFrame.minY)
     }
 
     /// Palette tier for this key (character / function / tinted return),
@@ -453,7 +559,7 @@ private struct KeyButton: View {
                     nextKeyboardOverlay
                 }
             }
-            .overlay(alignment: popupEdge == .top ? .top : .bottom) {
+            .overlay(alignment: .top) {
                 // Mounted (invisibly) from the first touch, not from popup-
                 // open, so the cells are laid out and their frames reported
                 // during the 0.3 s hold — before the release can possibly
@@ -468,10 +574,16 @@ private struct KeyButton: View {
                 if hasAlternates && (isPressed || showingAlternates) {
                     AlternatesPopup(
                         alternates: key.alternates,
-                        edge: popupEdge,
                         highlightedIndex: highlightedAlternateIndex,
                         cellSpaceName: Self.coordinateSpaceName,
                         onCellFrameChange: { alternateCellFrames[$0] = $1 })
+                        // Its natural size feeds the placement math; the
+                        // pre-open mount above makes it ready before reveal.
+                        .onGeometryChange(for: CGSize.self) { proxy in
+                            proxy.size
+                        } action: { size in
+                            popupSize = size
+                        }
                         .opacity(showingAlternates ? 1 : 0)
                         // Out of the accessibility tree until it is really
                         // shown, so a plain tap never surfaces phantom cells.
@@ -479,6 +591,9 @@ private struct KeyButton: View {
                         // Purely visual — selection is by sliding the finger
                         // that opened it, so it must never swallow touches.
                         .allowsHitTesting(false)
+                        // Applied outside the cell-frame reporting, so the
+                        // frames used for hit-testing include the placement.
+                        .offset(popupOffset)
                         .onDisappear { alternateCellFrames = [:] }
                 }
             }
@@ -543,10 +658,10 @@ private struct KeyButton: View {
     @ViewBuilder private var pressableKeyCap: some View {
         if hasAlternates {
             keyCap
-                .onGeometryChange(for: CGSize.self) { proxy in
-                    proxy.size
-                } action: { size in
-                    keyCapSize = size
+                .onGeometryChange(for: CGRect.self) { proxy in
+                    proxy.frame(in: KeyboardView.keyboardSpace)
+                } action: { frame in
+                    keyCapFrame = frame
                 }
                 .overlay {
                     AlternatesPressTracker(
@@ -558,6 +673,7 @@ private struct KeyButton: View {
                         onBegan: { location in
                             showingAlternates = true
                             alternatesFingerLocation = location
+                            onPopupChange(true)
                         },
                         onMoved: { location in
                             alternatesFingerLocation = location
@@ -590,7 +706,7 @@ private struct KeyButton: View {
         let target = AlternatesSelection.releaseTarget(
             at: location,
             cellFrames: orderedCellFrames,
-            keyCapBounds: CGRect(origin: .zero, size: keyCapSize))
+            keyCapBounds: CGRect(origin: .zero, size: keyCapFrame.size))
         switch target {
         case .alternate(let index):
             onAction(key.alternates[index].action)
@@ -604,6 +720,7 @@ private struct KeyButton: View {
     private func dismissAlternates() {
         showingAlternates = false
         alternatesFingerLocation = nil
+        onPopupChange(false)
     }
 
     private func tapped() {
@@ -809,7 +926,11 @@ private struct AlternatesPressTracker: UIViewRepresentable {
     }
 }
 
-/// A floating row of alternate glyphs shown above a long-pressed key.
+/// A floating row of alternate glyphs shown above a long-pressed key —
+/// above on every row, like the system keyboard: the owning `KeyButton`
+/// positions it via the unit-tested `AlternatesPopupPlacement`, which
+/// clamps it inside the keyboard's bounds (a custom keyboard cannot draw
+/// outside its own view), shifting top-row popups down over their own cap.
 /// Purely visual: selection is driven by the owning key's continuous press
 /// (`AlternatesPressTracker` — slide to highlight, release to commit), so
 /// the cells carry no tap handlers of their own — they report their frames
@@ -817,9 +938,6 @@ private struct AlternatesPressTracker: UIViewRepresentable {
 /// and identifiers.
 private struct AlternatesPopup: View {
     let alternates: [Key]
-    /// Which side of the key the popup floats toward. Top rows open downward
-    /// so the popup stays inside the keyboard's bounds instead of being clipped.
-    let edge: VerticalEdge
     /// Index of the cell currently under the finger, tinted like the system
     /// keyboard's selection; releasing commits it.
     let highlightedIndex: Int?
@@ -846,10 +964,6 @@ private struct AlternatesPopup: View {
                 .shadow(radius: 4, y: 2)
         )
         .fixedSize()
-        // Float fully clear of the key cap rather than overlapping it,
-        // upward for normal rows and downward for the top row.
-        .offset(y: edge == .top ? -56 : 56)
-        .zIndex(1)
     }
 
     private func cell(for alt: Key, isHighlighted: Bool) -> some View {
