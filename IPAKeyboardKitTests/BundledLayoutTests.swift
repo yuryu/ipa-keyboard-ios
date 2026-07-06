@@ -188,11 +188,9 @@ struct BundledLayoutTests {
     /// backspace. Because every row's total width factor equals the panel's
     /// grid reference (the densest row, 10.0), the renderer's spacers sit at
     /// their fixed minimum instead of stretching — the geometry is fully
-    /// deterministic (see `KeyboardView.gridReferenceFactor`). Rendered key
-    /// widths across rows are near-equal rather than pixel-identical: the
-    /// renderer subtracts `keySpacing * (keys.count - 1)` per row before
-    /// dividing by the grid reference, so rows with different element counts
-    /// leave slightly different per-unit widths.
+    /// deterministic, and `KeyRowSizing` lays the full-grid rows out
+    /// pixel-exactly, so letter caps are identical widths across all three
+    /// rows (issue #117; see `KeyRowSizingTests`).
     @Test func genericFullQwertyPanelMatchesSystemKeyboardGeometry() throws {
         let arrangement = try #require(try genericFullLayout().primaryArrangement)
         let panel = try #require(arrangement.primaryPanel)

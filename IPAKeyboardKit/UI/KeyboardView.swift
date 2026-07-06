@@ -9,8 +9,9 @@
 //  app's editor/preview later.
 //
 //  Layout rule (roadmap): one screen, no horizontal scrolling. Each row
-//  independently fills the available width, with per-key widths derived
-//  from `Key.widthFactor`.
+//  fills the available width, with per-key widths derived from
+//  `Key.widthFactor` by the unit-tested `KeyRowSizing` — rows that span the
+//  shared spacer grid exactly get pixel-identical caps across rows.
 //
 //  Key feedback: keycaps highlight while pressed and play the system input
 //  click on key-down (`UIDevice.playInputClick()` is a no-op unless the
@@ -199,12 +200,11 @@ public struct KeyboardView: View {
     /// Shared grid basis for rows that contain a `spacer`: the largest total
     /// `widthFactor` (spacers counted, default 1.0 each) across all rendered
     /// rows. Grouped keys are sized off this so they match the densest row, and
-    /// because the spacer's own factor is included, a full grouped row still
-    /// reserves a gap rather than collapsing it.
+    /// rows whose factors sum to this exactly are laid out pixel-exactly on the
+    /// grid (issue #117; see `KeyRowSizing`).
     private var gridReferenceFactor: Double {
-        (symbolRows + (bottomBar.map { [$0] } ?? []))
-            .map { row in row.keys.reduce(0.0) { $0 + $1.widthFactor } }
-            .max() ?? 0
+        KeyRowSizing.gridReferenceFactor(
+            rows: symbolRows + (bottomBar.map { [$0] } ?? []))
     }
 
     public var body: some View {
@@ -316,7 +316,8 @@ public struct KeyboardView: View {
 
 /// One row of keys, sized to fill the available width. Key widths are
 /// proportional to `Key.widthFactor`, so a `widthFactor` of 3.0 (space)
-/// renders three times as wide as a standard 1.0 key.
+/// renders three times as wide as a standard 1.0 key. All width math lives
+/// in the unit-tested `KeyRowSizing`; this view is a thin consumer.
 private struct KeyRowView: View {
     let row: KeyRow
     let metrics: KeyboardMetrics
@@ -341,21 +342,17 @@ private struct KeyRowView: View {
 
     var body: some View {
         GeometryReader { geo in
-            let keys = row.keys
-            let hasSpacer = keys.contains(where: \.isSpacer)
-            let totalFactor = keys.reduce(0.0) { $0 + $1.widthFactor }
-            let spacing = metrics.keySpacing * CGFloat(max(keys.count - 1, 0))
-            // Grouped rows lay out on the shared grid so keys keep a constant
-            // size and the spacer takes the slack; plain rows fill the width
-            // proportionally (the spacer-free case is unchanged).
-            let referenceFactor = hasSpacer ? gridReferenceFactor : totalFactor
-            let unit = referenceFactor > 0 ? (geo.size.width - spacing) / CGFloat(referenceFactor) : 0
+            let sizing = KeyRowSizing(
+                row: row,
+                availableWidth: geo.size.width,
+                keySpacing: metrics.keySpacing,
+                gridReferenceFactor: gridReferenceFactor)
             HStack(spacing: metrics.keySpacing) {
-                ForEach(keys) { key in
+                ForEach(row.keys) { key in
                     if key.isSpacer {
                         // At least its grid share, growing to right-align the
                         // keys that follow when the row is short.
-                        Spacer(minLength: max(unit * key.widthFactor, 0))
+                        Spacer(minLength: sizing.width(for: key))
                     } else {
                         KeyButton(
                             key: key,
@@ -364,7 +361,7 @@ private struct KeyRowView: View {
                             nextKeyboardOverlay: nextKeyboardOverlay,
                             onAction: onAction,
                             onPopupChange: { popupChanged(keyID: key.id, isOpen: $0) })
-                            .frame(width: max(unit * key.widthFactor, 0))
+                            .frame(width: sizing.width(for: key))
                             .zIndex(key.id == popupKeyID ? 1 : 0)
                     }
                 }
