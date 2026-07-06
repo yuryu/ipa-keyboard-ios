@@ -1,6 +1,6 @@
 # CLAUDE.md
 
-Guidance for Claude Code (claude.ai/code) when working in this repository. Area-specific guidance lives in `.claude/rules/` as path-scoped rules that load automatically when matching files are touched — pointers below say which file covers what.
+Guidance for Claude Code (claude.ai/code) when working in this repository. Area-specific guidance lives in `.claude/skills/` — **use the named skill before working in its area** (pointers below say which skill covers what); subagents without the Skill tool read the `SKILL.md` file directly.
 
 ## Overview
 
@@ -52,9 +52,9 @@ Before referencing or recommending any of the following, verify it against the a
 
 Three targets in `IPAKeyboard.xcodeproj` (build the project directly — there is no `xcworkspace`):
 
-1. **IPAKeyboard** (app) — host app + layout-management UI; embeds the extension and the framework. Screen map and view models: `.claude/rules/host-app-ui.md`.
-2. **KeyboardExtension** (`.appex`, `UIInputViewController`) — resolves the active layout and renders the shared SwiftUI `KeyboardView`; links the framework as **Do Not Embed**. Runtime constraints and wiring: `.claude/rules/keyboard-extension.md`.
-3. **IPAKeyboardKit** (framework) — shared layout schema, `LayoutStore`, and bundled default layouts; linked by both. Schema, storage, resource-bundle, and build-setting detail: `.claude/rules/layout-schema.md`.
+1. **IPAKeyboard** (app) — host app + layout-management UI; embeds the extension and the framework. Screen map, view models, and UI architecture rules: the `host-app-ui` skill.
+2. **KeyboardExtension** (`.appex`, `UIInputViewController`) — resolves the active layout and renders the shared SwiftUI `KeyboardView`; links the framework as **Do Not Embed**. Runtime constraints and wiring: the `keyboard-extension` skill.
+3. **IPAKeyboardKit** (framework) — shared layout schema, `LayoutStore`, and bundled default layouts; linked by both. Schema, storage, resource-bundle, and build-setting detail: the `layout-schema` skill.
 
 App and extension both carry the App Group entitlement `group.net.yuryu.IPAKeyboard` (`IPAKeyboard/IPAKeyboard.entitlements`, `KeyboardExtension/KeyboardExtension.entitlements`), which must match `AppGroup.identifier` in code.
 
@@ -70,13 +70,13 @@ Once per session call `session_show_defaults` (don't assume defaults are set); i
 
 `boot_sim` / `install_app_sim` / `launch_app_sim` / `screenshot` / `snapshot_ui` cover simulator driving; Xcode (`open IPAKeyboard.xcodeproj`) is preferred for SwiftUI previews. Raw fallback: `xcodebuild -project IPAKeyboard.xcodeproj -scheme <scheme> -destination 'platform=iOS Simulator,name=iPhone 17' [CODE_SIGNING_ALLOWED=NO] build|test`.
 
-Test-coverage inventory and CI lane details: `.claude/rules/testing-and-ci.md`. Flake rules binding on all new XCUITests: `.claude/rules/ui-test-flake.md`.
+Test-coverage inventory and CI lane details: the `testing-and-ci` skill. Use the `ui-testing` skill when touching UI tests — its authoring standards and flake rules are binding on all XCUITest work, new tests included.
 
 > **Signing is deferred.** The Apple developer account is mid-relocation; the App Group is configured in the project but not yet provisioned. A full app/extension build fails at code-signing until then; the framework builds standalone without signing.
 
 ## Architecture: layouts as data
 
-Keyboard layouts are versioned `Codable` JSON documents, not Swift code — this is what makes the keyboard user-customizable. Invariants that hold everywhere (full schema/storage detail: `.claude/rules/layout-schema.md`):
+Keyboard layouts are versioned `Codable` JSON documents, not Swift code — this is what makes the keyboard user-customizable. Invariants that hold everywhere (full schema/storage detail: the `layout-schema` skill):
 
 - The document holds `arrangements` (→ `Panel` → `KeyRow`), **not** a flat `rows`; `currentSchemaVersion` is `2`, v1 files migrate on decode, newer-than-supported versions are rejected.
 - **Built-ins are read-only — never mutate a bundled layout in place.** Fork with `KeyboardLayout.makeEditableCopy(named:)`; symbol curation is non-destructive (`applyingHiddenSymbols(_:)` returns a filtered copy; hidden sets live in `KeyboardPreferences`, never in the layout document).

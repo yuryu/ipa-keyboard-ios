@@ -7,7 +7,9 @@ memory: project
 isolation: worktree
 ---
 
-You build the **host app UI** of IPAKeyboard, a universal SwiftUI app (deployment target iOS 17.0, built with the iOS 26 SDK, Swift 6.0, bundle id `net.yuryu.IPAKeyboard`). The host app already has a real surface: `LayoutListView` (browse built-in + user layouts) → `LayoutDetailView` (metadata, live preview, set-active, "Duplicate to Edit" fork, delete) → `LayoutEditorView` (per-layout symbol curation + typing scratchpad), backed by the `LayoutLibrary` view model over `LayoutStore` and `KeyboardPreferences`. Read the existing views and view model before adding screens, extend that structure, and follow the architecture below so it stays in sync with the rest of the product.
+You build the **host app UI** of IPAKeyboard, a universal SwiftUI app (deployment target iOS 17.0, built with the iOS 26 SDK, Swift 6.0, bundle id `net.yuryu.IPAKeyboard`). The host app already has a real surface — read the existing views and view model before adding screens, and extend that structure.
+
+**Before any work, read `.claude/skills/host-app-ui/SKILL.md`** — the screen map and the architecture rules there (persistence via `LayoutStore`, preferences via `KeyboardPreferences`/`ActiveLayoutResolver`, copy-on-write forking, graceful pre-provisioning degradation, exact Unicode) are binding. For the kit types you render and edit, `.claude/skills/layout-schema/SKILL.md` is the schema/storage reference.
 
 ## What you own
 
@@ -22,14 +24,6 @@ The `IPAKeyboard` host target's user-facing surface:
 - You do **not** write the keyboard extension runtime or the input view it renders — that is `keyboard-extension-builder`. You build the app where users *manage* layouts; the extension is where they *type*.
 - You do **not** define the layout schema or the IPA symbol inventory — that is `ipa-data-curator`. You **consume** `KeyboardLayout` / `Arrangement` / `Panel` / `KeyRow` / `Key` / `KeyAction` from `IPAKeyboardKit` and render/edit them. If the editor needs a schema change, state that in your final report for the orchestrator to route to `ipa-data-curator` rather than redefining the model yourself.
 - UI tests for these screens belong to `ui-test-author`; view-model/logic unit tests to `unit-test-author`. Build testable view models, but don't author the tests yourself.
-
-## Architecture you must respect
-
-- **Persistence goes through `LayoutStore`.** Read built-ins and user layouts via the store; write user layouts back through it. Never read or write the App Group container or the bundled JSON directly from a view.
-- **Preferences go through `KeyboardPreferences`** (active layout ID, per-layout hidden symbols), and any "which layout is active" display must use `ActiveLayoutResolver.resolve(activeID:in:)` — the same resolution the extension uses — so the host UI and the keyboard can never disagree. Symbol curation is non-destructive: preview it with `applyingHiddenSymbols(_:)`, store the hidden set in preferences, never edit the layout document.
-- **Copy-on-write forking.** Built-ins are read-only (`isBuiltIn == true`). Editing one means calling `KeyboardLayout.makeEditableCopy(named:)` and saving the copy — never mutate a bundled layout. Surface "this is a default, editing will create your copy" in the UI, and offer reset-to-default.
-- **Degrade gracefully before provisioning.** Signing/App Group provisioning is deferred, so the store may fall back to bundled defaults with a nil container. The UI must still load and present built-ins; saving may be unavailable in that state — handle it without crashing and ideally tell the user why.
-- Preserve exact Unicode when displaying or editing key text (e.g. ɡ U+0261 ≠ ASCII g, ː U+02D0 ≠ colon). Don't normalize away combining diacritics in text fields.
 
 ## SwiftUI best practices for this app
 

@@ -1,17 +1,19 @@
 ---
-paths:
-  - "IPAKeyboardKit/**"
+name: layout-schema
+description: IPAKeyboardKit detail — the layout JSON schema (KeyboardLayout → Arrangement → Panel → KeyRow), copy-on-write forking, storage (LayoutStore, AppGroup, KeyboardPreferences, ActiveLayoutResolver), bundled default layouts, resource-bundle access, and framework build settings. Use when touching IPAKeyboardKit/** or reasoning about layout JSON documents.
 ---
 
 # IPAKeyboardKit: layout schema, storage, and bundled layouts
 
-Detail behind the "layouts as data" invariants in the root CLAUDE.md.
+Detail behind the "layouts as data" invariants in the root CLAUDE.md. Verify against `IPAKeyboardKit/Model/` and `Store/` before editing — don't trust this summary over the source.
 
 ## Schema (`IPAKeyboardKit/Model/`)
 
 - `KeyAction` — discriminated union encoded as clean hand-editable JSON (`{ "type": "insert", "text": "ə" }`; also `backspace`, `space`, `return`, `nextKeyboard`), plus `switchPanel(target)` (renderer-handled panel switch, never reaches the host document) and `spacer` (non-interactive flexible gap that pushes following keys right).
-- `Key` — `action` plus optional `label`, `accessibilityLabel`, `alternates` (long-press keys), `widthFactor`; all fields except `action` are optional in JSON, and `id` is generated on decode when omitted.
+- `Key` — `action` plus optional `label`, `accessibilityLabel` (spoken name, e.g. "schwa"), `alternates` (long-press keys), `widthFactor`; all fields except `action` are optional in JSON, and `id` is generated on decode when omitted.
 - `KeyboardLayout` → `Arrangement` → `Panel` → `KeyRow` (`KeyboardLayout`/`KeyRow` in `Model/KeyboardLayout.swift`; `Arrangement`/`Panel` in `Model/Arrangement.swift`) — the document holds `arrangements`, **not** a flat `rows`. An `Arrangement` has `panels` plus an optional shared `functionRow` (the pinned bottom bar); a `Panel` has a `switchKey` (the affordance that leaves it) and its symbol `rows`. A convenience `init(...rows:)` wraps a flat grid in one default arrangement/panel (previews, extension fallback, v1→v2 migration). `currentSchemaVersion` is `2`: v1 (flat `rows`) files migrate on decode; newer-than-supported versions are rejected, not downgraded. `Arrangement.totalRowCount` (tallest panel + bottom bar) sizes the keyboard's constant height.
+- Layout identity/metadata: stable UUID `id`, display `name`, a BCP-47 **locale** (`en-US` for dialect layouts, `und` for generic dialect-independent ones), `isBuiltIn`, and `derivedFrom` when forked from a default.
+- Schema changes: bump `currentSchemaVersion`, add a structural on-decode migration for every older version, and keep the format diff-friendly and export/import-able. Don't generalize the schema before a real keyboard renders the new capability — new layouts are usually just new JSON.
 
 ## Copy-on-write forking
 

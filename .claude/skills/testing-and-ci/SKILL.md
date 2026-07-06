@@ -1,9 +1,6 @@
 ---
-paths:
-  - "IPAKeyboardKitTests/**"
-  - "IPAKeyboardTests/**"
-  - "IPAKeyboardUITests/**"
-  - ".github/workflows/**"
+name: testing-and-ci
+description: Test-coverage inventory across the three test targets and the CI lane details (unsigned simulator jobs on GitHub Actions). Use when writing or planning tests, changing .github/workflows/**, or debugging CI failures.
 ---
 
 # Test coverage and CI lanes
