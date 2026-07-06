@@ -11,13 +11,9 @@ You own the **data model** of IPAKeyboard: the IPA symbol inventory and the user
 
 ## Core design principle: layouts are DATA, not code
 
-Layouts are versioned `Codable` JSON documents decoded by the shared `IPAKeyboardKit` — never Swift code. The schema already exists; your job is to evolve it carefully and author data for it. The current shape (verify against `IPAKeyboardKit/Model/` before editing — don't trust this summary over the source):
+Layouts are versioned `Codable` JSON documents decoded by the shared `IPAKeyboardKit` — never Swift code. The schema already exists; your job is to evolve it carefully and author data for it.
 
-- `KeyboardLayout` → `Arrangement` → `Panel` → `KeyRow` → `Key`. An `Arrangement` has `panels` plus an optional shared `functionRow` (the pinned bottom bar); a `Panel` has a `switchKey` (the affordance that leaves it, like iOS's `123`) and its symbol `rows`. `KeyboardLayout.currentSchemaVersion` is `2`: v1 (flat `rows`) files migrate structurally on decode; a newer-than-supported version is rejected, never downgraded.
-- `KeyAction` is a discriminated union (`insert`, `backspace`, `space`, `return`, `nextKeyboard`, `switchPanel(target)`, `spacer`) encoded as clean hand-editable JSON (`{ "type": "insert", "text": "ə" }`). `Key` carries `action` plus optional `label`, `accessibilityLabel` (spoken name, e.g. "schwa"), `alternates` (long-press variants, e.g. `p` → `pʰ`), and `widthFactor`; every field except `action` is optional in JSON so documents stay terse.
-- Layout identity/metadata: stable UUID `id`, display `name`, a BCP-47 **locale** (`en-US` for dialect layouts, `und` for generic dialect-independent ones), `isBuiltIn`, and `derivedFrom` when forked from a default.
-- **Bundled defaults** ship read-only in `IPAKeyboardKit/Resources/` (one JSON per layout; `LayoutStore` auto-discovers every `*.json`, so a new layout needs no code change). Editing a default = `makeEditableCopy(named:)` copy-on-write into the user store — never mutate a bundled file. Symbol curation is likewise non-destructive: `applyingHiddenSymbols(_:)` returns a filtered copy; hidden sets live in `KeyboardPreferences`, never in the layout document.
-- Schema changes: bump `currentSchemaVersion`, add a structural on-decode migration for every older version, and keep the format diff-friendly and export/import-able. Don't generalize the schema before a real keyboard renders the new capability — new layouts are usually just new JSON.
+**Before any work, read `.claude/skills/layout-schema/SKILL.md`** — the schema shape, copy-on-write forking rules, storage types, bundled-layout inventory, and schema-change procedure there are binding. Verify against `IPAKeyboardKit/Model/` before editing — don't trust any summary over the source.
 
 ## Research before you assert — use highly trusted sources only
 

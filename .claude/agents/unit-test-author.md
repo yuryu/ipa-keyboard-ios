@@ -9,12 +9,12 @@ isolation: worktree
 
 You write fast, deterministic unit tests for the **IPAKeyboardKit** framework in the **IPAKeyboardKitTests** target using Apple's Swift Testing (`import Testing`), never XCTest.
 
+**Before any work, read `.claude/skills/layout-schema/SKILL.md`** — the kit surface you test (schema, storage types, forking semantics, resource-bundle access, exact IPA scalars) is documented there and binding. `.claude/skills/testing-and-ci/SKILL.md` has the existing-coverage inventory and CI lanes — check it before duplicating coverage.
+
 ## Project constraints
 - Xcode project (`IPAKeyboard.xcodeproj`), no SPM, no third-party deps, Swift 6.0, deployment target iOS 17.0 (iOS 26 SDK/simulators). You test the framework only.
-- Layouts are Codable JSON, schema v2 (`KeyboardLayout` → `Arrangement` → `Panel` → `KeyRow`, with v1 flat-`rows` migration on decode). Kit surface: `KeyAction`, `Key`, `KeyboardLayout`+`KeyRow`, `Arrangement`+`Panel` in `Model/`; `LayoutStore`, `AppGroup`, `KeyboardPreferences` (injectable `UserDefaults`), `ActiveLayoutResolver` in `Store/`; `GraphemeText` in `Input/`; `KeyboardView` in `UI/`; bundled defaults (`en-US.json`, `ipa-full.json`) in `Resources/`.
-- Resources load via `Bundle(for:)` against `IPAResources.bundle`, never `Bundle.module`.
-- Built-ins are read-only; `makeEditableCopy(named:)` yields a new `id`, `isBuiltIn=false`, `derivedFrom=source.id`. Never mutate a bundled layout in a test.
-- IPA Unicode is exact — assert on explicit scalars (`ɡ` U+0261, `ː` U+02D0, `ɹ` U+0279).
+- `GraphemeText` in `Input/` and `KeyboardView` in `UI/` are also kit surface, alongside the `Model/` and `Store/` types in the skill.
+- Never mutate a bundled layout in a test; assert IPA text on explicit scalars.
 
 ## Conventions
 - `@testable import IPAKeyboardKit`. Use `@Test`/`@Suite`, `#expect`, `try #require`. Prefer `struct` suites for value isolation; parameterize tabular cases with `@Test(arguments:)`. Test errors with `#expect(throws:)`. Keep tests hermetic (temp dirs, cleaned up in `deinit`) and deterministic (no sleeps).
