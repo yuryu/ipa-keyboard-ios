@@ -306,6 +306,16 @@ struct LibraryScreen {
     /// the row mid-composition and fail a healthy screen). Returns `false`
     /// when the row never becomes tappable, so callers assert with their
     /// own message.
+    ///
+    /// After the tap, probes the detail screen's preview and re-taps once on
+    /// a miss — the same silent-tap guard as `revealTapAndSettle`, which
+    /// this helper predates. A hittable row's tap can still be swallowed
+    /// with no scroll gesture ever issued (CI sighting 2026-07-05, PR #132:
+    /// the tap landed, the push never happened, and the tearDown screenshot
+    /// showed the library list untouched — most plausibly the tall Active
+    /// section preview/scratchpad still composing and re-laying the list out
+    /// under the touch). The caller's own `.postNavigation` first-wait on
+    /// the destination supplies the full settling window.
     @discardableResult
     func openEnglishUS(timeout: TimeInterval = 10) -> Bool {
         let deadline = Date().addingTimeInterval(timeout)
@@ -314,6 +324,17 @@ struct LibraryScreen {
             RunLoop.current.run(until: Date().addingTimeInterval(0.25))
         }
         englishUSRow.tap()
+        // Push sentinel: `layout-detail-preview` exists only on the pushed
+        // detail screen (the library's own preview is
+        // `layout-list-active-preview`), so its appearance proves the
+        // navigation happened. Only re-tap while the row is still there to
+        // receive it: a vanished or covered row means the push is already
+        // underway.
+        let pushSentinel = app.otherElements["layout-detail-preview"]
+        if pushSentinel.waitForExistence(timeout: 3) { return true }
+        if englishUSRow.exists, englishUSRow.isHittable {
+            englishUSRow.tap()
+        }
         return true
     }
 
