@@ -1,6 +1,6 @@
 # CLAUDE.md
 
-Guidance for Claude Code (claude.ai/code) when working in this repository.
+Guidance for Claude Code (claude.ai/code) when working in this repository. Area-specific guidance lives in `.claude/rules/` as path-scoped rules that load automatically when matching files are touched — pointers below say which file covers what.
 
 ## Overview
 
@@ -36,7 +36,6 @@ Issue conventions (repo `yuryu/ipa-keyboard-ios`):
 
 - Before feature work, check `gh issue list` and `gh issue view <n>` — issues are written so a fresh session can act on them (context, file pointers, acceptance criteria, owning subagent).
 - Substantial work with no issue yet? File one first (`gh issue create`). File discovered work as new issues, not code TODOs or roadmap task lists.
-- **Attribute Claude's writing.** `gh` posts under the user's account, so end every Claude-written issue, comment, or review reply with a line like `*— written by Claude*`. PR bodies are covered by the `🤖 Generated with Claude Code` footer.
 - Labels map to areas (and subagents): `layouts` (`ipa-data-curator`), `host-app` (`layout-editor-ui`), `keyboard-ext` (`keyboard-extension-builder`), `testing` (test authors), `infra` (CI/signing/provisioning), `deferred` (parked by design).
 - **Branch names must be ASCII.** Issue titles often contain IPA characters and `gh issue develop` copies the title into the branch name — always pass `--name <ascii-name>`. Don't plan on renaming later: pushing under a new name and deleting the old closes the open PR.
 
@@ -53,9 +52,9 @@ Before referencing or recommending any of the following, verify it against the a
 
 Three targets in `IPAKeyboard.xcodeproj` (build the project directly — there is no `xcworkspace`):
 
-1. **IPAKeyboard** (app) — host app + layout-management UI: `LayoutListView` (browse built-in + user layouts) → `LayoutDetailView` (metadata, live `KeyboardView` preview, set-active, "Duplicate to Edit" fork, delete) → `LayoutEditorView` (per-layout symbol curation with live preview + typing scratchpad), backed by the `LayoutLibrary` view model over `LayoutStore` + `KeyboardPreferences`. Key-level editing of user layouts ships as `LayoutKeyEditorView` (sheet from `LayoutDetailView`: add/remove/reorder rows, per-key edits via `KeyRowEditorView`/`KeyEditorForm`, live draft preview; user layouts only — built-ins go through "Duplicate to Edit"). Embeds the extension and the framework.
-2. **KeyboardExtension** (`.appex`, `UIInputViewController`) — `KeyboardExtension/KeyboardViewController.swift` resolves the active layout (`ActiveLayoutResolver.resolve(activeID:in:)` over `KeyboardPreferences.activeLayoutID` + `LayoutStore().allLayouts()`, then applies that layout's hidden-symbols curation), renders the shared SwiftUI `KeyboardView`, and applies each emitted `KeyAction` to the document proxy (grapheme-cluster-aware backspace; globe key gated on `needsInputModeSwitchKey`). Links the framework as **Do Not Embed**.
-3. **IPAKeyboardKit** (framework) — shared layout schema, `LayoutStore`, and bundled default layouts; linked by both.
+1. **IPAKeyboard** (app) — host app + layout-management UI; embeds the extension and the framework. Screen map and view models: `.claude/rules/host-app-ui.md`.
+2. **KeyboardExtension** (`.appex`, `UIInputViewController`) — resolves the active layout and renders the shared SwiftUI `KeyboardView`; links the framework as **Do Not Embed**. Runtime constraints and wiring: `.claude/rules/keyboard-extension.md`.
+3. **IPAKeyboardKit** (framework) — shared layout schema, `LayoutStore`, and bundled default layouts; linked by both. Schema, storage, resource-bundle, and build-setting detail: `.claude/rules/layout-schema.md`.
 
 App and extension both carry the App Group entitlement `group.net.yuryu.IPAKeyboard` (`IPAKeyboard/IPAKeyboard.entitlements`, `KeyboardExtension/KeyboardExtension.entitlements`), which must match `AppGroup.identifier` in code.
 
@@ -71,53 +70,18 @@ Once per session call `session_show_defaults` (don't assume defaults are set); i
 
 `boot_sim` / `install_app_sim` / `launch_app_sim` / `screenshot` / `snapshot_ui` cover simulator driving; Xcode (`open IPAKeyboard.xcodeproj`) is preferred for SwiftUI previews. Raw fallback: `xcodebuild -project IPAKeyboard.xcodeproj -scheme <scheme> -destination 'platform=iOS Simulator,name=iPhone 17' [CODE_SIGNING_ALLOWED=NO] build|test`.
 
-Existing coverage spans kit Codable round-trips, `LayoutStore` I/O (via the injectable `containerURL` seam), schema v2 + migration, grapheme deletion, arrangement/bundled-layout checks, app view models (`LayoutDraft`, `OnboardingState`), and host library-UI flows. CI (`macos-26`) runs two unsigned-simulator jobs: `build-and-test` (build-for-testing all three targets + the app-hosted unit-test and UI-test bundles, then kit unit tests and `-only-testing:IPAKeyboardTests`, sequential) and `ui-test` (build app scheme for testing; fully boot the simulator with `simctl bootstatus -b` — launching the XCUITest runner mid-boot fails with "Busy"; run `IPAKeyboardUITests` sequentially, `-parallel-testing-enabled NO`, via `test-without-building`). No signed/device/archive lane yet (deferred until provisioning).
+Test-coverage inventory and CI lane details: `.claude/rules/testing-and-ci.md`. Flake rules binding on all new XCUITests: `.claude/rules/ui-test-flake.md`.
 
 > **Signing is deferred.** The Apple developer account is mid-relocation; the App Group is configured in the project but not yet provisioned. A full app/extension build fails at code-signing until then; the framework builds standalone without signing.
 
-### UI-test flake rules
-
-From the issue #119 flake sweep; binding on all new XCUITests. The helper code is readable in `IPAKeyboardUITests` — what's listed here is the non-obvious *why*:
-
-- **Tap-after-scroll needs a settle probe** — inertial `swipeUp` leaves the list decelerating and the next tap is swallowed as a scroll-stop touch. Use `revealTapAndSettle` / `LibraryScreen.openRow` (LibraryScreen.swift); they end after one sentinel-probe re-tap and the *caller's* `.postNavigation` first-wait supplies the full window — don't add a second long wait inside helpers.
-- **Tests presenting remote system UI (share sheet) must dismiss in-test AND register a terminate backstop** — a live sheet makes the next `launch()` kill the app mid-presentation. Follow `test_exportBuiltIn_presentsShareSheet`: `dismissShareSheet`, an `addTeardownBlock` that terminates and waits for `.notRunning`, and tearDown screenshots guarded by `app.state != .notRunning`. The iOS 26 sheet is out-of-process with no Close/Cancel button in the app's hierarchy, so dismissal is coordinate-based (tap the dimmed area, then drag the sheet off the bottom edge); probe sheet signatures in both the app and SpringBoard hierarchies plus `app.popovers` (iPad). Don't assert on the underlying screen after dismissal — it never left the hierarchy, so the wait is pure timeout burn.
-- **Never poll `app.keyboards` for typing readiness** — it burns the full timeout whenever the simulator's Connect Hardware Keyboard setting suppresses the software keyboard. Use the event-driven `waitForKeyboardFocus` gate (`hasKeyboardFocus == true` predicate, ~5s, one re-tap on miss; duplicated by design in SymbolReferenceScreen.swift and KeyEditorScreen.swift).
-- **Orientation**: `IPAKeyboardUITestsLaunchTests.tearDown` restores portrait and terminates (it was the only source of leftover-landscape); the functional suites' portrait one-liners in setUp are belt-and-braces — keep both, and do NOT add per-suite window-geometry gates (redundant, and a full-timeout burn on a legitimately-landscape iPad).
-- **Negative-assertion polarity**: something that existed and is going away gets `waitForNonExistence(timeout:)` (eventual state), not `XCTAssertFalse(waitForExistence(2))` (snapshot race). Keep the `XCTAssertFalse` form only for things that must *never* appear, and run that probe first so its window doubles as the settle time the wrong outcome would need.
-
 ## Architecture: layouts as data
 
-Keyboard layouts are versioned `Codable` JSON documents, not Swift code — this is what makes the keyboard user-customizable.
+Keyboard layouts are versioned `Codable` JSON documents, not Swift code — this is what makes the keyboard user-customizable. Invariants that hold everywhere (full schema/storage detail: `.claude/rules/layout-schema.md`):
 
-- **Schema** (`IPAKeyboardKit/Model/`):
-  - `KeyAction` — discriminated union encoded as clean hand-editable JSON (`{ "type": "insert", "text": "ə" }`; also `backspace`, `space`, `return`, `nextKeyboard`), plus `switchPanel(target)` (renderer-handled panel switch, never reaches the host document) and `spacer` (non-interactive flexible gap that pushes following keys right).
-  - `Key` — `action` plus optional `label`, `accessibilityLabel`, `alternates` (long-press keys), `widthFactor`; all fields except `action` are optional in JSON, and `id` is generated on decode when omitted.
-  - `KeyboardLayout` → `Arrangement` → `Panel` → `KeyRow` (`KeyboardLayout`/`KeyRow` in `Model/KeyboardLayout.swift`; `Arrangement`/`Panel` in `Model/Arrangement.swift`) — the document holds `arrangements`, **not** a flat `rows`. An `Arrangement` has `panels` plus an optional shared `functionRow` (the pinned bottom bar); a `Panel` has a `switchKey` (the affordance that leaves it) and its symbol `rows`. A convenience `init(...rows:)` wraps a flat grid in one default arrangement/panel (previews, extension fallback, v1→v2 migration). `currentSchemaVersion` is `2`: v1 (flat `rows`) files migrate on decode; newer-than-supported versions are rejected, not downgraded. `Arrangement.totalRowCount` (tallest panel + bottom bar) sizes the keyboard's constant height.
-- **Copy-on-write forking**: built-ins are read-only — **never mutate a bundled layout in place**. `KeyboardLayout.makeEditableCopy(named:)` produces a user-owned copy (new `id`, `isBuiltIn = false`, `derivedFrom = source.id`). Symbol curation is likewise non-destructive: `applyingHiddenSymbols(_:)` (built on `filteringKeys`) returns a filtered copy; hidden sets live in `KeyboardPreferences`, never in the layout document.
-- **Storage** (`IPAKeyboardKit/Store/`):
-  - `LayoutStore` — bundled defaults from the framework bundle (auto-discovers every `*.json`, so a new locale needs no code change); user layouts in the App Group container; **degrades gracefully to bundled defaults when the container is nil** (pre-provisioning).
-  - `AppGroup` — exposes the shared `containerURL`; the host app writes layouts, the extension reads them.
-  - `KeyboardPreferences` — cross-target preferences over the App Group `UserDefaults` suite (host writes, extension reads): `activeLayoutID`, per-layout hidden symbols. Injectable for tests; falls back to `.standard` (process-local) pre-provisioning.
-  - `ActiveLayoutResolver` — pure, total resolution of which layout to render (`activeID` match → bundled `en-US` → first available → minimal fallback), shared by host preview and extension so they never disagree or go blank.
-- **Default layouts** (`IPAKeyboardKit/Resources/`, one JSON per layout): `en-US.json` is General American, schema v2 — one "Split" arrangement with an "IPA" main panel and a "More" panel, a shared globe/space/⌫ bottom bar, consonants left / vowels right via a `spacer`. It uses precise code points — `ɡ` U+0261 (not ASCII `g`), `ː` U+02D0 (not colon), `ɹ` U+0279 as primary rhotic with `r` as an alternate. **Preserve exact Unicode when editing.** Generic layouts are just additional `*.json` here — auto-discovered, no code change; `ipa-full.json` and `ipa-chart.json` (both locale `und`) ship today.
-
-### Resource bundle access
-
-Xcode framework targets get no SwiftPM `Bundle.module`; resources are located via `Bundle(for:)` against an anchor type — `IPAResources.bundle` in `IPAKeyboardKit/IPAKeyboardKit.swift`. **Do not name a public type the same as the module** (`IPAKeyboardKit`): with `BUILD_LIBRARY_FOR_DISTRIBUTION = YES` it shadows the module name and breaks `.swiftinterface` verification.
-
-### Build settings that matter
-
-- `APPLICATION_EXTENSION_API_ONLY = YES` on the framework (it links into an `.appex`) — don't call extension-unavailable APIs in the kit.
-- `BUILD_LIBRARY_FOR_DISTRIBUTION = YES` on the framework generates the `.swiftinterface` (see the naming caveat above).
-
-## Keyboard extension constraints
-
-For `KeyboardViewController` and anything that runs in the extension:
-
-- Tight memory budget (~48–66 MB); no network by default.
-- "Allow Full Access" (`RequestsOpenAccess`) is off by default — assume no full access.
-- The globe/Next-Keyboard key is required; respect `needsInputModeSwitchKey`.
-- Text edits must be grapheme-cluster-aware so combining diacritics insert/delete as single user-perceived characters.
+- The document holds `arrangements` (→ `Panel` → `KeyRow`), **not** a flat `rows`; `currentSchemaVersion` is `2`, v1 files migrate on decode, newer-than-supported versions are rejected.
+- **Built-ins are read-only — never mutate a bundled layout in place.** Fork with `KeyboardLayout.makeEditableCopy(named:)`; symbol curation is non-destructive (`applyingHiddenSymbols(_:)` returns a filtered copy; hidden sets live in `KeyboardPreferences`, never in the layout document).
+- `LayoutStore` auto-discovers every bundled `*.json` (a new layout needs no code change) and degrades gracefully to bundled defaults when the App Group container is nil (pre-provisioning).
+- Bundled layouts use precise IPA code points — `ɡ` U+0261 (not ASCII `g`), `ː` U+02D0 (not colon). **Preserve exact Unicode when editing.**
 
 ## Subagents
 
