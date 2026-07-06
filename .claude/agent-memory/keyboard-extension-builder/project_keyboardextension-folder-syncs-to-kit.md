@@ -1,12 +1,12 @@
 ---
 name: keyboardextension-folder-syncs-to-kit
-description: New files in KeyboardExtension/ compile into the IPAKeyboardKit target, NOT the extension — only KeyboardViewController.swift belongs to the appex target
+description: KeyboardExtension/ folder now syncs to the KeyboardExtension target (Info.plist excepted) — the old kit-membership quirk is gone
 metadata:
   type: project
 ---
 
-The `KeyboardExtension/` file-system-synchronized folder is a member of the **IPAKeyboardKit** target's `fileSystemSynchronizedGroups`, not the KeyboardExtension target's. Membership exception sets in `project.pbxproj` carve out only `KeyboardViewController.swift` (extension target) and `Info.plist`+`KeyboardViewController.swift` (excluded from kit). Verified 2026-07-01 in `IPAKeyboard.xcodeproj/project.pbxproj` (PBXFileSystemSynchronizedBuildFileExceptionSet section, ~lines 88-104).
+The `KeyboardExtension/` file-system-synchronized folder is now a member of the **KeyboardExtension target** itself: the only `PBXFileSystemSynchronizedBuildFileExceptionSet` for it excepts `Info.plist`. New `.swift` files dropped in `KeyboardExtension/` compile into the extension target directly (e.g. `NextKeyboardKeyOverlay.swift`, `InputClickFeedback.swift` live there today). Re-verified 2026-07-04 in `project.pbxproj`.
 
-**Why:** discovered when two new extension-side files (`NextKeyboardKeyOverlay.swift`, `InputClickFeedback.swift`) silently compiled into the kit framework and were unresolvable from the controller; subagents are forbidden from editing project.pbxproj, so they cannot add new exception entries.
+**History:** an earlier project layout had this folder synced into the IPAKeyboardKit target with per-file exceptions, which once made two new extension-side files silently compile into the kit. That wiring no longer exists — do not work around it.
 
-**How to apply:** any code that must live in the extension target either goes inside `KeyboardViewController.swift`, or the orchestrator/user must add a membership exception in Xcode (Target Membership checkbox on the new file). Conversely, a file dropped in `KeyboardExtension/` becomes kit code — it must satisfy `APPLICATION_EXTENSION_API_ONLY` and the `.swiftinterface` verification, and internal types there are invisible to the extension module.
+**How to apply:** extension-runtime code can be added as new files under `KeyboardExtension/` without touching project.pbxproj. Kit code still goes under `IPAKeyboardKit/`. `IPAKeyboardUITests/`, `IPAKeyboardKitTests/`, `IPAKeyboardTests/`, and `IPAKeyboard/` are likewise plain synchronized root groups — new files join their target automatically.

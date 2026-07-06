@@ -41,3 +41,6 @@ place.
 ### Text input
 
 - ``GraphemeText``
+- ``CursorMovement``
+- ``CursorMoveEvent``
+- ``CursorDragStepper``

@@ -6,8 +6,10 @@ metadata:
 ---
 
 The alternates popup (hold → slide → release-to-commit) is driven by a UIKit
-`UILongPressGestureRecognizer` overlay (`AlternatesPressTracker` in
-KeyboardView.swift), not SwiftUI gestures. **Why** (all verified empirically
+`UILongPressGestureRecognizer` overlay (`KeyPressTracker` in
+KeyboardView.swift — renamed from `AlternatesPressTracker` when the space
+bar's cursor mode, issue #70, started sharing it), not SwiftUI gestures.
+**Why** (all verified empirically
 on the iOS 26 SDK simulator, issue #104):
 
 - `.onLongPressGesture` completes at `minimumDuration` and then delivers NO
