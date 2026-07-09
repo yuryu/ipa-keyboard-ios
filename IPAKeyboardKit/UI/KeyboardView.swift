@@ -142,6 +142,8 @@ public struct KeyboardView: View {
     private let layout: KeyboardLayout
     private let metrics: KeyboardMetrics
     private let returnKeyType: UIReturnKeyType
+    private let enablesReturnKeyAutomatically: Bool
+    private let documentIsEmpty: Bool
     private let nextKeyboardOverlay: AnyView?
     private let onCursorMove: (CursorMoveEvent) -> Void
     private let onAction: (KeyAction) -> Void
@@ -175,6 +177,16 @@ public struct KeyboardView: View {
     ///   non-default types, like the system keyboard. The extension passes
     ///   `textDocumentProxy.returnKeyType`; the host previews keep the
     ///   default, which renders a plain "return".
+    /// - Parameter enablesReturnKeyAutomatically: the host field's
+    ///   `UITextInputTraits.enablesReturnKeyAutomatically`; when `true` the
+    ///   return key is rendered disabled (dimmed, taps ignored) while
+    ///   `documentIsEmpty` is `true`, matching the system keyboard (issue #60).
+    ///   The extension passes the live trait; host previews keep `false`, so
+    ///   the return key is always enabled.
+    /// - Parameter documentIsEmpty: whether the host document has no text
+    ///   before or after the cursor — the emptiness the automatic-enable trait
+    ///   gates on. Only consulted when `enablesReturnKeyAutomatically` is
+    ///   `true`.
     /// - Parameter nextKeyboardOverlay: an optional UIKit control the
     ///   keyboard extension lays over every `.nextKeyboard` keycap so the
     ///   system handles switching (tap advances; long-press shows the
@@ -193,6 +205,8 @@ public struct KeyboardView: View {
         layout: KeyboardLayout,
         metrics: KeyboardMetrics = KeyboardMetrics(),
         returnKeyType: UIReturnKeyType = .default,
+        enablesReturnKeyAutomatically: Bool = false,
+        documentIsEmpty: Bool = false,
         nextKeyboardOverlay: AnyView? = nil,
         onCursorMove: @escaping (CursorMoveEvent) -> Void = { _ in },
         onAction: @escaping (KeyAction) -> Void
@@ -200,9 +214,23 @@ public struct KeyboardView: View {
         self.layout = layout
         self.metrics = metrics
         self.returnKeyType = returnKeyType
+        self.enablesReturnKeyAutomatically = enablesReturnKeyAutomatically
+        self.documentIsEmpty = documentIsEmpty
         self.nextKeyboardOverlay = nextKeyboardOverlay
         self.onCursorMove = onCursorMove
         self.onAction = onAction
+    }
+
+    /// Whether `.return` keys accept taps and render at full contrast, from
+    /// the host field's `enablesReturnKeyAutomatically` trait and the current
+    /// document emptiness (issue #60). Always `true` for host previews, which
+    /// keep the trait's default. Only the return key is affected — the
+    /// nextKeyboard/globe key is never disabled (App Review 4.4.1).
+    private var returnKeyEnabled: Bool {
+        ReturnKeyAvailability.isEnabled(
+            returnKeyType: returnKeyType,
+            enablesReturnKeyAutomatically: enablesReturnKeyAutomatically,
+            documentIsEmpty: documentIsEmpty)
     }
 
     private var arrangement: Arrangement? { layout.primaryArrangement }
@@ -228,6 +256,7 @@ public struct KeyboardView: View {
 
     public var body: some View {
         let reference = gridReferenceFactor
+        let returnEnabled = returnKeyEnabled
         // Outer stack has no spacing of its own; the gap between the symbol rows
         // and the pinned bottom bar is an explicit Spacer whose minimum equals a
         // normal row gap. That keeps the natural height exactly
@@ -243,6 +272,7 @@ public struct KeyboardView: View {
                         gridReferenceFactor: reference,
                         keyboardSize: keyboardSize,
                         returnKeyType: returnKeyType,
+                        returnKeyEnabled: returnEnabled,
                         nextKeyboardOverlay: nextKeyboardOverlay,
                         onCursorMove: onCursorMove,
                         onAction: handle,
@@ -262,6 +292,7 @@ public struct KeyboardView: View {
                     gridReferenceFactor: reference,
                     keyboardSize: keyboardSize,
                     returnKeyType: returnKeyType,
+                    returnKeyEnabled: returnEnabled,
                     nextKeyboardOverlay: nextKeyboardOverlay,
                     onCursorMove: onCursorMove,
                     onAction: handle,
@@ -350,6 +381,9 @@ private struct KeyRowView: View {
     /// alternates popup's placement.
     let keyboardSize: CGSize
     let returnKeyType: UIReturnKeyType
+    /// Whether a `.return` key in this row is tappable / full-contrast; false
+    /// dims and inert-ifies it (issue #60). Applies only to the return key.
+    let returnKeyEnabled: Bool
     let nextKeyboardOverlay: AnyView?
     let onCursorMove: (CursorMoveEvent) -> Void
     let onAction: (KeyAction) -> Void
@@ -380,6 +414,7 @@ private struct KeyRowView: View {
                             key: key,
                             keyboardSize: keyboardSize,
                             returnKeyType: returnKeyType,
+                            returnKeyEnabled: returnKeyEnabled,
                             nextKeyboardOverlay: nextKeyboardOverlay,
                             onCursorMove: onCursorMove,
                             onAction: onAction,
@@ -431,6 +466,9 @@ private struct KeyButton: View {
     /// placement clamps against.
     let keyboardSize: CGSize
     let returnKeyType: UIReturnKeyType
+    /// Whether a `.return` key is tappable and full-contrast; false renders it
+    /// dimmed and ignores taps (issue #60). Ignored by every other key.
+    let returnKeyEnabled: Bool
     let nextKeyboardOverlay: AnyView?
     let onCursorMove: (CursorMoveEvent) -> Void
     let onAction: (KeyAction) -> Void
@@ -547,6 +585,31 @@ private struct KeyButton: View {
     /// `keyboardAppearance` override and the host app's color scheme alike.
     private var style: KeyStyle { KeyStyle(key: key, returnKeyType: returnKeyType) }
 
+    /// Whether this key is the return key disabled by the host field's
+    /// `enablesReturnKeyAutomatically` while the document is empty (issue #60):
+    /// it renders dimmed and ignores taps. Only ever true for `.return` — the
+    /// nextKeyboard/globe key is never disabled (App Review 4.4.1).
+    private var isReturnKeyDisabled: Bool {
+        key.action == .return && !returnKeyEnabled
+    }
+
+    /// Cap fill. A disabled return key drops to the plain function tier —
+    /// never the prominent accent, never a pressed highlight — so it reads as
+    /// inert, like the system keyboard's greyed-out return.
+    private var capFill: Color {
+        isReturnKeyDisabled
+            ? Color(uiColor: KeyStyle.function.fill(isPressed: false))
+            : Color(uiColor: style.fill(isPressed: showsPressedFill))
+    }
+
+    /// Label color, dimmed to a low-contrast tertiary tone on a disabled
+    /// return key and otherwise the key's normal tier text color.
+    private var capTextColor: Color {
+        isReturnKeyDisabled
+            ? Color(uiColor: .tertiaryLabel)
+            : Color(uiColor: style.textColor)
+    }
+
     /// The rendered glyph. Return keys always mirror the host field's
     /// `returnKeyType` (Go/Search/Done…), overriding any static layout label,
     /// exactly like the system keyboard. Every other key keeps its own label.
@@ -648,6 +711,12 @@ private struct KeyButton: View {
                 }
             }
             .coordinateSpace(Self.keySpace)
+            // A return key disabled by `enablesReturnKeyAutomatically` ignores
+            // touches (its tap/long-press gestures respect `isEnabled`) and
+            // gains the not-enabled accessibility trait; only the return key is
+            // ever disabled, so the required nextKeyboard key is untouched
+            // (issue #60, App Review 4.4.1).
+            .disabled(isReturnKeyDisabled)
             .onDisappear {
                 stopRepeat()
                 dismissAlternates()
@@ -656,14 +725,17 @@ private struct KeyButton: View {
 
     private var keyCap: some View {
         RoundedRectangle(cornerRadius: 6, style: .continuous)
-            .fill(Color(uiColor: style.fill(isPressed: showsPressedFill)))
+            .fill(capFill)
             // The system keyboard's 1-pt keycap drop shadow; applied before
             // the overlays so the label doesn't cast one.
             .shadow(color: Color(uiColor: KeyPalette.keycapShadow), radius: 0, y: 1)
             .overlay(
                 Text(displayText)
-                    .font(.title3)
-                    .foregroundStyle(Color(uiColor: style.textColor))
+                    // Word keys (space, return, panel switch) get a smaller
+                    // fixed font so their words fit without shrinking; glyph
+                    // keys keep the standard keycap size (issue #60).
+                    .font(KeyLabelFont.font(for: key))
+                    .foregroundStyle(capTextColor)
                     .minimumScaleFactor(0.5)
                     .lineLimit(1)
                     .padding(.horizontal, 2)

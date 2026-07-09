@@ -8,6 +8,7 @@
 //  return key.
 //
 
+import SwiftUI
 import Testing
 import UIKit
 @testable import IPAKeyboardKit
@@ -27,6 +28,78 @@ struct KeyboardAppearanceTests {
         #expect(ReturnKeyLabel.text(for: .done) == "done")
         #expect(ReturnKeyLabel.text(for: .emergencyCall) == "emergency call")
         #expect(ReturnKeyLabel.text(for: .continue) == "continue")
+    }
+
+    // MARK: enablesReturnKeyAutomatically (issue #60)
+
+    @Test func returnKeyStaysEnabledWhenTheFieldDoesNotOptIn() {
+        // Flag off: the return key is always enabled, whatever the emptiness
+        // or the return-key type.
+        for type in [UIReturnKeyType.default, .search] {
+            for empty in [true, false] {
+                #expect(ReturnKeyAvailability.isEnabled(
+                    returnKeyType: type,
+                    enablesReturnKeyAutomatically: false,
+                    documentIsEmpty: empty))
+            }
+        }
+    }
+
+    @Test func automaticEnableDisablesTheReturnKeyOnlyWhileEmpty() {
+        // Flag on: disabled while the document is empty, enabled the moment it
+        // holds text — for both the plain and the prominent return key.
+        for type in [UIReturnKeyType.default, .search] {
+            #expect(!ReturnKeyAvailability.isEnabled(
+                returnKeyType: type,
+                enablesReturnKeyAutomatically: true,
+                documentIsEmpty: true))
+            #expect(ReturnKeyAvailability.isEnabled(
+                returnKeyType: type,
+                enablesReturnKeyAutomatically: true,
+                documentIsEmpty: false))
+        }
+    }
+
+    @Test func returnKeyAvailabilityIgnoresTheReturnKeyType() {
+        // The plain and prominent return keys dim together: for every
+        // (flag, emptiness) pair the answer is identical across types.
+        for flag in [true, false] {
+            for empty in [true, false] {
+                let plain = ReturnKeyAvailability.isEnabled(
+                    returnKeyType: .default,
+                    enablesReturnKeyAutomatically: flag,
+                    documentIsEmpty: empty)
+                let prominent = ReturnKeyAvailability.isEnabled(
+                    returnKeyType: .search,
+                    enablesReturnKeyAutomatically: flag,
+                    documentIsEmpty: empty)
+                #expect(plain == prominent)
+            }
+        }
+    }
+
+    // MARK: Label typography (issue #60)
+
+    @Test func wordKeysUseTheSmallerFixedLabelFont() {
+        // space, return, and panel-switch keys are word-labeled, so they get
+        // the smaller fixed font instead of the glyph size.
+        #expect(KeyLabelFont.font(for: Key(action: .space)) == KeyLabelFont.word)
+        #expect(KeyLabelFont.font(for: Key(action: .return)) == KeyLabelFont.word)
+        #expect(KeyLabelFont.font(for: Key(action: .switchPanel("More"))) == KeyLabelFont.word)
+    }
+
+    @Test func glyphKeysKeepTheStandardLabelFont() {
+        // IPA symbols and the single-glyph backspace/globe keep `.title3`.
+        #expect(KeyLabelFont.font(for: .insert("ə")) == KeyLabelFont.glyph)
+        #expect(KeyLabelFont.font(for: Key(action: .backspace)) == KeyLabelFont.glyph)
+        #expect(KeyLabelFont.font(for: Key(action: .nextKeyboard)) == KeyLabelFont.glyph)
+        #expect(KeyLabelFont.glyph == .title3)
+    }
+
+    @Test func wordLabelFontIsSmallerThanTheGlyphFont() {
+        // The two tiers must be distinct fonts: word keys no longer share the
+        // glyph keys' `.title3` and lean on `minimumScaleFactor` to fit.
+        #expect(KeyLabelFont.word != KeyLabelFont.glyph)
     }
 
     // MARK: Key styling
