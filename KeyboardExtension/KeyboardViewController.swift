@@ -36,6 +36,16 @@ class KeyboardViewController: UIInputViewController {
     /// The host field's return-key type as last rendered; `.return` keycaps
     /// are relabeled (Go/Search/Done…) to match, like the system keyboard.
     private var returnKeyType: UIReturnKeyType = .default
+    /// Backs the recently-used-symbols strip (issue #16): the shared
+    /// SwiftUI `KeyboardView` records every inserted symbol here and renders
+    /// the strip from it. Persists through the App Group `UserDefaults` suite
+    /// (no Full Access required), degrading to process-local storage before
+    /// provisioning — the same story as `KeyboardPreferences`.
+    private let recentSymbolsStore = RecentSymbolsStore()
+    /// Symbols hidden for the active layout, captured when the layout is
+    /// resolved so the recents strip can filter them out even though they are
+    /// already gone from the rendered `renderedLayout`.
+    private var hiddenSymbols: Set<String> = []
 
     override func viewDidLoad() {
         super.viewDidLoad()
@@ -47,10 +57,11 @@ class KeyboardViewController: UIInputViewController {
         let layout = displayLayout(loadLayout())
         renderedLayout = layout
         installKeyboard(for: layout)
-        // Size to the tallest panel plus the shared bottom bar so switching
-        // panels doesn't resize us. Derived from the fully-filtered layout, so
+        // Size to the tallest panel plus the shared bottom bar, plus the
+        // always-present recents row, so neither switching panels nor recents
+        // populating resizes us. Derived from the fully-filtered layout, so
         // hiding symbols (which can drop rows) doesn't reserve blank height.
-        applyHeight(forRowCount: layout.primaryArrangement?.totalRowCount ?? 0)
+        applyHeight(forRowCount: renderedRowCount(for: layout))
 
         // Rotation moves iPhones between regular and compact vertical size
         // classes; re-derive the metrics (and the height constraint) so the
@@ -104,7 +115,15 @@ class KeyboardViewController: UIInputViewController {
         metrics = updated
         refreshRootView()
         heightConstraint?.constant = metrics.totalHeight(
-            rowCount: renderedLayout?.primaryArrangement?.totalRowCount ?? 0)
+            rowCount: renderedLayout.map(renderedRowCount(for:)) ?? 0)
+    }
+
+    /// Total rendered rows for `layout`: its tallest panel plus bottom bar,
+    /// plus the recents strip the shared `KeyboardView` always reserves
+    /// (issue #16). The single place the extension adds the recents row to the
+    /// height, kept in step with `KeyboardView.reservedRowCount`.
+    private func renderedRowCount(for layout: KeyboardLayout) -> Int {
+        (layout.primaryArrangement?.totalRowCount ?? 0) + KeyboardMetrics.recentsRowCount
     }
 
     // MARK: Layout loading
@@ -121,7 +140,10 @@ class KeyboardViewController: UIInputViewController {
         let prefs = KeyboardPreferences()
         let resolved = ActiveLayoutResolver.resolve(
             activeID: prefs.activeLayoutID, in: LayoutStore().allLayouts())
-        return resolved.applyingHiddenSymbols(prefs.hiddenSymbols(for: resolved.id))
+        // Kept so the recents strip can filter curated-away symbols out even
+        // though they are already absent from the rendered layout.
+        hiddenSymbols = prefs.hiddenSymbols(for: resolved.id)
+        return resolved.applyingHiddenSymbols(hiddenSymbols)
     }
 
     /// Hide the globe key when the host doesn't need a keyboard-switch key
@@ -166,6 +188,8 @@ class KeyboardViewController: UIInputViewController {
             metrics: metrics,
             returnKeyType: returnKeyType,
             nextKeyboardOverlay: globeOverlay,
+            recentSymbolsStore: recentSymbolsStore,
+            hiddenSymbols: hiddenSymbols,
             onCursorMove: { [weak self] event in
                 self?.handleCursorMove(event)
             }

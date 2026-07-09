@@ -104,6 +104,15 @@ public extension KeyboardMetrics {
     static func metrics(forCompactHeight isCompact: Bool) -> KeyboardMetrics {
         isCompact ? .compactHeight : KeyboardMetrics()
     }
+
+    /// Rows the always-present recents strip reserves above the symbol rows
+    /// (issue #16): one standard row, shown whether or not any recents exist
+    /// yet — an empty-state placeholder holds the space — so the keyboard
+    /// never changes height as recents populate. The keyboard extension adds
+    /// this to `Arrangement.totalRowCount` when sizing its input view, exactly
+    /// what `KeyboardView` reserves when it renders the strip, so the two can
+    /// never disagree.
+    static let recentsRowCount = 1
 }
 
 extension Key {
@@ -143,6 +152,15 @@ public struct KeyboardView: View {
     private let metrics: KeyboardMetrics
     private let returnKeyType: UIReturnKeyType
     private let nextKeyboardOverlay: AnyView?
+    /// Backing store for the recently-used-symbols strip (issue #16). When
+    /// non-nil the strip is rendered above the symbol rows and every inserted
+    /// symbol is recorded into it; nil — the host app's previews and editors —
+    /// omits the strip entirely (and reserves no extra height for it).
+    private let recentSymbolsStore: RecentSymbolsStore?
+    /// Symbols hidden for the active layout, so a hidden symbol neither shows
+    /// in the recents strip nor — already filtered out of `layout` — has a key
+    /// to record. Curation-respecting per issue #16.
+    private let hiddenSymbols: Set<String>
     private let onCursorMove: (CursorMoveEvent) -> Void
     private let onAction: (KeyAction) -> Void
 
@@ -160,6 +178,15 @@ public struct KeyboardView: View {
     /// The keyboard's rendered size — the bounds the alternates popup's
     /// placement clamps against.
     @State private var keyboardSize: CGSize = .zero
+
+    /// The recents strip's keys, most-recent-first (issue #16). Held as built
+    /// `Key`s — rather than rebuilt from the store on every body pass — so a
+    /// key keeps its SwiftUI identity (and press `@State`) across re-renders
+    /// unrelated to recents; the list is refreshed only when it actually
+    /// changes (an insert, a layout switch, first appearance). Empty when
+    /// there are no recents yet, when curation has filtered them all out, or
+    /// when the strip is disabled (`recentSymbolsStore == nil`).
+    @State private var recentKeys: [Key] = []
 
     /// Name of the coordinate space covering the whole keyboard (declared on
     /// the same frame the key-preview overlay measures against), so pressed
@@ -189,11 +216,23 @@ public struct KeyboardView: View {
     ///   to `adjustTextPosition` offsets via `CursorMovement.Context`; the
     ///   default no-op keeps host previews inert while rendering the
     ///   identical interaction.
+    /// - Parameter recentSymbolsStore: backs the recently-used-symbols strip
+    ///   (issue #16). When supplied — the keyboard extension — the strip is
+    ///   rendered above the symbol rows (always present, so the keyboard's
+    ///   height is constant whether or not any recents exist) and every
+    ///   inserted symbol is recorded. nil — host previews/editors — omits the
+    ///   strip and reserves no extra height, so those surfaces are unchanged.
+    /// - Parameter hiddenSymbols: the active layout's hidden set, so a curated-
+    ///   away symbol never appears in the recents strip (the passed `layout`
+    ///   should already have had `applyingHiddenSymbols(_:)` applied, so its
+    ///   keys can't record hidden symbols either).
     public init(
         layout: KeyboardLayout,
         metrics: KeyboardMetrics = KeyboardMetrics(),
         returnKeyType: UIReturnKeyType = .default,
         nextKeyboardOverlay: AnyView? = nil,
+        recentSymbolsStore: RecentSymbolsStore? = nil,
+        hiddenSymbols: Set<String> = [],
         onCursorMove: @escaping (CursorMoveEvent) -> Void = { _ in },
         onAction: @escaping (KeyAction) -> Void
     ) {
@@ -201,6 +240,8 @@ public struct KeyboardView: View {
         self.metrics = metrics
         self.returnKeyType = returnKeyType
         self.nextKeyboardOverlay = nextKeyboardOverlay
+        self.recentSymbolsStore = recentSymbolsStore
+        self.hiddenSymbols = hiddenSymbols
         self.onCursorMove = onCursorMove
         self.onAction = onAction
     }
@@ -224,6 +265,72 @@ public struct KeyboardView: View {
     private var gridReferenceFactor: Double {
         KeyRowSizing.gridReferenceFactor(
             rows: symbolRows + (bottomBar.map { [$0] } ?? []))
+        // Deliberately excludes the recents strip: its plain, spacerless row
+        // sizes itself (see `KeyRowSizing`), and folding a variable count of
+        // recents into the grid basis would resize the symbol rows' columns as
+        // recents populate — the opposite of the constant layout we want.
+    }
+
+    /// Whether the recently-used-symbols strip is rendered (issue #16). It is
+    /// exactly when a store is supplied — the extension — and drives both the
+    /// extra reserved row and the tracking of inserted symbols.
+    private var showsRecents: Bool { recentSymbolsStore != nil }
+
+    /// Rows the keyboard reserves height for: the arrangement's tallest panel
+    /// plus bottom bar, plus the always-present recents row when the strip is
+    /// shown. The keyboard extension sizes its input view to the same count
+    /// (`Arrangement.totalRowCount + KeyboardMetrics.recentsRowCount`), so the
+    /// SwiftUI view and its host container never disagree.
+    private var reservedRowCount: Int {
+        (arrangement?.totalRowCount ?? 0)
+            + (showsRecents ? KeyboardMetrics.recentsRowCount : 0)
+    }
+
+    /// Per-symbol presentation harvested from the active layout (rows, function
+    /// row, switch keys, and long-press alternates), keyed by inserted symbol,
+    /// so a recents key mirrors its keyboard counterpart on two axes: the same
+    /// VoiceOver name ("schwa", not the raw glyph "ə") and the same rendered
+    /// cap when a key overrides its glyph with a custom `label` (e.g. a key that
+    /// inserts a multi-scalar sequence but shows a single composed cap). A
+    /// symbol no longer in the layout is absent from both maps; its recents key
+    /// then falls back to the inserted text for the glyph and to the glyph for
+    /// VoiceOver.
+    private var recentsKeyPresentation: (display: [String: String], spoken: [String: String]) {
+        var display: [String: String] = [:]
+        var spoken: [String: String] = [:]
+        func harvest(_ key: Key) {
+            if case .insert(let text) = key.action {
+                if let label = key.label { display[text] = label }
+                if let label = key.accessibilityLabel { spoken[text] = label }
+            }
+            key.alternates.forEach(harvest)
+        }
+        for arrangement in layout.arrangements {
+            for panel in arrangement.panels {
+                panel.switchKey.map(harvest)
+                panel.rows.forEach { $0.keys.forEach(harvest) }
+            }
+            arrangement.functionRow?.keys.forEach(harvest)
+        }
+        return (display, spoken)
+    }
+
+    /// Rebuild `recentKeys` from the store, filtered by the active layout's
+    /// hidden set and labeled from the layout — both the custom display glyph
+    /// and the spoken name, so a recent renders and reads exactly like its
+    /// keyboard counterpart. Called on first appearance, when the layout
+    /// changes, and after each recorded insert — never during a body pass, so
+    /// it can safely mutate `@State`.
+    private func refreshRecents() {
+        guard let store = recentSymbolsStore else { return }
+        let presentation = recentsKeyPresentation
+        recentKeys = store.recentSymbols(excludingHidden: hiddenSymbols)
+            .map {
+                Key(
+                    action: .insert($0),
+                    label: presentation.display[$0],
+                    accessibilityLabel: presentation.spoken[$0])
+            }
     }
 
     public var body: some View {
@@ -236,6 +343,14 @@ public struct KeyboardView: View {
         // for shorter panels.
         VStack(spacing: 0) {
             VStack(spacing: metrics.rowSpacing) {
+                if showsRecents {
+                    // First child of the symbol-rows stack, so it inherits one
+                    // normal row gap below it and counts as one extra row in
+                    // the reserved height (`reservedRowCount`). Always present —
+                    // an empty-state placeholder when there are no recents — so
+                    // the keyboard never changes height as the strip fills.
+                    recentsStrip(gridReferenceFactor: reference)
+                }
                 ForEach(symbolRows) { row in
                     KeyRowView(
                         row: row,
@@ -272,10 +387,12 @@ public struct KeyboardView: View {
             }
         }
         .padding(metrics.outerPadding)
-        // Reserve the arrangement's tallest-panel + bottom-bar height so
-        // switching panels doesn't change the keyboard's size. Matches the
-        // controller's height constraint (both via `metrics.totalHeight`).
-        .frame(maxWidth: .infinity, minHeight: metrics.totalHeight(for: arrangement), alignment: .top)
+        // Reserve the arrangement's tallest-panel + bottom-bar height (plus
+        // the always-present recents row when shown) so neither switching
+        // panels nor recents populating changes the keyboard's size. Matches
+        // the controller's height constraint (both via `metrics.totalHeight`
+        // over the same `reservedRowCount`).
+        .frame(maxWidth: .infinity, minHeight: metrics.totalHeight(rowCount: reservedRowCount), alignment: .top)
         // Name the keyboard's full bounds and record their rendered size:
         // pressed keys measure their cap frames in this space and clamp
         // their alternates popups against the size (`AlternatesPopupPlacement`).
@@ -310,15 +427,61 @@ public struct KeyboardView: View {
             .allowsHitTesting(false)
         }
         // A reused view identity (host editor/preview) must drop a stale panel
-        // selection when the layout changes.
-        .onChange(of: layout.id) { _, _ in activePanelName = nil }
+        // selection when the layout changes — and re-read recents, whose
+        // hidden-set filter and spoken labels are layout-specific.
+        .onChange(of: layout.id) { _, _ in
+            activePanelName = nil
+            refreshRecents()
+        }
+        // Seed the recents strip from the store on first appearance (the
+        // extension is relaunched fresh each time it is shown).
+        .onAppear { refreshRecents() }
     }
 
-    /// Intercept panel switches; forward every other action to the host.
+    /// The recently-used-symbols strip (issue #16): a spacerless row of the
+    /// recorded symbols, most-recent-first, or a faint placeholder holding the
+    /// same single-row height when there are none yet — so the strip is always
+    /// present and the keyboard's height never jumps as it fills. Tapping a
+    /// recent inserts it (and, like any insert, re-records it to the front).
+    @ViewBuilder
+    private func recentsStrip(gridReferenceFactor reference: Double) -> some View {
+        if recentKeys.isEmpty {
+            Text("Recently used")
+                .font(.footnote)
+                .foregroundStyle(.secondary)
+                .frame(maxWidth: .infinity)
+                .frame(height: metrics.rowHeight)
+                .accessibilityIdentifier("recents-empty")
+        } else {
+            KeyRowView(
+                row: KeyRow(keys: recentKeys),
+                metrics: metrics,
+                gridReferenceFactor: reference,
+                keyboardSize: keyboardSize,
+                returnKeyType: returnKeyType,
+                nextKeyboardOverlay: nil,
+                onCursorMove: onCursorMove,
+                onAction: handle,
+                onPopupChange: { _ in })
+                .accessibilityIdentifier("recents-row")
+        }
+    }
+
+    /// Intercept panel switches; record inserted symbols into the recents
+    /// strip (issue #16); forward every other action to the host. Recording
+    /// happens here — the one place every key's action funnels through,
+    /// including the recents strip's own keys and long-press alternates — so a
+    /// tapped recent moves back to the front just like a fresh insert. The
+    /// rendered `layout` is already curated, so a hidden symbol has no key to
+    /// record; the strip's display filter is the belt-and-braces guard.
     private func handle(_ action: KeyAction) {
         if case .switchPanel(let target) = action {
             activePanelName = target
         } else {
+            if case .insert(let text) = action, let store = recentSymbolsStore {
+                store.record(text)
+                refreshRecents()
+            }
             onAction(action)
         }
     }
