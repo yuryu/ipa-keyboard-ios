@@ -89,6 +89,24 @@ struct KeyboardAppearanceTests {
         #expect(KeyPalette.alternateHighlight == KeyPalette.prominentReturn)
     }
 
+    @Test func textOnAccentFillsResolvesThroughOneSlot() {
+        // Both the prominent return key's label and the highlighted alternates
+        // cell's symbol must come from the SAME palette slot, so a future retint
+        // of `accentText` moves them together (issue #114/#143). Reference
+        // identity — not mere value equality — pins single-source-of-truth:
+        // re-splitting either consumer into its own `UIColor.white` would still
+        // compare equal but would break `===`.
+        #expect(KeyStyle.prominentReturn.textColor === KeyPalette.accentText)
+        #expect(KeyPalette.alternateHighlightText === KeyPalette.accentText)
+        // And they render identically in both schemes.
+        for style in [UIUserInterfaceStyle.light, .dark] {
+            let traits = UITraitCollection(userInterfaceStyle: style)
+            let accent = KeyPalette.accentText.resolvedColor(with: traits)
+            #expect(KeyStyle.prominentReturn.textColor.resolvedColor(with: traits) == accent)
+            #expect(KeyPalette.alternateHighlightText.resolvedColor(with: traits) == accent)
+        }
+    }
+
     @Test func pressedFillsDifferFromRestingFills() {
         let light = UITraitCollection(userInterfaceStyle: .light)
         for style in [KeyStyle.character, .function, .prominentReturn] {
