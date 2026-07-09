@@ -114,6 +114,21 @@ final class LayoutListScratchpadUITests: XCTestCase {
         return confirmed(within: timeout)
     }
 
+    /// Polls `predicate` until it holds or `timeout` elapses, taking a fresh
+    /// accessibility snapshot each slice. For confirming a state assembled
+    /// from several individually best-effort taps (e.g. an interior buffer
+    /// run built by tapping space then a glyph), where no single retrying
+    /// `tap(_:confirmedBy:)` call fits.
+    @MainActor
+    private func poll(_ predicate: () -> Bool, timeout: TimeInterval = 10) -> Bool {
+        let deadline = Date().addingTimeInterval(timeout)
+        repeat {
+            if predicate() { return true }
+            RunLoop.current.run(until: Date().addingTimeInterval(0.1))
+        } while Date() < deadline
+        return predicate()
+    }
+
     /// The scratchpad's current text: the field's accessibility `value`.
     /// While the buffer is empty the field reports its placeholder instead,
     /// so emptiness is asserted via the clear button's nonexistence, never
@@ -249,36 +264,62 @@ final class LayoutListScratchpadUITests: XCTestCase {
         )
 
         // The migrated key (#70/PR #133): a short tap must still emit `.space`,
-        // appending a literal space after the "i". A *trailing* space, though,
-        // is not a reliable oracle — a UITextField can report its accessibility
-        // value with trailing whitespace trimmed, so we accept either "i " or a
-        // trimmed "i" here (both mean "no second space was doubled"). The
-        // authoritative proof that the space landed is the interior "i u"
-        // assertion below, where the space sits between two glyphs and cannot
-        // be trimmed. Tolerating the trim also stops `tap(confirmedBy:)` from
-        // retrying — and thus double-inserting — when the value comes back "i".
+        // appending a literal space after the "i". The scratch buffer is
+        // append-only, so that space is *transiently trailing* until the next
+        // glyph lands — and a text field may report its accessibility value
+        // with trailing whitespace trimmed, which is indistinguishable from the
+        // space tap having been swallowed entirely (the scroll-stop-touch flake
+        // this suite hardens against). So we never gate on the trailing space in
+        // isolation: a bare "i" can't tell a trimmed-but-landed space from a
+        // missed one, and accepting it would let a swallowed tap pass unretried.
+        // Instead we tap space then u and gate on the *interior* "i u" run,
+        // where the space sits between two glyphs and cannot be trimmed — an
+        // unambiguous oracle that the space actually landed.
         let space = library.activePreviewSpaceKey
         XCTAssertTrue(
             waitForTappable(space, timeout: 10),
             "Active preview does not expose a tappable 'key-space' key"
         )
-        XCTAssertTrue(
-            tap(space, confirmedBy: { scratchText == "i " || scratchText == "i" }),
-            "Tapping the preview's space key left the scratchpad in an unexpected state (expected \"i \" or a trim to \"i\")"
-        )
-
         // Second glyph: u (close back rounded vowel), same first row, also no
-        // alternates. With a glyph now on each side, the space is interior and
-        // cannot be trimmed from the field's reported value.
+        // alternates. With a glyph on each side the space is interior and can't
+        // be trimmed from the field's reported value.
         let closeBackU = library.activePreviewKey(inserting: "u")
         XCTAssertTrue(
             waitForTappable(closeBackU, timeout: 10),
             "Active preview does not expose a tappable 'key-insert-u' key"
         )
-        XCTAssertTrue(
-            tap(closeBackU, confirmedBy: { scratchText == "i u" }),
-            "Tapping the preview's u key did not append — scratchpad should read 'i u'"
-        )
+
+        space.tap()
+        closeBackU.tap()
+        if !poll({ scratchText == "i u" }) {
+            // A tap was swallowed, leaving a partial buffer ("iu" if the space
+            // was missed, "i " if u was). Re-tapping would only append to that
+            // leftover — never yielding "i u" — so clear and rebuild the
+            // i / space / u run from empty once, the same single-retry budget
+            // `tap(_:confirmedBy:)` spends on the happy path.
+            XCTAssertTrue(
+                waitForTappable(library.scratchClearButton, timeout: 10),
+                "Clear button not tappable while recovering a swallowed tap"
+            )
+            library.scratchClearButton.tap()
+            XCTAssertTrue(
+                poll({ !library.scratchClearButton.exists }),
+                "Scratchpad did not clear before rebuilding the space run"
+            )
+            let closeFrontIAgain = library.activePreviewKey(inserting: "i")
+            XCTAssertTrue(
+                waitForTappable(closeFrontIAgain, timeout: 10),
+                "Active preview does not re-expose a tappable 'key-insert-i' key"
+            )
+            closeFrontIAgain.tap()
+            space.tap()
+            closeBackU.tap()
+            XCTAssertTrue(
+                poll({ scratchText == "i u" }),
+                "Rebuilt run never reached 'i u' — space-bar tap-to-insert did "
+                    + "not survive the #70/PR #133 KeyPressTracker migration"
+            )
+        }
 
         // Positive assertion: the observed value contains the glyph-space-glyph
         // run — an actual U+0020 between two non-space characters — so the
