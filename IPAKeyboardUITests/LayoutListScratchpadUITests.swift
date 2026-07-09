@@ -4,7 +4,11 @@
 //
 //  UI coverage for the layout-list scratchpad (issues #103/#115): keys
 //  tapped on the Active section's `KeyboardView` preview type into the
-//  scratchpad text field, and the clear button empties it.
+//  scratchpad text field, and the clear button empties it. Also pins
+//  space-bar tap-to-insert (issue #139 item 1) after the issue #70 / PR #133
+//  migration moved the space key onto `KeyPressTracker`: a *short* tap must
+//  still emit `.space` (only a >0.3 s hold enters trackpad-style cursor
+//  mode, which types nothing), so a tap appends a literal U+0020.
 //
 //  Typing goes through the preview keys, not the system keyboard:
 //  `typeText` needs the software keyboard on screen, whose presence depends
@@ -192,6 +196,97 @@ final class LayoutListScratchpadUITests: XCTestCase {
         XCTAssertFalse(
             scratchText.contains("ə"),
             "Scratchpad still shows typed text after clearing"
+        )
+    }
+
+    // MARK: - Space-bar tap-to-insert (issue #139 item 1)
+
+    /// Tapping the space key inserts a literal space into the scratchpad —
+    /// pinning space-bar tap-to-insert after the issue #70 / PR #133 migration
+    /// moved the space key from a SwiftUI tap gesture onto `KeyPressTracker`.
+    /// The tracker routes a completed >0.3 s hold into trackpad-style cursor
+    /// mode (which types nothing, so it can't stand in for a tap), and a short
+    /// tap through its `onTap` path must still emit `.space` — which the
+    /// active-preview wiring feeds to `ScratchInput.apply`, appending U+0020.
+    ///
+    /// Types i, then space, then u (all on the en-US function/primary rows,
+    /// none with long-press alternates), so the inserted space sits *between*
+    /// two non-space characters. The final assertion is positive and interior:
+    /// the field's value must contain the exact "i u" run — a trailing space
+    /// could be trimmed from a text field's reported value, but a space framed
+    /// by glyphs cannot, so an observed "i u" proves the space was inserted.
+    @MainActor
+    func test_scratchpad_spaceKeyTap_insertsSpaceBetweenGlyphs() throws {
+        app.launch()
+        let library = LibraryScreen(app: app)
+        XCTAssertTrue(
+            library.waitForContent(timeout: .postNavigation),
+            "Layout library 'Layouts' navigation bar did not appear"
+        )
+        XCTAssertTrue(
+            library.scratchField.waitForExistence(timeout: .postNavigation),
+            "Scratchpad text field (layout-list-scratch) not found on the main screen"
+        )
+        // Freshly launched (and layouts/preferences reset), the buffer is
+        // empty, so the clear button — rendered only while there is text —
+        // must not exist yet.
+        XCTAssertFalse(
+            library.scratchClearButton.exists,
+            "Clear button rendered while the scratchpad is empty"
+        )
+
+        // First glyph: i (close front unrounded vowel) — a no-alternates key
+        // on the en-US primary panel, so a plain tap types it directly. The
+        // confirmation doubles as the clear button's appearance check.
+        let closeFrontI = library.activePreviewKey(inserting: "i")
+        XCTAssertTrue(
+            waitForTappable(closeFrontI, timeout: .postNavigation),
+            "Active preview does not expose a tappable 'key-insert-i' key"
+        )
+        XCTAssertTrue(
+            tap(closeFrontI, confirmedBy: { scratchText == "i" && library.scratchClearButton.exists }),
+            "Tapping the preview's i key did not type 'i' into the scratchpad"
+        )
+
+        // The migrated key (#70/PR #133): a short tap must still emit `.space`,
+        // appending a literal space after the "i". A *trailing* space, though,
+        // is not a reliable oracle — a UITextField can report its accessibility
+        // value with trailing whitespace trimmed, so we accept either "i " or a
+        // trimmed "i" here (both mean "no second space was doubled"). The
+        // authoritative proof that the space landed is the interior "i u"
+        // assertion below, where the space sits between two glyphs and cannot
+        // be trimmed. Tolerating the trim also stops `tap(confirmedBy:)` from
+        // retrying — and thus double-inserting — when the value comes back "i".
+        let space = library.activePreviewSpaceKey
+        XCTAssertTrue(
+            waitForTappable(space, timeout: 10),
+            "Active preview does not expose a tappable 'key-space' key"
+        )
+        XCTAssertTrue(
+            tap(space, confirmedBy: { scratchText == "i " || scratchText == "i" }),
+            "Tapping the preview's space key left the scratchpad in an unexpected state (expected \"i \" or a trim to \"i\")"
+        )
+
+        // Second glyph: u (close back rounded vowel), same first row, also no
+        // alternates. With a glyph now on each side, the space is interior and
+        // cannot be trimmed from the field's reported value.
+        let closeBackU = library.activePreviewKey(inserting: "u")
+        XCTAssertTrue(
+            waitForTappable(closeBackU, timeout: 10),
+            "Active preview does not expose a tappable 'key-insert-u' key"
+        )
+        XCTAssertTrue(
+            tap(closeBackU, confirmedBy: { scratchText == "i u" }),
+            "Tapping the preview's u key did not append — scratchpad should read 'i u'"
+        )
+
+        // Positive assertion: the observed value contains the glyph-space-glyph
+        // run — an actual U+0020 between two non-space characters — so the
+        // inserted space is proven present, not merely inferred from absence.
+        XCTAssertTrue(
+            scratchText.contains("i u"),
+            "Scratchpad should contain the space-delimited 'i u' — space-bar "
+                + "tap-to-insert did not survive the #70/PR #133 KeyPressTracker migration"
         )
     }
 }
