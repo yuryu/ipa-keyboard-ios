@@ -77,10 +77,11 @@ and reset-to-default).
 
 **Signing/App Group provisioning**
 ([#3](https://github.com/yuryu/ipa-keyboard-ios/issues/3)) has landed: the
-app + extension build and run signed in the simulator and the cross-target
-flow (active layout + hidden symbols → extension) is verified end to end.
-On-device verification waits only on registering a physical device with the
-developer team.
+app + extension build and run signed in the simulator, the cross-target
+flow (active layout + hidden symbols → extension) is verified end to end
+there, and on device the automatic-signing profiles carry the App Group,
+the signed build installs, and the app runs. The one step not yet verified
+outside the simulator is typing through the keyboard on a physical device.
 
 For everything else, see the
 [open issues](https://github.com/yuryu/ipa-keyboard-ios/issues).
