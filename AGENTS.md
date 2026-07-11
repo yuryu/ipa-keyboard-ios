@@ -36,10 +36,12 @@ where mistakes are easy to make and expensive to ship:
   `isBuiltIn = false`). Symbol curation is non-destructive
   (`applyingHiddenSymbols(_:)` returns a filtered copy; hidden sets live
   in `KeyboardPreferences`, never in the layout document).
-- **Graceful degradation without the App Group.** The App Group is not
-  yet provisioned; `AppGroup.containerURL` can be nil. Storage and
-  preferences code must fall back (bundled defaults, `.standard`
-  UserDefaults) rather than crash or silently lose data.
+- **Graceful degradation without the App Group.** `AppGroup.containerURL`
+  is still nil in unsigned contexts (CI builds with
+  `CODE_SIGNING_ALLOWED=NO`, kit unit tests), so this is a permanent
+  requirement, not a provisioning stopgap: storage and preferences code
+  must fall back (bundled defaults, `.standard` UserDefaults) rather
+  than crash or silently lose data.
 - **Keyboard-extension constraints.** Tight memory budget (~48–66 MB), no
   network, no full access assumed; the globe key must respect
   `needsInputModeSwitchKey`.

@@ -8,9 +8,9 @@ extension — that ships good default IPA layouts per language-dialect and lets
 you compose and edit the symbol set you actually use.
 
 > **Status: early-stage prototype.** The keyboard extension and the host app's
-> layout-management UI exist; key-level layout *editing* is next. Code signing
-> is deferred (the Apple developer account is mid-relocation), so the framework
-> builds standalone but a full signed app/extension build does not yet run.
+> layout-management UI exist; key-level layout *editing* is next. The full
+> app + extension builds and runs signed in the simulator; on-device runs
+> need a device registered with the developer team.
 > For what's delivered and what's planned, see
 > ["Where we are"](docs/ROADMAP.md#where-we-are) and
 > [GitHub Issues](https://github.com/yuryu/ipa-keyboard-ios/issues).
@@ -46,6 +46,10 @@ xcodebuild -project IPAKeyboard.xcodeproj -scheme IPAKeyboardKit \
 xcodebuild -project IPAKeyboard.xcodeproj -scheme IPAKeyboardKit \
   -destination 'platform=iOS Simulator,name=iPhone 17' \
   CODE_SIGNING_ALLOWED=NO test
+
+# Full app + extension (simulator, automatic signing)
+xcodebuild -project IPAKeyboard.xcodeproj -scheme IPAKeyboard \
+  -destination 'platform=iOS Simulator,name=iPhone 17' build
 ```
 
 ## License

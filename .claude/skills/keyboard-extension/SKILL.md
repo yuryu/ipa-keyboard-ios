@@ -15,7 +15,7 @@ The two share data through the App Group `group.net.yuryu.IPAKeyboard` — the i
 
 ## Render path (host preview mirrors it, so they can never disagree)
 
-`KeyboardExtension/KeyboardViewController.swift`: `LayoutStore().allLayouts()` → `ActiveLayoutResolver.resolve(activeID:in:)` (using `KeyboardPreferences.activeLayoutID`) → apply that layout's hidden-symbols curation → render the shared SwiftUI `KeyboardView` (hosted via `UIHostingController` inside the `UIInputViewController`) → apply emitted `KeyAction`s to the `textDocumentProxy`. `LayoutStore` degrades gracefully to bundled defaults when the App Group container is nil (provisioning is deferred), so nothing may crash on a nil container. `Arrangement.totalRowCount` sizes the keyboard's constant height; keep sizing correct for portrait, landscape, and iPad.
+`KeyboardExtension/KeyboardViewController.swift`: `LayoutStore().allLayouts()` → `ActiveLayoutResolver.resolve(activeID:in:)` (using `KeyboardPreferences.activeLayoutID`) → apply that layout's hidden-symbols curation → render the shared SwiftUI `KeyboardView` (hosted via `UIHostingController` inside the `UIInputViewController`) → apply emitted `KeyAction`s to the `textDocumentProxy`. `LayoutStore` degrades gracefully to bundled defaults when the App Group container is nil (e.g. unsigned CI builds), so nothing may crash on a nil container. `Arrangement.totalRowCount` sizes the keyboard's constant height; keep sizing correct for portrait, landscape, and iPad.
 
 ## Runtime constraints (these cause real crashes/rejections)
 

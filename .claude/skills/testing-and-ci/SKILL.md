@@ -12,4 +12,4 @@ CI (`macos-26`) runs two unsigned-simulator jobs:
 - `build-and-test` — build-for-testing all three targets + the app-hosted unit-test and UI-test bundles, then kit unit tests and `-only-testing:IPAKeyboardTests`, sequential.
 - `ui-test` — build app scheme for testing; fully boot the simulator with `simctl bootstatus -b` — launching the XCUITest runner mid-boot fails with "Busy"; run `IPAKeyboardUITests` sequentially, `-parallel-testing-enabled NO`, via `test-without-building`.
 
-No signed/device/archive lane yet (deferred until provisioning).
+No device/archive lane yet; CI builds stay unsigned (`CODE_SIGNING_ALLOWED=NO`).

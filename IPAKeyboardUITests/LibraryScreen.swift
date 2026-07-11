@@ -215,7 +215,7 @@ struct LibraryScreen {
     /// preference at launch, so fork/persistence tests start from a clean
     /// slate instead of self-healing via swipe-to-delete (issue #27).
     /// Matches `LayoutLibrary.resetLayoutsArgument`. When the App Group
-    /// container is unavailable (every unsigned build today) only the layout
+    /// container is unavailable (e.g. unsigned CI builds) only the layout
     /// deletion is skipped; the preferences reset still clears the app's
     /// fallback process-local defaults.
     static let resetLayoutsArgument = "--uitest-reset-layouts"

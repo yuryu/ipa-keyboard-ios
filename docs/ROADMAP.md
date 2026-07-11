@@ -75,10 +75,13 @@ per-layout symbol curation with an in-app scratchpad, and key-level editing
 of forked layouts (rows, keys, alternates, widths — with live draft preview
 and reset-to-default).
 
-The big external blocker is **signing/App Group provisioning**
-([#3](https://github.com/yuryu/ipa-keyboard-ios/issues/3)) — until it lands,
-nothing reaches the on-device keyboard and the payoff of new work is host-side
-(live preview and scratchpad).
+**Signing/App Group provisioning**
+([#3](https://github.com/yuryu/ipa-keyboard-ios/issues/3)) has landed: the
+app + extension build and run signed in the simulator, the cross-target
+flow (active layout + hidden symbols → extension) is verified end to end
+there, and on device the automatic-signing profiles carry the App Group,
+the signed build installs, and the app runs. The one step not yet verified
+outside the simulator is typing through the keyboard on a physical device.
 
 For everything else, see the
 [open issues](https://github.com/yuryu/ipa-keyboard-ios/issues).
