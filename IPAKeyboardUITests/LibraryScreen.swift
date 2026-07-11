@@ -267,6 +267,15 @@ struct LibraryScreen {
         activePreview.descendants(matching: .any)["key-insert-\(text)"].firstMatch
     }
 
+    /// The active-preview space key, located by `KeyboardView`'s stable
+    /// `key-space` identifier (`Key.accessibilityIdentifier`) — the space key
+    /// emits `.space`, not an insert, so it has no `key-insert-<text>` form.
+    /// Scoped to the preview container, so a match also proves the key
+    /// rendered *inside* the Active section's preview.
+    var activePreviewSpaceKey: XCUIElement {
+        activePreview.descendants(matching: .any)["key-space"].firstMatch
+    }
+
     /// The scratchpad under the active preview (issue #103). Surfaces as a
     /// `TextField` despite its `axis: .vertical` (confirmed via the runtime
     /// accessibility snapshot, 2026-07-04); its `value` is the typed text,
