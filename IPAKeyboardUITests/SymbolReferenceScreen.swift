@@ -170,16 +170,25 @@ struct SymbolReferenceScreen {
         return XCTWaiter().wait(for: [focused], timeout: timeout) == .completed
     }
 
-    /// Waits for `element`, swiping the reference list up between checks —
+    /// Waits for `element`, scrolling the reference list up between checks —
     /// SwiftUI lists compose rows lazily, so a row below the fold does not
     /// exist until scrolled into range. Termination is progress-based, not
-    /// wall-clock: the loop stops once *two consecutive* swipes reveal no
-    /// new bottom row (the whole list has been traversed — a single
+    /// wall-clock: the loop stops once *two consecutive* scroll steps reveal
+    /// no new bottom row (the whole list has been traversed — a single
     /// unchanged observation can be a mid-composition coincidence; a nil
     /// sample never counts), so the reach scales with the inventory instead
-    /// of failing when new bundled layouts grow it. The swipe cap is only a
+    /// of failing when new bundled layouts grow it. The step cap is only a
     /// runaway backstop, sized well past the row count a full traversal of
     /// today's inventory needs.
+    ///
+    /// Hardened per the tap-after-scroll flake rule (issue #181; ported from
+    /// `LibraryScreen`'s `waitForRevealed` — this file stays self-contained,
+    /// see the header): each scroll step is a stationary press-drag between
+    /// two in-list coordinates, ending with zero deceleration (an inertial
+    /// `swipeUp` leaves the list decelerating, and a caller's follow-up tap
+    /// is swallowed as a scroll-stop touch), and once any step was issued,
+    /// success additionally requires the settle gate below. An element found
+    /// without scrolling returns immediately, unchanged.
     @discardableResult
     func waitForRevealed(_ element: XCUIElement, maxSwipes: Int = 40) -> Bool {
         var swipes = 0
@@ -191,11 +200,44 @@ struct SymbolReferenceScreen {
                 stallStrikes = bottomRow == previousBottomRow ? stallStrikes + 1 : 0
                 previousBottomRow = bottomRow
             }
-            if stallStrikes >= 2 || swipes >= maxSwipes { return element.exists }
-            list.swipeUp()
+            if stallStrikes >= 2 || swipes >= maxSwipes {
+                return element.exists && settled(element, afterScrollSteps: swipes)
+            }
+            list.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.75))
+                .press(
+                    forDuration: 0.05,
+                    thenDragTo: list.coordinate(
+                        withNormalizedOffset: CGVector(dx: 0.5, dy: 0.25)))
             swipes += 1
         }
-        return true
+        return settled(element, afterScrollSteps: swipes)
+    }
+
+    /// Post-scroll settle gate (see `waitForRevealed`): with zero scroll
+    /// steps the screen was never disturbed — success as-is. Otherwise
+    /// require `element` to be hittable with an identical frame across two
+    /// consecutive snapshots, so a caller's immediate tap can't land on a
+    /// still-settling row. Bounded: on expiry it falls back to bare
+    /// existence — the pre-gate contract — so a revealed-but-edge-clipped
+    /// row (never hittable) can't hang non-tapping callers.
+    private func settled(
+        _ element: XCUIElement, afterScrollSteps steps: Int,
+        timeout: TimeInterval = 10
+    ) -> Bool {
+        guard steps > 0 else { return true }
+        let deadline = Date().addingTimeInterval(timeout)
+        var previousFrame: CGRect?
+        while Date() < deadline {
+            if element.exists, element.isHittable {
+                let frame = element.frame
+                if let previousFrame, frame == previousFrame { return true }
+                previousFrame = frame
+            } else {
+                previousFrame = nil
+            }
+            RunLoop.current.run(until: Date().addingTimeInterval(0.1))
+        }
+        return element.exists
     }
 
     /// Identifier of the bottom-most composed symbol row, used by

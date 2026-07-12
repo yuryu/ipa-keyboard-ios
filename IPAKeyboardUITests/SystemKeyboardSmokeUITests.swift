@@ -90,15 +90,20 @@ final class SystemKeyboardSmokeUITests: XCTestCase {
 
         tapExtensionKey("key-insert-t")
         typeNasalizedSchwa()
+        let seed = "t\(nasalizedSchwa)"
         XCTAssertEqual(
-            scratchText, "t\(nasalizedSchwa)",
+            scratchText(settlingOn: { $0 == seed }), seed,
             "seed text did not arrive intact through the extension")
 
         // 12 pt of leftward drag on the 8 pt/step grid: exactly one step.
         holdSpaceAndDragLeft(points: 12, velocity: 40)
 
         tapExtensionKey("key-insert-i")
-        let result = scratchText
+        // Settle until the marker's insert lands — the buffer grows by one
+        // UTF-16 code unit wherever the cursor was parked, so a wrong
+        // outcome settles as fast as the right one — then assert on the
+        // exact final text.
+        let result = scratchText(settlingOn: { $0.utf16.count > seed.utf16.count })
         XCTAssertNotEqual(
             result, "it\(nasalizedSchwa)",
             "one step moved two user-perceived characters — "
@@ -124,7 +129,7 @@ final class SystemKeyboardSmokeUITests: XCTestCase {
         typeNasalizedSchwa()
         let seed = "t\(nasalizedSchwa)t\(nasalizedSchwa)"
         XCTAssertEqual(
-            scratchText, seed,
+            scratchText(settlingOn: { $0 == seed }), seed,
             "seed text did not arrive intact through the extension")
 
         // 36 pt left at a gentle velocity: several samples per grid cell,
@@ -132,7 +137,10 @@ final class SystemKeyboardSmokeUITests: XCTestCase {
         holdSpaceAndDragLeft(points: 36, velocity: 50)
 
         tapExtensionKey("key-insert-i")
-        let result = scratchText
+        // Same position-agnostic settle as the UTF-16 test: wherever the
+        // drag parked the cursor, the marker's insert grows the buffer by
+        // one code unit; the asserts below judge the exact final text.
+        let result = scratchText(settlingOn: { $0.utf16.count > seed.utf16.count })
         XCTAssertFalse(
             result.contains("i\u{0303}"),
             "the marker recombined with a stranded combining tilde — a cursor "
@@ -163,6 +171,27 @@ final class SystemKeyboardSmokeUITests: XCTestCase {
         return value == scratchField.placeholderValue ? "" : value
     }
 
+    /// Bounded poll of `scratchText` until `predicate` accepts it, returning
+    /// the final text either way. A synthesized key tap returns when the
+    /// touch completes, but the inserted text travels appex → text-input
+    /// system → host field asynchronously, so an instantaneous `scratchText`
+    /// read right after the last tap can observe the field before the insert
+    /// lands and fail a healthy run (issue #185). The confirmation-gated
+    /// polling pattern of LayoutListScratchpadUITests' `tap(_:confirmedBy:)`,
+    /// minus the re-tap — re-tapping a typing key whose first tap merely
+    /// landed late would double-insert. Callers keep the exact-Unicode
+    /// equality as the final assert, on the returned value.
+    @MainActor
+    private func scratchText(
+        settlingOn predicate: (String) -> Bool, timeout: TimeInterval = 10
+    ) -> String {
+        let deadline = Date(timeIntervalSinceNow: timeout)
+        while !predicate(scratchText), Date() < deadline {
+            RunLoop.current.run(until: Date(timeIntervalSinceNow: 0.25))
+        }
+        return scratchText
+    }
+
     /// Launches the app, focuses the scratchpad, and makes the IPA keyboard
     /// the active input mode — switching to it through the globe's
     /// input-mode picker when a system keyboard comes up first. Skips the
@@ -172,6 +201,19 @@ final class SystemKeyboardSmokeUITests: XCTestCase {
         app.launch()
         XCTAssertTrue(scratchField.waitForExistence(timeout: .postNavigation))
         scratchField.tap()
+        // The whole suite's skip decision hangs on this one tap: if it is
+        // swallowed (scroll-stop touch, system interruption — the same
+        // silent-tap class `LibraryScreen.openEnglishUS` is hardened
+        // against), no keyboard ever comes up, the globe probe below
+        // misses, and the test exits via XCTSkip on a simulator where the
+        // extension IS enabled — a false skip silently vacating the only
+        // end-to-end coverage of the real .appex (issue #185). Gate on the
+        // field actually holding keyboard focus, with one re-tap on a miss,
+        // then fall through to the probes and — accurately, now — the skip.
+        if !waitForKeyboardFocus(on: scratchField) {
+            scratchField.tap()
+            _ = waitForKeyboardFocus(on: scratchField, timeout: 2)
+        }
 
         if waitForExtensionKey("key-space", timeout: 5) != nil { return }
 
@@ -191,6 +233,21 @@ final class SystemKeyboardSmokeUITests: XCTestCase {
         throw XCTSkip(
             "IPA keyboard extension is not enabled on this simulator — "
                 + "see the file header for the one-time Settings setup")
+    }
+
+    /// Bounded, event-driven wait for `field` to gain keyboard focus after
+    /// a tap. An `XCTNSPredicateExpectation` on `hasKeyboardFocus` fulfills
+    /// the moment focus lands; an `app.keyboards` poll would instead burn
+    /// its full timeout whenever the simulator's Connect Hardware Keyboard
+    /// setting suppresses the software keyboard — and would match nothing at
+    /// all under a custom keyboard anyway (see the header). (Duplicated from
+    /// SymbolReferenceScreen.swift / KeyEditorScreen.swift by design — those
+    /// page objects are deliberately self-contained.)
+    @MainActor
+    private func waitForKeyboardFocus(on field: XCUIElement, timeout: TimeInterval = 5) -> Bool {
+        let focused = XCTNSPredicateExpectation(
+            predicate: NSPredicate(format: "hasKeyboardFocus == true"), object: field)
+        return XCTWaiter().wait(for: [focused], timeout: timeout) == .completed
     }
 
     /// The *extension's* rendering of the key with `identifier`, told apart
