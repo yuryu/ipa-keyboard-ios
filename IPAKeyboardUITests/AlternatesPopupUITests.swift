@@ -240,11 +240,10 @@ final class AlternatesPopupUITests: XCTestCase {
         // legitimate appearance.
         XCTAssertFalse(balloon.exists, "Preview balloon present before any key was pressed")
 
-        let appRef: XCUIApplication = app
         let balloonAppeared = observe(
             whilePerforming: { lateral.press(forDuration: Self.pressHoldDuration) },
-            poll: {
-                !Self.presentIdentifiers(in: appRef, among: [Self.balloonID]).isEmpty
+            poll: { snapshots in
+                !snapshots.presentIdentifiers(among: [Self.balloonID]).isEmpty
             })
 
         XCTAssertTrue(
@@ -311,14 +310,13 @@ final class AlternatesPopupUITests: XCTestCase {
         // only a persisting overlap.
         let alternateCell = detail.previewKey(inserting: "r")
         let alternateCellID = "key-insert-r"
-        let appRef: XCUIApplication = app
         let record = OSAllocatedUnfairLock(
             initialState: (popupSeen: false, balloonWhilePopupOpenSamples: 0))
         _ = observe(
             whilePerforming: { rhotic.press(forDuration: Self.pressHoldDuration) },
-            poll: {
-                let present = Self.presentIdentifiers(
-                    in: appRef, among: [alternateCellID, Self.balloonID])
+            poll: { snapshots in
+                let present = snapshots.presentIdentifiers(
+                    among: [alternateCellID, Self.balloonID])
                 guard present.contains(alternateCellID) else { return false }
                 let balloonNow = present.contains(Self.balloonID)
                 record.withLock {
@@ -385,41 +383,112 @@ final class AlternatesPopupUITests: XCTestCase {
     /// pay it exactly once each.
     private static let pressHoldDuration: TimeInterval = 10
 
-    /// Returns which of `identifiers` are present in `app`'s accessibility
-    /// hierarchy right now, resolved from one raw snapshot — the only way
-    /// `observe(whilePerforming:poll:)` closures may look at the UI.
+    /// A pre-resolved, activity-free source of raw accessibility snapshots —
+    /// the only way `observe(whilePerforming:poll:)` closures may look at
+    /// the UI. `presentIdentifiers(among:)` answers which of the given
+    /// identifiers exist in the app's accessibility hierarchy right now,
+    /// from one snapshot, atomically.
     ///
     /// Poll closures must not touch `XCUIElement`/`XCUIElementQuery` (not
-    /// even via KVC): query resolution logs an XCTest auto-activity
-    /// ("Checking existence of …"), and a bare background thread has no
-    /// XCTContext of its own (`XCTContext.runActivity` asserts "Current
-    /// context must not be nil" there — verified on this toolchain), so
-    /// that activity attaches to the *test thread's* current activity
-    /// record. During `observe` that record is the gesture's own transient
+    /// even via KVC): query resolution logs XCTest auto-activities
+    /// ("Checking existence of …") into the device's *shared* reporting
+    /// context — not a thread-local one — so records created from the bare
+    /// observer thread attach to whatever activity record is current on the
+    /// test thread. During `observe` that is the gesture's own transient
     /// activity, and a poll straddling its completion trips
     /// `XCActivityRecord _ensureValid` — "Activity cannot be used after its
-    /// scope has completed", aborting the test mid-run
-    /// (NSInternalInconsistencyException, CI run 28731666930 on this PR's
-    /// first push). `snapshotWithError:` (the ObjC spelling of public
-    /// `XCUIElementSnapshotProviding.snapshot()`, reached by selector so
-    /// the Swift interface's `@MainActor` annotation doesn't apply — at
-    /// runtime only event *synthesis* enforces the main thread) bypasses
-    /// the query-and-activity machinery entirely, and one snapshot answers
-    /// every identifier atomically.
-    private nonisolated static func presentIdentifiers(
-        in app: XCUIApplication, among identifiers: Set<String>
-    ) -> Set<String> {
-        guard
-            let root = app.perform(NSSelectorFromString("snapshotWithError:"), with: nil)?
-                .takeUnretainedValue() as? XCUIElementSnapshot
-        else { return [] }
-        var found: Set<String> = []
-        var stack: [any XCUIElementSnapshot] = [root]
-        while let node = stack.popLast(), found != identifiers {
-            if identifiers.contains(node.identifier) { found.insert(node.identifier) }
-            stack.append(contentsOf: node.children)
+    /// scope has completed", aborting the run mid-test
+    /// (NSInternalInconsistencyException, CI run 28731666930).
+    ///
+    /// The first mitigation had poll closures read the UI through per-poll
+    /// `snapshotWithError:` calls, believing that bypassed the
+    /// query-and-activity machinery entirely. It does not: every
+    /// `snapshotWithError:` call first re-resolves the application element
+    /// via `resolveOrRaiseTestFailure:error:`, which runs a "Find the
+    /// Target Application …" activity through the same shared reporting
+    /// context. That narrowed the race window (one activity per poll
+    /// instead of several) but could not close it — a heavily loaded runner
+    /// stretched the window enough for a poll to straddle the gesture
+    /// activity's completion again (issue #183, CI run 29002513638: the
+    /// poller's orphaned `t = nans` "Find the Target Application" records
+    /// interleave with the press's own activities right up to the crash).
+    ///
+    /// This type closes the race by construction instead of narrowing it.
+    /// Everything `snapshotWithError:` re-resolves per call — the app's
+    /// accessibility handle (`XCAccessibilityElement`, a process-ID token)
+    /// and the AX transport client (`XCAXClient_iOS`) — is resolved once,
+    /// in `init`, on the test thread, *before* the gesture starts. Each
+    /// poll then calls the transport layer directly
+    /// (`requestSnapshotForElement:attributes:parameters:error:`, the same
+    /// call `snapshotWithError:` bottoms out in; nil attributes/parameters
+    /// select the default iOS attribute set, which includes `identifier`).
+    /// Disassembly of that method on this toolchain (Xcode 26) shows it
+    /// emits no XCTest activities at all — only os_log lines and a reply
+    /// wait — so a background poll can no longer create an activity record
+    /// on any schedule, no matter how loaded the runner is.
+    private struct AppSnapshotSource: @unchecked Sendable {
+        /// `XCAXClient_iOS`, the device-wide accessibility transport client
+        /// (the previous `snapshotWithError:` path already exercised it
+        /// from this same background thread, several layers down).
+        private let client: NSObject
+        /// `XCAccessibilityElement` for the app process — the pre-resolved
+        /// handle whose per-poll re-resolution used to log the activities.
+        private let appElement: NSObject
+        private let request: RequestFunction
+
+        /// `requestSnapshotForElement:` takes four arguments, beyond what
+        /// `perform(_:with:with:)` can pass — call the IMP directly.
+        private typealias RequestFunction = @convention(c) (
+            NSObject, Selector, NSObject?, NSObject?, NSObject?, UnsafeMutableRawPointer?
+        ) -> Unmanaged<AnyObject>?
+
+        private static let requestSelector = NSSelectorFromString(
+            "requestSnapshotForElement:attributes:parameters:error:")
+        private static let rootSnapshotSelector = NSSelectorFromString("rootElementSnapshot")
+
+        /// Fails (returns nil) only if the private API this rests on
+        /// changed shape — the caller should fail the test loudly then.
+        /// `@MainActor` so the pre-resolution provably happens on the test
+        /// thread, before any gesture.
+        @MainActor
+        init?(app: XCUIApplication) {
+            guard
+                let device = app.perform(NSSelectorFromString("device"))?
+                    .takeUnretainedValue() as? NSObject,
+                let client = device.perform(NSSelectorFromString("accessibilityInterface"))?
+                    .takeUnretainedValue() as? NSObject,
+                let appElement = app.perform(NSSelectorFromString("accessibilityElement"))?
+                    .takeUnretainedValue() as? NSObject,
+                let method = class_getInstanceMethod(object_getClass(client), Self.requestSelector)
+            else { return nil }
+            self.client = client
+            self.appElement = appElement
+            self.request = unsafeBitCast(method_getImplementation(method), to: RequestFunction.self)
         }
-        return found
+
+        /// One snapshot request per call; walks the returned tree for the
+        /// given identifiers. Runs on the observer thread. Returns the
+        /// empty set when the snapshot cannot be taken (app quitting,
+        /// transport hiccup) — polls treat that as "nothing present" and
+        /// sample again.
+        func presentIdentifiers(among identifiers: Set<String>) -> Set<String> {
+            autoreleasepool {
+                guard
+                    let result = request(client, Self.requestSelector, appElement, nil, nil, nil)?
+                        .takeUnretainedValue() as? NSObject,
+                    result.responds(to: Self.rootSnapshotSelector),
+                    let root = result.perform(Self.rootSnapshotSelector)?
+                        .takeUnretainedValue() as? XCUIElementSnapshot
+                else { return [] }
+                var found: Set<String> = []
+                var stack: [any XCUIElementSnapshot] = [root]
+                while let node = stack.popLast(), found != identifiers {
+                    if identifiers.contains(node.identifier) { found.insert(node.identifier) }
+                    stack.append(contentsOf: node.children)
+                }
+                return found
+            }
+        }
     }
 
     /// Runs `gesture` — a blocking, main-thread-only event synthesis:
@@ -431,9 +500,12 @@ final class AlternatesPopupUITests: XCTestCase {
     /// observation of transient, press-scoped UI (the preview balloon, the
     /// alternates popup) possible at all: the test thread is otherwise
     /// blocked for the whole synthesis. Poll closures must read the UI
-    /// exclusively through `presentIdentifiers(in:among:)` — element
-    /// queries are activity-logging and race the gesture's own activity
-    /// records; see that helper's doc for the crash this prevents.
+    /// exclusively through the `AppSnapshotSource` they are handed —
+    /// element queries (and even bare `snapshotWithError:` calls) log
+    /// XCTest activities that race the gesture's own activity records; see
+    /// that type's doc for the runner crash this prevents. The source is
+    /// resolved here, on the test thread, before the gesture starts —
+    /// structurally, a poll has nothing left to resolve mid-gesture.
     ///
     /// The observer stops at the first `true` (or when the gesture ends),
     /// and this call always joins it before returning, so no orphaned
@@ -443,13 +515,20 @@ final class AlternatesPopupUITests: XCTestCase {
     @MainActor
     private func observe(
         whilePerforming gesture: () -> Void,
-        poll: @escaping @Sendable () -> Bool
+        poll: @escaping @Sendable (AppSnapshotSource) -> Bool
     ) -> Bool {
+        guard let snapshots = AppSnapshotSource(app: app) else {
+            XCTFail(
+                "Could not pre-resolve the app's accessibility snapshot handle — "
+                    + "the private API AppSnapshotSource rests on changed shape "
+                    + "(see its doc comment)")
+            return false
+        }
         let state = OSAllocatedUnfairLock(initialState: (stop: false, seen: false))
         let done = expectation(description: "background observer finished")
         Thread.detachNewThread {
             while !state.withLock({ $0.stop }) {
-                if poll() {
+                if poll(snapshots) {
                     state.withLock { $0.seen = true }
                     break
                 }
