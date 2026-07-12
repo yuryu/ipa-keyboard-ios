@@ -72,40 +72,19 @@ final class IPAKeyboardUITests: XCTestCase {
     // A bare launch/window smoke test used to live here; it was subsumed by
     // IPAKeyboardUITestsLaunchTests.testLaunch (window + nav-bar assertions,
     // per UI configuration) and by every test below waiting on library
-    // content. Each XCUITest costs a full cold app launch in CI, so tests
-    // whose assertions are a subset of another's are deleted, not kept.
-
-    /// Verifies the layout-library root screen shows the English (US) built-in
-    /// row after launch.  Uses the stable accessibility identifier backed by the
-    /// pinned UUID in `en-US.json` so this assertion is name-change-resilient.
-    @MainActor
-    func test_library_showsBuiltInLayout() throws {
-        app.launch()
-        let screen = LibraryScreen(app: app)
-        XCTAssertTrue(
-            screen.waitForContent(timeout: .postNavigation),
-            "Layout library 'Layouts' navigation bar did not appear"
-        )
-        let row = screen.englishUSRow
-        XCTAssertTrue(
-            row.waitForExistence(timeout: 5),
-            "Built-in English (US) row not found — expected identifier "
-                + "'layout-row-\(LibraryScreen.englishUSLayoutID)'"
-        )
-        XCTAssertTrue(
-            row.isHittable,
-            "Built-in English (US) row exists but is not hittable "
-                + "(possibly off-screen or occluded)"
-        )
-        // Cross-check: the human-readable name is also present on screen.
-        XCTAssertTrue(
-            screen.row(named: "English (US) — General American").exists,
-            "Expected visible text 'English (US) — General American' in the list"
-        )
-    }
+    // content. A built-in-row smoke test followed it out (issue #187): its
+    // identifier-based existence + hittability assertions were already
+    // re-exercised by openEnglishUS's hardened poll in the detail test
+    // below, which now also carries its one unique assertion (the
+    // human-readable name cross-check) — retiring the one-shot isHittable
+    // snapshot flake (issue #166) with it. Each XCUITest costs a full cold
+    // app launch in CI, so tests whose assertions are a subset of another's
+    // are deleted, not kept.
 
     /// Verifies the round trip through the detail screen in one launch:
-    /// tapping the English (US) built-in row pushes the detail screen with
+    /// the library shows the English (US) built-in row (human-readable
+    /// cross-check; the identifier-based existence + hittability checks are
+    /// `openEnglishUS`'s poll), tapping the row pushes the detail screen with
     /// the keyboard preview and "Duplicate to Edit" button, and the back
     /// button returns to the library list.  (Previously two tests whose
     /// launch → tap-row → wait-for-detail prefix was identical.)
@@ -117,6 +96,15 @@ final class IPAKeyboardUITests: XCTestCase {
         app.launch()
         let library = LibraryScreen(app: app)
         XCTAssertTrue(library.waitForContent(timeout: .postNavigation))
+
+        // Cross-check: the human-readable name is also present on screen.
+        // waitForExistence, not a bare `.exists` — the nav bar (waitForContent)
+        // can precede the lazy list's row composition (issue #166's lesson).
+        XCTAssertTrue(
+            library.row(named: "English (US) — General American")
+                .waitForExistence(timeout: 5),
+            "Expected visible text 'English (US) — General American' in the list"
+        )
 
         XCTAssertTrue(
             library.openEnglishUS(timeout: .postNavigation),

@@ -22,13 +22,11 @@ Baseline UITests updated 2026-06-29. build-for-testing passes on iPhone 17 (OS 2
 - `layout-detail-duplicate-button` — "Duplicate to Edit" button (built-ins only); query as `app.buttons[...]`
 - `layout-detail-delete-button` — "Delete" button (user layouts only)
 
-**Test inventory:**
-- `test_launch_mainWindowExists` — main window appears within 10 s
-- `test_library_showsBuiltInLayout` — English (US) row exists and is hittable; name label cross-check
-- `test_library_openDetail_showsPreview` — tapping built-in row shows preview + duplicate button
-- `test_library_detail_backNavigatesToList` — back button returns to library list
-- `testLaunchPerformance` — cold-launch metric
+**Test inventory (IPAKeyboardUITests.swift, updated 2026-07-12 after the issue #187 cold-launch trim):**
+- `test_library_openDetail_showsPreview_andBackNavigatesToList` — one launch: human-readable "English (US) — General American" row cross-check, row tap → detail preview + duplicate button, back → list. Absorbed the deleted `test_library_showsBuiltInLayout` (#187); its identifier existence/hittability checks live in `openEnglishUS`'s poll (also retiring the one-shot-isHittable flake, #166)
+- `testLaunchPerformance` — cold-launch metric (XCTSkip when CI=1)
 - `testLaunch` (LaunchTests) — window + navigation bar present; screenshot kept always
+- Other suites in the target: Onboarding, KeyEditor, ImportExport (which, post-#187, keeps one import-error launch — malformed — carrying the toolbar-import-button assertions; newer-schema surfacing moved to app-hosted `LayoutLibraryTests`), SymbolSearch, AlternatesPopup, LayoutListScratchpad, SystemKeyboardSmoke
 
 **Important constraints:**
 - Do NOT assert that forking/saving persisted a user layout — the App Group container is unavailable without provisioning

@@ -14,7 +14,11 @@
 //    pipeline a picked file uses (kit validation → store save → alert on
 //    failure), skipping only the picker and the security-scoped URL read.
 //    The decode/identity rules themselves are unit-tested in
-//    IPAKeyboardKitTests/LayoutTransferTests.swift.
+//    IPAKeyboardKitTests/LayoutTransferTests.swift, and the library-level
+//    errorMessage surfacing per error class (malformed document,
+//    newer schema version) in IPAKeyboardTests/LayoutLibraryTests.swift —
+//    so the UI lane keeps a single representative error-alert launch
+//    (malformed) rather than one per error class (issue #187).
 //  - Export: tapping the "Export Layout" ShareLink and asserting the system
 //    share sheet appears IS drivable and covered below. What the share sheet
 //    does after that is system-owned.
@@ -94,10 +98,6 @@ final class ImportExportUITests: XCTestCase {
     /// `LayoutImportError.malformedDocument.errorDescription`.
     private static let malformedMessageFragment = "isn’t a valid keyboard layout"
 
-    /// Stable fragment of `LayoutImportError.unsupportedSchemaVersion`'s
-    /// description (the exact version numbers are asserted in unit tests).
-    private static let newerFormatMessageFragment = "newer format"
-
     /// The message `LayoutLibrary.perform` uses when `LayoutStore` reports
     /// the shared container unavailable (unsigned builds).
     private static let sharedStorageMessageFragment =
@@ -133,11 +133,6 @@ final class ImportExportUITests: XCTestCase {
         }
       ]
     }
-    """
-
-    /// Valid JSON that is not a supportable layout: a future schema version.
-    private static let newerSchemaJSON = """
-    { "schemaVersion": 99, "name": "Future", "locale": "und", "arrangements": [] }
     """
 
     // MARK: - Helpers
@@ -347,33 +342,40 @@ final class ImportExportUITests: XCTestCase {
         dismissShareSheet(timeout: .postNavigation)
     }
 
-    // MARK: - Import (error paths, via the launch-environment hook)
+    // MARK: - Import (error path + toolbar affordance, via the hook)
 
     /// Malformed bytes → the user-visible error alert, app stays usable.
+    /// This is the UI lane's one representative import-error alert; the
+    /// error *classification* (malformed vs newer-schema) and the
+    /// library-level message surfacing for both classes are unit-tested
+    /// (see the file-level comment), so a second launch per error class
+    /// buys no coverage (issue #187).
+    ///
+    /// Ends with the toolbar import affordance (folded in from a dedicated
+    /// one-launch test, issue #187): with the alert dismissed and the
+    /// library confirmed usable, this additionally pins that the button
+    /// survives a failed import. Tapping it opens the system document
+    /// picker, which XCUITest cannot reliably dismiss, so
+    /// presence/hittability is all that's asserted.
     @MainActor
     func test_importMalformedFile_showsErrorAlert() throws {
         launch(importJSON: "{ this is not JSON")
         assertImportErrorAlert(messageContains: Self.malformedMessageFragment)
-    }
 
-    /// A document declaring a newer schema version → the specific
-    /// newer-format error, not a generic decode failure.
-    @MainActor
-    func test_importNewerSchemaVersion_showsVersionErrorAlert() throws {
-        launch(importJSON: Self.newerSchemaJSON)
-        assertImportErrorAlert(messageContains: Self.newerFormatMessageFragment)
-    }
-
-    /// The import affordance is present on the library toolbar. Tapping it
-    /// opens the system document picker, which XCUITest cannot reliably
-    /// dismiss, so this asserts presence/hittability only (see the
-    /// file-level comment for where the rest of the pipeline is covered).
-    @MainActor
-    func test_importButton_isPresentOnLibraryToolbar() throws {
-        launch()
+        // Existence + hittability polled under one deadline — a one-shot
+        // isHittable snapshot can catch the alert's dimming view mid-fade
+        // (issue #166's anti-pattern).
         let importButton = app.buttons["layout-list-import-button"]
-        XCTAssertTrue(importButton.waitForExistence(timeout: .postNavigation), "Import button not found")
-        XCTAssertTrue(importButton.isHittable, "Import button not hittable")
+        let deadline = Date().addingTimeInterval(5)
+        while !(importButton.exists && importButton.isHittable), Date() < deadline {
+            RunLoop.current.run(until: Date().addingTimeInterval(0.25))
+        }
+        XCTAssertTrue(
+            importButton.exists,
+            "Import button not found on the library toolbar")
+        XCTAssertTrue(
+            importButton.isHittable,
+            "Import button not hittable (occluded or off-screen)")
     }
 
     // MARK: - Import (valid document)
