@@ -245,34 +245,41 @@ struct SymbolInventoryTests {
 
     // MARK: Search matching
 
-    @Test func matchesNameFragmentCaseInsensitively() {
+    // A missing entry below is a lookup regression to *report*, so these use
+    // try #require — a force-unwrap would crash the in-process runner and
+    // lose every other test's results (#188).
+
+    @Test func matchesNameFragmentCaseInsensitively() throws {
         let entries = SymbolInventory.build(from: [alpha(), beta()])
-        let velarNasal = entry("\u{014B}", in: entries)!
+        let velarNasal = try #require(entry("\u{014B}", in: entries))
         #expect(velarNasal.matches("nasal"))
         #expect(velarNasal.matches("NASAL"))
         #expect(velarNasal.matches("  nasal  ")) // whitespace is trimmed
-        #expect(!entry("\u{0259}", in: entries)!.matches("nasal"))
+        let schwa = try #require(entry("\u{0259}", in: entries))
+        #expect(!schwa.matches("nasal"))
     }
 
-    @Test func matchesExactGlyphNeverALookalike() {
+    @Test func matchesExactGlyphNeverALookalike() throws {
         let entries = SymbolInventory.build(from: [alpha(), beta()])
-        let scriptG = entry("\u{0261}", in: entries)!
-        let asciiG = entry("g", in: entries)!
+        let scriptG = try #require(entry("\u{0261}", in: entries))
+        let asciiG = try #require(entry("g", in: entries))
         #expect(scriptG.matches("\u{0261}"))
         #expect(!scriptG.matches("g")) // ASCII g must never find ɡ
         #expect(!asciiG.matches("\u{0261}")) // and ɡ must never find ASCII g
         // A pasted digraph finds its exact entry.
-        #expect(entry("p\u{02B0}", in: entries)!.matches("p\u{02B0}"))
+        let aspirated = try #require(entry("p\u{02B0}", in: entries))
+        #expect(aspirated.matches("p\u{02B0}"))
     }
 
-    @Test func matchesCodePointQueries() {
+    @Test func matchesCodePointQueries() throws {
         let entries = SymbolInventory.build(from: [alpha(), beta()])
-        let scriptG = entry("\u{0261}", in: entries)!
+        let scriptG = try #require(entry("\u{0261}", in: entries))
         #expect(scriptG.matches("U+0261"))
         #expect(scriptG.matches("u+0261"))
         #expect(scriptG.matches("0261"))
         #expect(!scriptG.matches("0067")) // ASCII g's code point
-        #expect(entry("g", in: entries)!.matches("0067"))
+        let asciiG = try #require(entry("g", in: entries))
+        #expect(asciiG.matches("0067"))
     }
 
     @Test func emptyAndWhitespaceQueriesMatchEverything() {

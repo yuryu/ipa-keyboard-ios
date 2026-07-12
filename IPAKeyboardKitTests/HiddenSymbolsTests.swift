@@ -115,12 +115,14 @@ struct HiddenSymbolsTests {
         #expect(final.primaryArrangement?.primaryPanel?.switchKey != nil)
     }
 
-    @Test func curatingTheBundledGenericLayoutNeverBlanksIt() {
+    @Test func curatingTheBundledGenericLayoutNeverBlanksIt() throws {
         // End-to-end against real data: hide a handful from ipa-full and confirm
         // the bottom bar and panel switching survive. (By name — several
-        // bundled layouts share the `und` locale.)
+        // bundled layouts share the `und` locale.) The lookup is a hard
+        // precondition: a rename/removal must fail here, not no-op (#188).
         let layouts = LayoutStore().bundledLayouts()
-        guard let full = layouts.first(where: { $0.name == "IPA — Full (QWERTY)" }) else { return }
+        let full = try #require(layouts.first { $0.name == "IPA — Full (QWERTY)" },
+                                "expected a bundled layout named IPA — Full (QWERTY)")
         let curated = full.applyingHiddenSymbols(["p", "t", "k", "i", "u"])
         #expect(curated.primaryArrangement?.functionRow?.keys.contains { $0.action == .nextKeyboard } == true)
         #expect(curated.primaryArrangement?.primaryPanel?.switchKey != nil)

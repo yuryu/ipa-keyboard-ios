@@ -80,13 +80,19 @@ jobs:
 
       - name: Run IPAKeyboardKit unit tests
         run: |
+          set -o pipefail
           xcodebuild \
             -project IPAKeyboard.xcodeproj \
             -scheme IPAKeyboardKit \
             -destination "platform=iOS Simulator,id=${{ steps.boot-simulator.outputs.udid }}" \
             -resultBundlePath TestResults.xcresult \
             CODE_SIGNING_ALLOWED=NO \
-            test-without-building
+            test-without-building 2>&1 | tee kit-tests.log
+          # Guard the Swift Testing zero-tests false-green (#188): xcodebuild
+          # exits 0 with "Executed 0 tests … TEST SUCCEEDED" when a filter
+          # matches nothing, so require the Swift Testing summary line
+          # ("Test run with N tests …") to report a nonzero count.
+          grep -Eq 'Test run with [1-9][0-9]* test' kit-tests.log
 
       # App-hosted unit tests (IPAKeyboardTests) launch the unsigned app on the
       # booted simulator as the test host. Sequential for the same clone-race
@@ -94,6 +100,7 @@ jobs:
       # bundle in the same scheme stays in its own job.
       - name: Run IPAKeyboard app unit tests
         run: |
+          set -o pipefail
           xcodebuild \
             -project IPAKeyboard.xcodeproj \
             -scheme IPAKeyboard \
@@ -104,7 +111,11 @@ jobs:
             CODE_SIGNING_ALLOWED=NO \
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGN_IDENTITY="" \
-            test-without-building
+            test-without-building 2>&1 | tee app-tests.log
+          # Same zero-tests guard as the kit step (#188) — this -only-testing
+          # filter is exactly the shape that silently matches nothing after a
+          # target rename or test-plan drift.
+          grep -Eq 'Test run with [1-9][0-9]* test' app-tests.log
 
       - name: Upload test results
         if: always()

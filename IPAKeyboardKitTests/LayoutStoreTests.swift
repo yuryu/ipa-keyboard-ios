@@ -63,26 +63,25 @@ struct LayoutStoreTests {
     // MARK: Graceful degradation (App Group not provisioned in test environment)
     //
     // These exercise LayoutStore()'s *default* containerURL argument, which
-    // resolves to the real AppGroup.containerURL — nil in this unsigned test
-    // environment — so they're guarded rather than deterministic. The
+    // resolves to the real AppGroup.containerURL — so they only run where
+    // that container is nil, via .enabled(if:), and report a visible skip
+    // (never a silent pass) in a provisioned environment (issue #188). The
     // `containerURL: nil`-injected tests further down assert the identical
     // behaviour unconditionally, regardless of the environment's real
     // provisioning state.
 
-    @Test func userLayoutsReturnsEmptyArrayWhenContainerUnavailable() {
-        // The test runner carries no App Group entitlement, so containerURL
-        // is nil; userLayouts() must return [] rather than crash.
+    @Test(.enabled(if: AppGroup.containerURL == nil,
+                   "App Group provisioned; userLayoutsReturnsEmptyArrayWhenContainerIsNil covers this via nil injection"))
+    func userLayoutsReturnsEmptyArrayWhenContainerUnavailable() {
+        // The runner carries no App Group entitlement, so containerURL is
+        // nil; userLayouts() must return [] rather than crash.
         let store = LayoutStore()
         #expect(store.userLayouts().isEmpty)
     }
 
-    @Test func saveThrowsWhenContainerUnavailable() throws {
-        guard AppGroup.containerURL == nil else {
-            // App Group is unexpectedly provisioned in this environment;
-            // saveThrowsWhenContainerIsNil below covers the same behavior
-            // deterministically via explicit injection.
-            return
-        }
+    @Test(.enabled(if: AppGroup.containerURL == nil,
+                   "App Group provisioned; saveThrowsWhenContainerIsNil covers this via nil injection"))
+    func saveThrowsWhenContainerUnavailable() {
         let layout = KeyboardLayout(
             name: "Test", locale: "en-US",
             rows: [KeyRow(keys: [Key(action: .insert("p"))])]
@@ -93,15 +92,17 @@ struct LayoutStoreTests {
         }
     }
 
-    @Test func deleteThrowsWhenContainerUnavailable() throws {
-        guard AppGroup.containerURL == nil else { return }
+    @Test(.enabled(if: AppGroup.containerURL == nil,
+                   "App Group provisioned; deleteThrowsWhenContainerIsNil covers this via nil injection"))
+    func deleteThrowsWhenContainerUnavailable() {
         #expect(throws: LayoutStore.StoreError.self) {
             try LayoutStore().delete(id: UUID())
         }
     }
 
-    @Test func deleteAllUserLayoutsThrowsWhenContainerUnavailable() throws {
-        guard AppGroup.containerURL == nil else { return }
+    @Test(.enabled(if: AppGroup.containerURL == nil,
+                   "App Group provisioned; deleteAllUserLayoutsThrowsWhenContainerIsNil covers this via nil injection"))
+    func deleteAllUserLayoutsThrowsWhenContainerUnavailable() {
         // Same store contract as save/delete: a missing container throws
         // rather than silently no-ops, so callers decide how to react
         // (the reset hook treats it as the expected pre-provisioning case).
