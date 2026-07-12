@@ -72,7 +72,7 @@ Once per session call `session_show_defaults` (don't assume defaults are set); i
 
 Test-coverage inventory and CI lane details: the `testing-and-ci` skill. Use the `ui-testing` skill when touching UI tests — its authoring standards and flake rules are binding on all XCUITest work, new tests included.
 
-> **Signing.** All targets sign automatically under `DEVELOPMENT_TEAM = G3N78ZRFEH`; the full app + extension builds and runs signed in the simulator, and the App Group container works there. Device builds additionally need a device registered with the team (connect it to Xcode once and let automatic signing mint the profiles). CI builds stay unsigned (`CODE_SIGNING_ALLOWED=NO`).
+> **Signing.** All targets sign automatically under `DEVELOPMENT_TEAM = G3N78ZRFEH`; the full app + extension builds and runs signed in the simulator, and the App Group container works there. Device builds additionally need a device registered with the team (connect it to Xcode once and let automatic signing mint the profiles). CI test lanes stay unsigned (`CODE_SIGNING_ALLOWED=NO`); a separate `signed-archive` lane (pushes to `main` + manual dispatch) archives for device with an App Store Connect API key — details in the `testing-and-ci` skill.
 
 ## Architecture: layouts as data
 

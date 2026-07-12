@@ -36,13 +36,12 @@ jobs:
       - name: Show toolchain
         run: xcodebuild -version
 
-      # Signing is deferred until the Apple developer account is provisioned, so
-      # everything runs against a simulator with code signing disabled (CLAUDE.md).
+      # Test lanes run against a simulator with code signing disabled — signing
+      # adds nothing to simulator tests. Real signing is exercised by the
+      # signed-archive job below.
       # Compile-checks all three targets (app, extension, framework) plus the
       # app-hosted unit-test bundle (IPAKeyboardTests, run below) and the
       # UI-test bundle; the UI tests themselves run in the separate ui-test job.
-      # A signed device/archive lane stays out of scope until provisioning
-      # lands (issue #3).
       #
       # build-for-testing needs only the SDK, not a device, so it targets
       # generic/platform=iOS Simulator: that skips simulator-device resolution
@@ -181,4 +180,72 @@ jobs:
         with:
           name: ui-test-results
           path: UITestResults.xcresult
+          if-no-files-found: ignore
+
+  # Signed device archive (issue #23): proves code signing and the App Group
+  # provisioning (app + keyboard extension) end to end — simulator lanes never
+  # validate profiles. Signing uses an App Store Connect API key (secrets
+  # ASC_API_KEY_ID / ASC_API_ISSUER_ID / ASC_API_KEY_P8) with automatic
+  # signing via -allowProvisioningUpdates, so there are no certificates or
+  # profiles to export and renew by hand.
+  #
+  # Runs on pushes to main and manual dispatch only: Dependabot PRs can't see
+  # the secrets (the job would fail spuriously), and an archive per PR buys
+  # nothing the merge-time run doesn't.
+  signed-archive:
+    name: Signed archive (device)
+    runs-on: macos-26
+    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+    steps:
+      - uses: actions/checkout@v7
+
+      # Image-default Xcode on purpose — see the note in build-and-test (#40).
+      - name: Show toolchain
+        run: xcodebuild -version
+
+      # xcodebuild needs a default keychain it can write signing keys into;
+      # the runner's login keychain is locked with an unknown password, so
+      # create a throwaway one (the VM is ephemeral, as is the password).
+      - name: Create temporary keychain
+        run: |
+          KEYCHAIN_PASSWORD="$(uuidgen)"
+          KEYCHAIN_PATH="$RUNNER_TEMP/ci.keychain-db"
+          security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN_PATH"
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security default-keychain -s "$KEYCHAIN_PATH"
+
+      # -authenticationKeyPath must be absolute; $RUNNER_TEMP is.
+      - name: Write App Store Connect API key
+        env:
+          ASC_API_KEY_P8: ${{ secrets.ASC_API_KEY_P8 }}
+        run: |
+          mkdir -p "$RUNNER_TEMP/asc"
+          printf '%s\n' "$ASC_API_KEY_P8" > "$RUNNER_TEMP/asc/AuthKey.p8"
+
+      - name: Archive (signed)
+        env:
+          ASC_API_KEY_ID: ${{ secrets.ASC_API_KEY_ID }}
+          ASC_API_ISSUER_ID: ${{ secrets.ASC_API_ISSUER_ID }}
+        run: |
+          xcodebuild \
+            -project IPAKeyboard.xcodeproj \
+            -scheme IPAKeyboard \
+            -destination "generic/platform=iOS" \
+            -archivePath "$RUNNER_TEMP/IPAKeyboard.xcarchive" \
+            -allowProvisioningUpdates \
+            -allowProvisioningDeviceRegistration \
+            -authenticationKeyPath "$RUNNER_TEMP/asc/AuthKey.p8" \
+            -authenticationKeyID "$ASC_API_KEY_ID" \
+            -authenticationKeyIssuerID "$ASC_API_ISSUER_ID" \
+            archive
+
+      # The archive is the proof artifact; keep it briefly for inspection.
+      - name: Upload archive
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: signed-archive
+          path: ${{ runner.temp }}/IPAKeyboard.xcarchive
+          retention-days: 7
           if-no-files-found: ignore
