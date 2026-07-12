@@ -28,108 +28,24 @@ import Testing
 struct JaJPLayoutTests {
 
     // MARK: Helpers
+    //
+    // Key-walking helpers live in LayoutTestSupport.swift; the generic
+    // structural invariants (split arrangement, spacer grouping, one-screen
+    // budget, accessibility labels) are swept across every bundled layout by
+    // BundledLayoutTests — only ja-JP-specific content is tested here.
 
     private func jaJPLayout() throws -> KeyboardLayout {
-        let layouts = LayoutStore().bundledLayouts()
-        return try #require(layouts.first { $0.locale == "ja-JP" },
-                            "expected a bundled ja-JP layout")
+        try bundledLayout(locale: "ja-JP")
     }
 
-    /// All top-level symbol keys of a layout (panel rows only, not alternates).
-    private func topLevelKeys(in layout: KeyboardLayout) -> [Key] {
-        layout.arrangements.flatMap(\.panels).flatMap(\.rows).flatMap(\.keys)
-    }
+    // MARK: Metadata
 
-    /// Every string the layout can insert — rows, function row, switch keys,
-    /// and long-press alternates (recursively).
-    private func insertTexts(in layout: KeyboardLayout) -> Set<String> {
-        var texts = Set<String>()
-        func visit(_ key: Key) {
-            if case .insert(let text) = key.action { texts.insert(text) }
-            key.alternates.forEach(visit)
-        }
-        let panels = layout.arrangements.flatMap(\.panels)
-        (panels.flatMap(\.rows).flatMap(\.keys)
-            + layout.arrangements.compactMap(\.functionRow).flatMap(\.keys)
-            + panels.compactMap(\.switchKey))
-            .forEach(visit)
-        return texts
-    }
-
-    /// The first top-level key of `layout` that inserts exactly `text`.
-    private func key(inserting text: String, in layout: KeyboardLayout) -> Key? {
-        topLevelKeys(in: layout).first { key in
-            if case .insert(let inserted) = key.action { return inserted == text }
-            return false
-        }
-    }
-
-    private func insertText(of key: Key) -> String? {
-        if case .insert(let text) = key.action { return text }
-        return nil
-    }
-
-    // MARK: Decode + metadata
-
-    @Test func jaJPDecodesAsABuiltInTokyoLayout() throws {
+    @Test func jaJPHasTheExpectedDisplayName() throws {
+        // (isBuiltIn and schemaVersion are swept across every bundled layout
+        // by BundledLayoutTests.bundledLayoutsDecode and LayoutStoreTests.)
         let layout = try jaJPLayout()
-        #expect(layout.isBuiltIn)
-        #expect(layout.locale == "ja-JP")
-        #expect(layout.schemaVersion == KeyboardLayout.currentSchemaVersion)
         #expect(layout.name.contains("Japanese"))
         #expect(layout.name.contains("Tokyo"))
-    }
-
-    @Test func jaJPHasSplitArrangementWithTwoSwitchablePanels() throws {
-        let layout = try jaJPLayout()
-        let arrangement = try #require(layout.primaryArrangement)
-        #expect(arrangement.panels.count == 2)
-
-        // Same height budget as en-US: totalRowCount 5 (4 symbol rows + bar).
-        #expect(arrangement.maxRowCount <= 4)
-        #expect(arrangement.totalRowCount <= 5)
-
-        // The shared bottom bar carries the globe key.
-        let functionRow = try #require(arrangement.functionRow)
-        #expect(functionRow.keys.contains { $0.action == .nextKeyboard })
-
-        // The primary panel's switch key reaches the secondary panel, whose
-        // switch key returns to the primary.
-        let primary = try #require(arrangement.primaryPanel)
-        guard case .switchPanel(let target) = try #require(primary.switchKey).action else {
-            Issue.record("ja-JP primary panel switchKey is not a switchPanel action")
-            return
-        }
-        let secondary = try #require(arrangement.panel(named: target))
-        #expect(secondary.name == target)
-        #expect(secondary.name != primary.name)
-        #expect(secondary.switchKey?.action == .switchPanel(primary.name))
-    }
-
-    @Test func jaJPGroupsConsonantsLeftAndVowelsRightWithASpacer() throws {
-        let layout = try jaJPLayout()
-        let primary = try #require(layout.primaryArrangement?.primaryPanel)
-        let grouped = primary.rows.first { row in
-            guard let gap = row.keys.firstIndex(where: \.isSpacer) else { return false }
-            let before = row.keys[..<gap].contains { !$0.isSpacer }
-            let after = row.keys[row.keys.index(after: gap)...].contains { !$0.isSpacer }
-            return before && after
-        }
-        #expect(grouped != nil)
-    }
-
-    @Test func jaJPFitsOneScreenPerPanel() throws {
-        // Same density heuristics as the other bundled layouts: no horizontal
-        // scrolling, rows no denser than a QWERTY row.
-        let arrangement = try #require(try jaJPLayout().primaryArrangement)
-        for panel in arrangement.panels {
-            for row in panel.rows {
-                #expect(row.keys.reduce(0.0) { $0 + $1.widthFactor } <= 12.0,
-                        "row too dense in ja-JP panel \(panel.name)")
-                #expect(row.keys.filter { !$0.isSpacer }.count <= 10,
-                        "too many keys in a row of ja-JP panel \(panel.name)")
-            }
-        }
     }
 
     // MARK: Code-point spot checks (Okada 1999 inventory)
@@ -201,30 +117,30 @@ struct JaJPLayoutTests {
 
     // MARK: Palatalized series as long-press alternates
 
-    @Test func jaJPPalatalizedSeriesRideAsAlternates() throws {
-        // Okada (1999): "/j/ affects the preceding consonant as /i/ does"
-        // (e.g. /mjaku/ [mʲaku]); Labrune (2012): /p b k ɡ ɾ/ (and m)
-        // palatalize with superscript ʲ, palatalized n is [ɲ] (its own key).
+    /// Okada (1999): "/j/ affects the preceding consonant as /i/ does"
+    /// (e.g. /mjaku/ [mʲaku]); Labrune (2012): /p b k ɡ ɾ/ (and m)
+    /// palatalize with superscript ʲ, palatalized n is [ɲ] (its own key).
+    private static let palatalizedPairs: [(base: String, palatalized: String)] = [
+        ("p", "p\u{02B2}"),
+        ("b", "b\u{02B2}"),
+        ("k", "k\u{02B2}"),
+        ("\u{0261}", "\u{0261}\u{02B2}"),
+        ("m", "m\u{02B2}"),
+        ("\u{027E}", "\u{027E}\u{02B2}"),
+    ]
+
+    @Test(arguments: JaJPLayoutTests.palatalizedPairs)
+    func jaJPPalatalizedSeriesRideAsAlternates(_ pair: (base: String, palatalized: String)) throws {
         let layout = try jaJPLayout()
-        let pairs: [(base: String, palatalized: String)] = [
-            ("p", "p\u{02B2}"),
-            ("b", "b\u{02B2}"),
-            ("k", "k\u{02B2}"),
-            ("\u{0261}", "\u{0261}\u{02B2}"),
-            ("m", "m\u{02B2}"),
-            ("\u{027E}", "\u{027E}\u{02B2}"),
-        ]
-        for pair in pairs {
-            let base = try #require(key(inserting: pair.base, in: layout),
-                                    "expected a ja-JP key for \(pair.base)")
-            let alternate = try #require(
-                base.alternates.first { insertText(of: $0) == pair.palatalized },
-                "\(pair.base) should carry \(pair.palatalized) as a long-press alternate")
-            let label = try #require(alternate.accessibilityLabel)
-            #expect(label.hasPrefix("palatalized"))
-            // The superscript j is the spacing modifier letter U+02B2.
-            #expect(pair.palatalized.unicodeScalars.last?.value == 0x02B2)
-        }
+        let base = try #require(key(inserting: pair.base, in: layout),
+                                "expected a ja-JP key for \(pair.base)")
+        let alternate = try #require(
+            base.alternates.first { insertText(of: $0) == pair.palatalized },
+            "\(pair.base) should carry \(pair.palatalized) as a long-press alternate")
+        let label = try #require(alternate.accessibilityLabel)
+        #expect(label.hasPrefix("palatalized"))
+        // The superscript j is the spacing modifier letter U+02B2.
+        #expect(pair.palatalized.unicodeScalars.last?.value == 0x02B2)
     }
 
     @Test func jaJPTapCarriesTheLiquidVariants() throws {
@@ -299,42 +215,12 @@ struct JaJPLayoutTests {
         #expect(downstep.accessibilityLabel == "downstep")
     }
 
-    // MARK: Accessibility
-
-    @Test func jaJPEveryInsertKeyHasAnAccessibilityLabel() throws {
-        // Every symbol key promises a spoken IPA name, alternates included.
-        let layout = try jaJPLayout()
-        func check(_ key: Key) {
-            if case .insert = key.action {
-                #expect(!(key.accessibilityLabel ?? "").isEmpty,
-                        "missing accessibilityLabel for ja-JP key \(key.displayLabel)")
-            }
-            key.alternates.forEach(check)
-        }
-        let panels = layout.arrangements.flatMap(\.panels)
-        (panels.flatMap(\.rows).flatMap(\.keys)
-            + layout.arrangements.compactMap(\.functionRow).flatMap(\.keys)
-            + panels.compactMap(\.switchKey))
-            .forEach(check)
-    }
-
     // MARK: Grapheme behavior of the marks this layout composes
-
-    @Test func devoicedVowelFormsOneClusterDeletedAsAUnit() {
-        // ɯ (U+026F) + combining ring below (U+0325), as in [sɯ̥ki].
-        let context = "\u{026F}\u{0325}"
-        #expect(Array(context.unicodeScalars) == [Unicode.Scalar(0x026F)!, Unicode.Scalar(0x0325)!])
-        #expect(context.count == 1) // one user-perceived character
-        #expect(GraphemeText.deletionScalarCount(before: context) == 2)
-    }
-
-    @Test func accentedMoraFormsOneClusterDeletedAsAUnit() {
-        // a (U+0061) + combining acute (U+0301), as in [háɕi] "chopsticks".
-        let context = "a\u{0301}"
-        #expect(Array(context.unicodeScalars) == [Unicode.Scalar(0x0061)!, Unicode.Scalar(0x0301)!])
-        #expect(context.count == 1)
-        #expect(GraphemeText.deletionScalarCount(before: context) == 2)
-    }
+    //
+    // The base + combining mark cluster-deletion contract (devoiced ɯ̥,
+    // accented mora á, …) is asserted once for every composed pair in
+    // GraphemeTextTests.basePlusOneCombiningMarkDeletesAsOneCluster; only
+    // the spacing-modifier contrast stays here.
 
     @Test func palatalizedConsonantIsTwoClustersLikeAspiration() {
         // ʲ U+02B2 is a *spacing* modifier letter: [kʲ] is two user-perceived

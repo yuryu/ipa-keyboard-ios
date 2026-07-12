@@ -44,10 +44,7 @@ struct KeyRowSizingTests {
         return row.keys.map { max(unit * $0.widthFactor, 0) }
     }
 
-    private func bundledLayout(named name: String) throws -> KeyboardLayout {
-        let layouts = LayoutStore().bundledLayouts()
-        return try #require(layouts.first { $0.name == name })
-    }
+    // Bundled-layout lookup comes from LayoutTestSupport.swift.
 
     // MARK: Pixel-exact widths on the shared grid (the issue's fix)
 

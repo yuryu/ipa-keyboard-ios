@@ -19,100 +19,23 @@ import Testing
 struct EnGBLayoutTests {
 
     // MARK: Helpers
+    //
+    // Key-walking helpers live in LayoutTestSupport.swift; the generic
+    // structural invariants (split arrangement, spacer grouping, one-screen
+    // budget, accessibility labels) are swept across every bundled layout by
+    // BundledLayoutTests — only en-GB-specific content is tested here.
 
     private func enGBLayout() throws -> KeyboardLayout {
-        let layouts = LayoutStore().bundledLayouts()
-        return try #require(layouts.first { $0.locale == "en-GB" },
-                            "expected a bundled en-GB layout")
+        try bundledLayout(locale: "en-GB")
     }
 
-    /// All top-level symbol keys of a layout (panel rows only, not alternates).
-    private func topLevelKeys(in layout: KeyboardLayout) -> [Key] {
-        layout.arrangements.flatMap(\.panels).flatMap(\.rows).flatMap(\.keys)
-    }
+    // MARK: Metadata
 
-    /// Every string the layout can insert — rows, function row, switch keys,
-    /// and long-press alternates (recursively).
-    private func insertTexts(in layout: KeyboardLayout) -> Set<String> {
-        var texts = Set<String>()
-        func visit(_ key: Key) {
-            if case .insert(let text) = key.action { texts.insert(text) }
-            key.alternates.forEach(visit)
-        }
-        let panels = layout.arrangements.flatMap(\.panels)
-        (panels.flatMap(\.rows).flatMap(\.keys)
-            + layout.arrangements.compactMap(\.functionRow).flatMap(\.keys)
-            + panels.compactMap(\.switchKey))
-            .forEach(visit)
-        return texts
-    }
-
-    /// The first top-level key of `layout` that inserts exactly `text`.
-    private func key(inserting text: String, in layout: KeyboardLayout) -> Key? {
-        topLevelKeys(in: layout).first { key in
-            if case .insert(let inserted) = key.action { return inserted == text }
-            return false
-        }
-    }
-
-    private func insertText(of key: Key) -> String? {
-        if case .insert(let text) = key.action { return text }
-        return nil
-    }
-
-    // MARK: Decode + metadata
-
-    @Test func enGBDecodesWithExpectedMetadata() throws {
+    @Test func enGBHasTheExpectedDisplayName() throws {
+        // (isBuiltIn and schemaVersion are swept across every bundled layout
+        // by BundledLayoutTests.bundledLayoutsDecode and LayoutStoreTests.)
         let layout = try enGBLayout()
-        #expect(layout.isBuiltIn)
-        #expect(layout.locale == "en-GB")
         #expect(layout.name == "English (UK) — Standard Southern British")
-        #expect(layout.schemaVersion == KeyboardLayout.currentSchemaVersion)
-    }
-
-    // MARK: Structure (mirrors the en-US split-arrangement contract)
-
-    @Test func enGBHasSplitArrangementWithTwoSwitchablePanels() throws {
-        let arrangement = try #require(try enGBLayout().primaryArrangement)
-        #expect(arrangement.panels.count == 2)
-        #expect(arrangement.maxRowCount <= 5)
-
-        let functionRow = try #require(arrangement.functionRow)
-        #expect(functionRow.keys.contains { $0.action == .nextKeyboard })
-
-        let primary = try #require(arrangement.primaryPanel)
-        guard case .switchPanel(let target) = try #require(primary.switchKey).action else {
-            Issue.record("en-GB primary panel switchKey is not a switchPanel action")
-            return
-        }
-        let secondary = try #require(arrangement.panel(named: target))
-        #expect(secondary.name == target)
-        #expect(secondary.name != primary.name)
-        #expect(secondary.switchKey?.action == .switchPanel(primary.name))
-    }
-
-    @Test func enGBGroupsConsonantsLeftAndVowelsRightWithASpacer() throws {
-        let primary = try #require(try enGBLayout().primaryArrangement?.primaryPanel)
-        let grouped = primary.rows.first { row in
-            guard let gap = row.keys.firstIndex(where: \.isSpacer) else { return false }
-            let before = row.keys[..<gap].contains { !$0.isSpacer }
-            let after = row.keys[row.keys.index(after: gap)...].contains { !$0.isSpacer }
-            return before && after
-        }
-        #expect(grouped != nil)
-    }
-
-    @Test func enGBFitsOneScreenPerPanel() throws {
-        // Same one-screen budget as en-US: no row denser than en-US's widest
-        // (width-factor sum 12.0), and the constant keyboard height matches.
-        let arrangement = try #require(try enGBLayout().primaryArrangement)
-        #expect(arrangement.totalRowCount <= 5)
-        for panel in arrangement.panels {
-            for row in panel.rows {
-                let width = row.keys.reduce(0.0) { $0 + $1.widthFactor }
-                #expect(width <= 12.0, "row too dense in en-GB panel \(panel.name)")
-            }
-        }
     }
 
     // MARK: Dialect-distinctive code points (dictionary convention layer)
@@ -133,16 +56,15 @@ struct EnGBLayoutTests {
         ([0x0075, 0x02D0], "long close back rounded vowel"),      // uː GOOSE
     ]
 
-    @Test func enGBUsesTheBritishVowelCodePoints() throws {
+    @Test(arguments: EnGBLayoutTests.britishVowels)
+    func enGBUsesTheBritishVowelCodePoints(_ expected: (scalars: [UInt32], accessibilityLabel: String)) throws {
         let layout = try enGBLayout()
-        for expected in Self.britishVowels {
-            let text = String(String.UnicodeScalarView(expected.scalars.map { Unicode.Scalar($0)! }))
-            let vowelKey = try #require(
-                key(inserting: text, in: layout),
-                "expected en-GB to contain a key inserting \(expected.scalars.map { "U+" + String($0, radix: 16, uppercase: true) }.joined(separator: " "))")
-            #expect(vowelKey.accessibilityLabel == expected.accessibilityLabel)
-            #expect(text.unicodeScalars.map(\.value) == expected.scalars)
-        }
+        let text = String(String.UnicodeScalarView(expected.scalars.map { Unicode.Scalar($0)! }))
+        let vowelKey = try #require(
+            key(inserting: text, in: layout),
+            "expected en-GB to contain a key inserting \(expected.scalars.map { "U+" + String($0, radix: 16, uppercase: true) }.joined(separator: " "))")
+        #expect(vowelKey.accessibilityLabel == expected.accessibilityLabel)
+        #expect(text.unicodeScalars.map(\.value) == expected.scalars)
     }
 
     @Test func enGBKeepsTheFullVowelInventoryOnThePrimaryPanel() throws {
@@ -256,23 +178,5 @@ struct EnGBLayoutTests {
         #expect(secondary.accessibilityLabel == "secondary stress mark")
         let length = try #require(key(inserting: "\u{02D0}", in: layout))
         #expect(length.accessibilityLabel == "length mark")
-    }
-
-    // MARK: Accessibility — every key, alternates included
-
-    @Test func enGBEveryInsertKeyHasAnAccessibilityLabel() throws {
-        let layout = try enGBLayout()
-        func check(_ key: Key) {
-            if case .insert = key.action {
-                #expect(!(key.accessibilityLabel ?? "").isEmpty,
-                        "missing accessibilityLabel for en-GB key \(key.displayLabel)")
-            }
-            key.alternates.forEach(check)
-        }
-        let panels = layout.arrangements.flatMap(\.panels)
-        (panels.flatMap(\.rows).flatMap(\.keys)
-            + layout.arrangements.compactMap(\.functionRow).flatMap(\.keys)
-            + panels.compactMap(\.switchKey))
-            .forEach(check)
     }
 }

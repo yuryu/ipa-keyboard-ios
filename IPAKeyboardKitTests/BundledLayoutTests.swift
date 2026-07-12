@@ -17,45 +17,91 @@ struct BundledLayoutTests {
         #expect(layouts.allSatisfy { $0.isBuiltIn })
     }
 
-    @Test func enUSHasSplitArrangementWithTwoSwitchablePanels() throws {
-        let layouts = LayoutStore().bundledLayouts()
-        let enUS = try #require(layouts.first { $0.locale == "en-US" })
-        let arrangement = try #require(enUS.primaryArrangement)
-        #expect(arrangement.panels.count == 2)
+    // MARK: Structural invariants swept across every bundled layout
+    //
+    // These sweeps discover layouts through LayoutStore at runtime, so a
+    // future bundled layout is covered with zero new invariant code
+    // (issue #186); the per-layout test files keep only genuinely
+    // dialect-specific content tests.
 
-        // Each panel fits a standard keyboard's row budget, no horizontal scroll.
-        #expect(arrangement.maxRowCount <= 5)
+    /// Every dialect layout (locale != "und") shares the en-US split
+    /// contract: exactly two panels reached through mutual switch keys, plus
+    /// a shared bottom bar carrying the globe key (defined once, not
+    /// per-panel).
+    @Test func everyDialectLayoutHasASplitArrangementWithTwoSwitchablePanels() throws {
+        let dialects = LayoutStore().bundledLayouts().filter { $0.locale != "und" }
+        try #require(!dialects.isEmpty, "expected at least one bundled dialect layout")
+        for layout in dialects {
+            let arrangement = try #require(layout.primaryArrangement,
+                                           "\(layout.locale) has no arrangement")
+            #expect(arrangement.panels.count == 2,
+                    "\(layout.locale) should have exactly two switchable panels")
 
-        // The shared bottom bar carries the globe key (defined once, not per-panel).
-        let functionRow = try #require(arrangement.functionRow)
-        #expect(functionRow.keys.contains { $0.action == .nextKeyboard })
+            let functionRow = try #require(arrangement.functionRow,
+                                           "\(layout.locale) has no shared function row")
+            let hasGlobe = functionRow.keys.contains { $0.action == .nextKeyboard }
+            #expect(hasGlobe, "\(layout.locale) function row should carry the globe key")
 
-        // The primary panel's switch key reaches a secondary panel, and that
-        // panel's switch key returns to the primary.
-        let primary = try #require(arrangement.primaryPanel)
-        guard case .switchPanel(let target) = try #require(primary.switchKey).action else {
-            Issue.record("primary panel switchKey is not a switchPanel action")
-            return
+            // The primary panel's switch key reaches a secondary panel, and
+            // that panel's switch key returns to the primary.
+            let primary = try #require(arrangement.primaryPanel)
+            guard case .switchPanel(let target) = try #require(primary.switchKey).action else {
+                Issue.record("\(layout.locale) primary panel switchKey is not a switchPanel action")
+                continue
+            }
+            let secondary = try #require(arrangement.panel(named: target))
+            #expect(secondary.name == target)
+            #expect(secondary.name != primary.name)
+            #expect(secondary.switchKey?.action == .switchPanel(primary.name),
+                    "\(layout.locale) secondary panel should switch back to \(primary.name)")
         }
-        let secondary = try #require(arrangement.panel(named: target))
-        #expect(secondary.name == target)
-        #expect(secondary.name != primary.name)
-        #expect(secondary.switchKey?.action == .switchPanel(primary.name))
     }
 
-    @Test func enUSGroupsConsonantsLeftAndVowelsRightWithASpacer() throws {
-        let layouts = LayoutStore().bundledLayouts()
-        let enUS = try #require(layouts.first { $0.locale == "en-US" })
-        let primary = try #require(enUS.primaryArrangement?.primaryPanel)
-        // At least one symbol row uses a flexible spacer flanked by real keys on
-        // both sides — the right-grouping is wired through to the data.
-        let grouped = primary.rows.first { row in
-            guard let gap = row.keys.firstIndex(where: \.isSpacer) else { return false }
-            let before = row.keys[..<gap].contains { !$0.isSpacer }
-            let after = row.keys[row.keys.index(after: gap)...].contains { !$0.isSpacer }
-            return before && after
+    /// Every dialect layout wires the phonetic consonants-left / vowels-right
+    /// grouping through the data: at least one symbol row uses a flexible
+    /// spacer flanked by real keys on both sides.
+    @Test func everyDialectLayoutGroupsConsonantsLeftAndVowelsRightWithASpacer() throws {
+        let dialects = LayoutStore().bundledLayouts().filter { $0.locale != "und" }
+        try #require(!dialects.isEmpty, "expected at least one bundled dialect layout")
+        for layout in dialects {
+            let primary = try #require(layout.primaryArrangement?.primaryPanel,
+                                       "\(layout.locale) has no primary panel")
+            let grouped = primary.rows.first { row in
+                guard let gap = row.keys.firstIndex(where: \.isSpacer) else { return false }
+                let before = row.keys[..<gap].contains { !$0.isSpacer }
+                let after = row.keys[row.keys.index(after: gap)...].contains { !$0.isSpacer }
+                return before && after
+            }
+            #expect(grouped != nil,
+                    "\(layout.locale) primary panel should group keys around a flexible spacer")
         }
-        #expect(grouped != nil)
+    }
+
+    /// One-screen/legibility budget for every bundled layout: the constant
+    /// keyboard height (totalRowCount ≤ 5, matching en-US's four symbol rows
+    /// plus the bottom bar) and rows near a QWERTY row's density so keys
+    /// don't shrink to unusable widths — no horizontal scrolling, ever. The
+    /// per-row key budget is per-layout data: 10 by default; the two English
+    /// dialect layouts pack an 11-key vowel row.
+    @Test func everyBundledLayoutFitsOneScreenPerPanel() {
+        let keyBudgets: [String: Int] = ["en-US": 11, "en-GB": 11]
+        for layout in LayoutStore().bundledLayouts() {
+            let keyBudget = keyBudgets[layout.locale, default: 10]
+            for arrangement in layout.arrangements {
+                #expect(arrangement.totalRowCount <= 5,
+                        "\(layout.name) renders taller than the shared height budget")
+                for panel in arrangement.panels {
+                    for row in panel.rows {
+                        let width = row.keys.reduce(0.0) { $0 + $1.widthFactor }
+                        #expect(width <= 12.0,
+                                "row too dense in \(layout.name) panel \(panel.name)")
+                        let keyCount = row.keys.filter { !$0.isSpacer }.count
+                        #expect(keyCount <= keyBudget,
+                                "too many keys in a row of \(layout.name) panel \(panel.name)")
+                    }
+                }
+            }
+        }
     }
 
     @Test func enUSKeepsTheFullVowelInventoryOnThePrimaryPanel() throws {
@@ -136,9 +182,7 @@ struct BundledLayoutTests {
 
     private func genericFullLayout() throws -> KeyboardLayout {
         // Selected by name: there are several bundled `und` layouts.
-        let layouts = LayoutStore().bundledLayouts()
-        return try #require(layouts.first { $0.name == "IPA — Full (QWERTY)" },
-                            "the generic IPA — Full (QWERTY) layout should be bundled")
+        try bundledLayout(named: "IPA — Full (QWERTY)")
     }
 
     @Test func atLeastTwoBundledLayouts() {
@@ -146,11 +190,12 @@ struct BundledLayoutTests {
         #expect(LayoutStore().bundledLayouts().count >= 2)
     }
 
-    @Test func genericFullLayoutIsAReadOnlyUndLayout() throws {
+    @Test func genericFullLayoutUsesTheUndLocale() throws {
+        // Dialect-independence is encoded as the `und` locale. (isBuiltIn and
+        // schemaVersion are swept across every bundled layout by
+        // `bundledLayoutsDecode` and LayoutStoreTests.)
         let full = try genericFullLayout()
-        #expect(full.isBuiltIn)
         #expect(full.locale == "und")
-        #expect(full.schemaVersion == KeyboardLayout.currentSchemaVersion)
     }
 
     @Test func genericFullLayoutSplitsSymbolsAcrossSwitchablePanels() throws {
@@ -166,18 +211,6 @@ struct BundledLayoutTests {
         // A shared bottom bar carries the globe key.
         let functionRow = try #require(arrangement.functionRow)
         #expect(functionRow.keys.contains { $0.action == .nextKeyboard })
-    }
-
-    @Test func genericFullLayoutFitsOneScreenPerPanel() throws {
-        let arrangement = try #require(try genericFullLayout().primaryArrangement)
-        // Legibility/one-screen heuristic: keep rows near a QWERTY row's density
-        // so keys don't shrink to unusable widths (en-US tops out around 13).
-        for panel in arrangement.panels {
-            for row in panel.rows {
-                let width = row.keys.reduce(0.0) { $0 + $1.widthFactor }
-                #expect(width <= 12.0, "row too dense in generic Full panel \(panel.name)")
-            }
-        }
     }
 
     /// Issue #101: the QWERTY panel's top three rows mirror the system English
@@ -265,32 +298,15 @@ struct BundledLayoutTests {
     // MARK: Generic "IPA — Chart" layout
 
     private func genericChartLayout() throws -> KeyboardLayout {
-        let layouts = LayoutStore().bundledLayouts()
-        return try #require(layouts.first { $0.name == "IPA — Chart" },
-                            "the generic IPA — Chart layout should be bundled")
+        try bundledLayout(named: "IPA — Chart")
     }
 
-    /// Every string a layout can insert — panel rows, the function row, switch
-    /// keys, and long-press alternates (recursively).
-    private func insertTexts(in layout: KeyboardLayout) -> Set<String> {
-        var texts = Set<String>()
-        func visit(_ key: Key) {
-            if case .insert(let text) = key.action { texts.insert(text) }
-            key.alternates.forEach(visit)
-        }
-        let panels = layout.arrangements.flatMap(\.panels)
-        (panels.flatMap(\.rows).flatMap(\.keys)
-            + layout.arrangements.compactMap(\.functionRow).flatMap(\.keys)
-            + panels.compactMap(\.switchKey))
-            .forEach(visit)
-        return texts
-    }
-
-    @Test func genericChartLayoutIsAReadOnlyUndLayout() throws {
+    @Test func genericChartLayoutUsesTheUndLocale() throws {
+        // Dialect-independence is encoded as the `und` locale. (isBuiltIn and
+        // schemaVersion are swept across every bundled layout by
+        // `bundledLayoutsDecode` and LayoutStoreTests.)
         let chart = try genericChartLayout()
-        #expect(chart.isBuiltIn)
         #expect(chart.locale == "und")
-        #expect(chart.schemaVersion == KeyboardLayout.currentSchemaVersion)
     }
 
     @Test func genericChartLayoutPanelSwitchKeysFormACycle() throws {
@@ -321,20 +337,6 @@ struct BundledLayoutTests {
         #expect(chart.totalRowCount <= full.totalRowCount)
         let functionRow = try #require(chart.functionRow)
         #expect(functionRow.keys.contains { $0.action == .nextKeyboard })
-    }
-
-    @Test func genericChartLayoutFitsOneScreenPerPanel() throws {
-        // Same density heuristics as the Full layout: no horizontal scrolling,
-        // keys no denser than a QWERTY row (ipa-full's widest row is 10 keys).
-        let arrangement = try #require(try genericChartLayout().primaryArrangement)
-        for panel in arrangement.panels {
-            for row in panel.rows {
-                let width = row.keys.reduce(0.0) { $0 + $1.widthFactor }
-                #expect(width <= 12.0, "row too dense in chart panel \(panel.name)")
-                #expect(row.keys.filter { !$0.isSpacer }.count <= 10,
-                        "too many keys in a row of chart panel \(panel.name)")
-            }
-        }
     }
 
     @Test func genericChartLayoutUsesTheExactChartCodePoints() throws {

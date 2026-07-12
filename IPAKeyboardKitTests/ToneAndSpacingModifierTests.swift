@@ -18,51 +18,12 @@ import Testing
 struct ToneAndSpacingModifierTests {
 
     // MARK: Helpers
-
-    private func bundledLayout(named name: String) throws -> KeyboardLayout {
-        // Selected by name: several bundled layouts share the `und` locale.
-        let layouts = LayoutStore().bundledLayouts()
-        return try #require(layouts.first { $0.name == name },
-                            "expected a bundled layout named \(name)")
-    }
+    //
+    // Key-walking and bundled-layout lookup helpers live in
+    // LayoutTestSupport.swift.
 
     private func enUSLayout() throws -> KeyboardLayout {
-        let layouts = LayoutStore().bundledLayouts()
-        return try #require(layouts.first { $0.locale == "en-US" })
-    }
-
-    /// All top-level symbol keys of a layout (panel rows only, not alternates).
-    private func topLevelKeys(in layout: KeyboardLayout) -> [Key] {
-        layout.arrangements.flatMap(\.panels).flatMap(\.rows).flatMap(\.keys)
-    }
-
-    /// Every string the layout can insert — rows, function row, switch keys,
-    /// and long-press alternates (recursively).
-    private func insertTexts(in layout: KeyboardLayout) -> Set<String> {
-        var texts = Set<String>()
-        func visit(_ key: Key) {
-            if case .insert(let text) = key.action { texts.insert(text) }
-            key.alternates.forEach(visit)
-        }
-        let panels = layout.arrangements.flatMap(\.panels)
-        (panels.flatMap(\.rows).flatMap(\.keys)
-            + layout.arrangements.compactMap(\.functionRow).flatMap(\.keys)
-            + panels.compactMap(\.switchKey))
-            .forEach(visit)
-        return texts
-    }
-
-    /// The first top-level key of `layout` that inserts exactly `text`.
-    private func key(inserting text: String, in layout: KeyboardLayout) -> Key? {
-        topLevelKeys(in: layout).first { key in
-            if case .insert(let inserted) = key.action { return inserted == text }
-            return false
-        }
-    }
-
-    private func insertText(of key: Key) -> String? {
-        if case .insert(let text) = key.action { return text }
-        return nil
+        try bundledLayout(locale: "en-US")
     }
 
     // MARK: en-US spacing modifiers (issue #29 — aspiration and releases)
@@ -78,18 +39,17 @@ struct ToneAndSpacingModifierTests {
         (Unicode.Scalar(0x207F)!, "nasal release"),   // ⁿ SUPERSCRIPT LATIN SMALL LETTER N
     ]
 
-    @Test func enUSContainsTheFourSpacingModifierKeys() throws {
+    @Test(arguments: ToneAndSpacingModifierTests.expectedSpacingModifiers)
+    func enUSContainsTheSpacingModifierKey(_ expected: (scalar: Unicode.Scalar, accessibilityLabel: String)) throws {
         let layout = try enUSLayout()
-        for expected in Self.expectedSpacingModifiers {
-            let text = String(expected.scalar)
-            let modifierKey = try #require(
-                key(inserting: text, in: layout),
-                "expected en-US to contain an insert key for U+\(String(expected.scalar.value, radix: 16, uppercase: true))")
-            #expect(modifierKey.accessibilityLabel == expected.accessibilityLabel)
-            // Exactly one scalar each — no lookalike or precomposed drift.
-            #expect(text.unicodeScalars.count == 1)
-            #expect(text.unicodeScalars.first?.value == expected.scalar.value)
-        }
+        let text = String(expected.scalar)
+        let modifierKey = try #require(
+            key(inserting: text, in: layout),
+            "expected en-US to contain an insert key for U+\(String(expected.scalar.value, radix: 16, uppercase: true))")
+        #expect(modifierKey.accessibilityLabel == expected.accessibilityLabel)
+        // Exactly one scalar each — no lookalike or precomposed drift.
+        #expect(text.unicodeScalars.count == 1)
+        #expect(text.unicodeScalars.first?.value == expected.scalar.value)
     }
 
     @Test func enUSSpacingModifiersLiveInTheMorePanel() throws {
@@ -260,17 +220,10 @@ struct ToneAndSpacingModifierTests {
     }
 
     // MARK: Grapheme behavior of the tone marks
-
-    @Test func combiningToneMarksFormOneClusterWithTheirBase() {
-        // Each combining tone diacritic merges with its base vowel into one
-        // user-perceived character, deleted as a unit.
-        let combiningMarks: [UInt32] = [0x0300, 0x0301, 0x0302, 0x0304, 0x030B, 0x030C, 0x030F]
-        for value in combiningMarks {
-            let context = "e" + String(Unicode.Scalar(value)!)
-            #expect(context.count == 1, "U+\(String(value, radix: 16, uppercase: true)) should combine with its base")
-            #expect(GraphemeText.deletionScalarCount(before: context) == 2)
-        }
-    }
+    //
+    // The combining tone diacritics' cluster-deletion behavior is asserted
+    // per mark by GraphemeTextTests.basePlusOneCombiningMarkDeletesAsOneCluster;
+    // only the spacing-letter contrast stays here.
 
     @Test func toneBarsAreSpacingLettersDeletedOneAtATime() {
         // Chao tone letters are spacing characters: a contour like ˩˥ is two
