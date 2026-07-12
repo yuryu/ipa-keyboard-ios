@@ -36,12 +36,21 @@ class KeyboardViewController: UIInputViewController {
     /// The host field's return-key type as last rendered; `.return` keycaps
     /// are relabeled (Go/Search/Done…) to match, like the system keyboard.
     private var returnKeyType: UIReturnKeyType = .default
+    /// The host field's `enablesReturnKeyAutomatically` trait as last rendered.
+    /// When true, the return key is dimmed and inert while the document is
+    /// empty (issue #60).
+    private var enablesReturnKeyAutomatically = false
+    /// Whether the host document was empty at the last render — the emptiness
+    /// the automatic-enable trait gates the return key on.
+    private var returnKeyDocumentEmpty = false
 
     override func viewDidLoad() {
         super.viewDidLoad()
 
         metrics = .metrics(forCompactHeight: traitCollection.verticalSizeClass == .compact)
         returnKeyType = textDocumentProxy.returnKeyType ?? .default
+        enablesReturnKeyAutomatically = textDocumentProxy.enablesReturnKeyAutomatically ?? false
+        returnKeyDocumentEmpty = currentDocumentIsEmpty
         applyProxyAppearance()
 
         let layout = displayLayout(loadLayout())
@@ -63,14 +72,48 @@ class KeyboardViewController: UIInputViewController {
 
     override func textDidChange(_ textInput: UITextInput?) {
         super.textDidChange(textInput)
-        // Moving between fields (or apps) can change both the requested
-        // appearance and the return-key type without relaunching us.
+        // Moving between fields (or apps) can change the requested appearance,
+        // the return-key type, and the automatic-enable trait without
+        // relaunching us; typing also flips the document between empty and
+        // non-empty, which toggles the return key when the field opts in.
         applyProxyAppearance()
-        let type = textDocumentProxy.returnKeyType ?? .default
-        if type != returnKeyType {
-            returnKeyType = type
+
+        // Snapshot the currently rendered return-key state, then read the live
+        // trait/emptiness and re-render only when the label (type) or the
+        // enabled decision actually changes — so an empty↔non-empty flip in a
+        // field that doesn't use the trait doesn't churn the view.
+        let previousType = returnKeyType
+        let previousEnabled = returnKeyEnabled
+
+        returnKeyType = textDocumentProxy.returnKeyType ?? .default
+        enablesReturnKeyAutomatically = textDocumentProxy.enablesReturnKeyAutomatically ?? false
+        returnKeyDocumentEmpty = currentDocumentIsEmpty
+
+        if returnKeyType != previousType || returnKeyEnabled != previousEnabled {
             refreshRootView()
         }
+    }
+
+    /// Whether the return key is currently tappable and full-contrast, from
+    /// the host field's automatic-enable trait and the document emptiness
+    /// (issue #60). The shared kit decision, so the extension's
+    /// change-detection matches what `KeyboardView` renders.
+    private var returnKeyEnabled: Bool {
+        ReturnKeyAvailability.isEnabled(
+            returnKeyType: returnKeyType,
+            enablesReturnKeyAutomatically: enablesReturnKeyAutomatically,
+            documentIsEmpty: returnKeyDocumentEmpty)
+    }
+
+    /// Whether the host document has no text — `hasText` is false and neither
+    /// context window holds any characters. This is the emptiness
+    /// `enablesReturnKeyAutomatically` gates the return key on (issue #60).
+    private var currentDocumentIsEmpty: Bool {
+        let proxy = textDocumentProxy
+        if proxy.hasText { return false }
+        let before = proxy.documentContextBeforeInput ?? ""
+        let after = proxy.documentContextAfterInput ?? ""
+        return before.isEmpty && after.isEmpty
     }
 
     // MARK: Appearance
@@ -165,6 +208,8 @@ class KeyboardViewController: UIInputViewController {
             layout: layout,
             metrics: metrics,
             returnKeyType: returnKeyType,
+            enablesReturnKeyAutomatically: enablesReturnKeyAutomatically,
+            documentIsEmpty: returnKeyDocumentEmpty,
             nextKeyboardOverlay: globeOverlay,
             onCursorMove: { [weak self] event in
                 self?.handleCursorMove(event)

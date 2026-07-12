@@ -15,6 +15,7 @@
 //  never disagree about what a keycap looks like.
 //
 
+import SwiftUI
 import UIKit
 
 /// The display text for the return key, mirroring how the system keyboard
@@ -35,6 +36,55 @@ public enum ReturnKeyLabel {
         case .continue: "continue"
         // `.default`, the deprecated `.google`/`.yahoo`, and any future type.
         default: "return"
+        }
+    }
+}
+
+/// Whether the return key should accept taps and render at full contrast,
+/// mirroring `UITextInputTraits.enablesReturnKeyAutomatically` (issue #60).
+/// A host field that opts into the trait wants the return key *disabled*
+/// while the document is empty — no text before or after the cursor — and
+/// enabled the moment any text exists; a field that doesn't opt in keeps the
+/// return key always enabled.
+///
+/// The decision is deliberately independent of `returnKeyType`: the system
+/// dims a plain "return" and a prominent "Search" alike. The type is still
+/// taken as a parameter so callers thread the full return-key context through
+/// one door, and so the type-independence is pinned by test across every
+/// return-key type.
+public enum ReturnKeyAvailability {
+    public static func isEnabled(
+        returnKeyType: UIReturnKeyType,
+        enablesReturnKeyAutomatically: Bool,
+        documentIsEmpty: Bool
+    ) -> Bool {
+        guard enablesReturnKeyAutomatically else { return true }
+        return !documentIsEmpty
+    }
+}
+
+/// The label font for a keycap (issue #60). Glyph keys — the IPA symbols and
+/// the single-glyph backspace (⌫) and globe (🌐) — render at the standard
+/// `.title3` keycap size. Word-labeled keys — space, return, and the
+/// panel-switch keys ("more", "IPA", "vowels") — render one step smaller at a
+/// *fixed* point size, matching the system keyboard, so their words sit in the
+/// cap without leaning on `minimumScaleFactor` to shrink them to fit.
+///
+/// This is a font choice *inside* the cap; it never touches cap geometry, so
+/// the shared-grid pixel-exact key sizing (issue #117) is unaffected.
+enum KeyLabelFont {
+    /// Glyph keys: the standard keycap type size (`.title3`, ~20 pt).
+    static let glyph: Font = .title3
+    /// Word keys: a smaller fixed size than `.title3`, chosen so the system
+    /// keyboard's word labels ("space", "return", "more") fit comfortably.
+    static let word: Font = .system(size: 16)
+
+    /// The label font for `key`: `word` for space / return / panel-switch
+    /// keys, `glyph` for everything else.
+    static func font(for key: Key) -> Font {
+        switch key.action {
+        case .space, .return, .switchPanel: word
+        case .insert, .backspace, .nextKeyboard, .spacer: glyph
         }
     }
 }
