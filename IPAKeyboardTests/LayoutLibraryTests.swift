@@ -258,6 +258,27 @@ struct LayoutLibraryTests {
         #expect(world.library.userLayouts.isEmpty)
     }
 
+    @Test func importLayoutSurfacesANewerSchemaVersionError() {
+        let world = makeWorld()
+        defer { world.cleanUp() }
+
+        // Well-formed JSON declaring a future schema version: the distinct
+        // "newer format" message (LayoutImportError.unsupportedSchemaVersion)
+        // must reach errorMessage — not the generic malformed-document one.
+        // The exact version numbers in the copy are pinned by
+        // IPAKeyboardKitTests/LayoutTransferTests; this test pins the
+        // library-level surfacing (issue #187, replacing a UI test).
+        let newerSchemaJSON = """
+        { "schemaVersion": 99, "name": "Future", "locale": "und", "arrangements": [] }
+        """
+
+        world.library.importLayout(data: Data(newerSchemaJSON.utf8))
+
+        #expect(world.library.errorMessage?.contains("import this layout") == true)
+        #expect(world.library.errorMessage?.contains("newer format") == true)
+        #expect(world.library.userLayouts.isEmpty)
+    }
+
     @Test func importLayoutWithoutSharedStorageExplainsTheDegradedState() throws {
         let world = makeWorld(containerAvailable: false)
         defer { world.cleanUp() }

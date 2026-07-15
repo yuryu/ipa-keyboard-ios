@@ -22,13 +22,11 @@ Baseline UITests updated 2026-06-29. build-for-testing passes on iPhone 17 (OS 2
 - `layout-detail-duplicate-button` — "Duplicate to Edit" button (built-ins only); query as `app.buttons[...]`
 - `layout-detail-delete-button` — "Delete" button (user layouts only)
 
-**Test inventory:**
-- `test_launch_mainWindowExists` — main window appears within 10 s
-- `test_library_showsBuiltInLayout` — English (US) row exists and is hittable; name label cross-check
-- `test_library_openDetail_showsPreview` — tapping built-in row shows preview + duplicate button
-- `test_library_detail_backNavigatesToList` — back button returns to library list
-- `testLaunchPerformance` — cold-launch metric
+**Test inventory (IPAKeyboardUITests.swift, updated 2026-07-12 after the issue #187 cold-launch trim):**
+- `test_library_openDetail_showsPreview_andBackNavigatesToList` — one launch: human-readable "English (US) — General American" row cross-check, row tap → detail preview + duplicate button, back → list. Absorbed the deleted `test_library_showsBuiltInLayout` (#187); its identifier existence/hittability checks live in `openEnglishUS`'s poll (also retiring the one-shot-isHittable flake, #166)
+- `testLaunchPerformance` — cold-launch metric (XCTSkip when CI=1)
 - `testLaunch` (LaunchTests) — window + navigation bar present; screenshot kept always
+- Other suites in the target: Onboarding, KeyEditor, ImportExport (which, post-#187, keeps one import-error launch — malformed — carrying the toolbar-import-button assertions; newer-schema surfacing moved to app-hosted `LayoutLibraryTests`), SymbolSearch, AlternatesPopup, LayoutListScratchpad, SystemKeyboardSmoke
 
 **Important constraints:**
 - Do NOT assert that forking/saving persisted a user layout — the App Group container is unavailable without provisioning
@@ -47,7 +45,7 @@ Baseline UITests updated 2026-06-29. build-for-testing passes on iPhone 17 (OS 2
 `LayoutListView`'s `layout-row-<UUID>` cell identifiers (and every other per-element identifier inside `builtInSection`/`userSection`/`activeSection`) are **not reachable** on iOS 26.5 / this Xcode toolchain: applying `.accessibilityIdentifier(...)` to a SwiftUI `Section` inside a `List` makes *every descendant element in that section* (including `ForEach` rows and their subviews) report the **section's** identifier instead of its own. Confirmed via the runtime accessibility-hierarchy dump (`xcrun xcresulttool export attachments`, "App UI hierarchy" attachment) on a real failing run: the English (US) row's `Button` had `identifier: 'layout-list-builtin-section'` (the *Section's* id), not `layout-row-7E5A1C00-...`; likewise every static text inside the "Active" section reported `identifier: 'layout-list-active-section'`.
 
 - Confirmed via `git diff main -- IPAKeyboard/LayoutListView.swift` that the affected lines (`.accessibilityIdentifier("layout-list-builtin-section")` on the `Section`, `.accessibilityIdentifier("layout-row-\(layout.id.uuidString)")` on each row) are **unmodified on `main`** — this is not caused by any in-flight branch, it's a live regression on `main` today.
-- Breaks `LibraryScreen.englishUSRow` and any row-level lookup by UUID identifier. All three pre-onboarding-branch tests that depend on it (`test_library_showsBuiltInLayout`, `test_library_openDetail_showsPreview`, `test_library_detail_backNavigatesToList`) fail with "No matches found for ... layout-row-<UUID> ... from input {(Cell, Cell, ...)}" — the cells exist, just under the wrong identifier.
+- Breaks `LibraryScreen.englishUSRow` and any row-level lookup by UUID identifier. The three pre-onboarding-branch tests that depended on it at the time (`test_library_showsBuiltInLayout`, `test_library_openDetail_showsPreview`, `test_library_detail_backNavigatesToList` — since consolidated into the single `test_library_openDetail_showsPreview_andBackNavigatesToList`, #187) failed with "No matches found for ... layout-row-<UUID> ... from input {(Cell, Cell, ...)}" — the cells exist, just under the wrong identifier.
 - Does NOT affect screens without a `Section`-level `.accessibilityIdentifier` (confirmed: all 4 onboarding-flow tests over `OnboardingView`, a plain `ScrollView`, pass cleanly).
 - **Do not "fix" this by loosening test assertions to a label-based fallback** — that would silently mask a real app-code accessibility defect. File/flag it as a `host-app` + `testing` issue instead; the eventual app-side fix likely means moving the identifier off the `Section` itself (e.g. onto the header `Text`) or restructuring so the section container isn't tagged with an identifier at all.
 - CI still only does `build-for-testing` for `IPAKeyboardUITests` (never executes it), which is why this had gone unnoticed.
