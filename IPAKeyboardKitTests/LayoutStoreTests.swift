@@ -311,4 +311,43 @@ struct LayoutStoreHermeticContainerTests {
         #expect(imported.id != existing.id)
         #expect(store.userLayouts().count == 2)
     }
+
+    // MARK: userLayouts() skip-and-continue over undecodable files (issue #164)
+
+    @Test func userLayoutsSkipsUndecodableFilesButStillReturnsValidSiblings() throws {
+        let container = makeTempContainerURL()
+        defer { try? FileManager.default.removeItem(at: container) }
+        let store = LayoutStore(containerURL: container)
+
+        // One valid layout, saved through the real path (which also creates
+        // the "Layouts" subdirectory the bad files are planted into).
+        let valid = makeLayout(name: "Survivor ɡː")
+        try store.save(valid)
+
+        // Two undecodable siblings, each named <uuid>.json so the directory
+        // listing's pathExtension filter picks them up: raw non-JSON bytes
+        // (a user hand-edit gone wrong) and a well-formed document whose
+        // schemaVersion is newer than supported (rejected by KeyboardLayout's
+        // decoder — see SchemaV2Tests.newerSchemaVersionIsRejected…).
+        let layoutsDir = container.appendingPathComponent("Layouts", isDirectory: true)
+        try Data("{ not json".utf8).write(
+            to: layoutsDir.appendingPathComponent("\(UUID().uuidString).json"))
+        let futureDoc = """
+        {
+          "schemaVersion": 99,
+          "name": "From the future",
+          "locale": "en-US",
+          "arrangements": []
+        }
+        """
+        try Data(futureDoc.utf8).write(
+            to: layoutsDir.appendingPathComponent("\(UUID().uuidString).json"))
+
+        // Skip: neither bad file appears in the listing. Keep going: the
+        // valid sibling still loads — one corrupt file must never throw and
+        // wipe the entire user-layout listing.
+        let loaded = store.userLayouts()
+        #expect(loaded.count == 1)
+        #expect(loaded.first?.id == valid.id)
+    }
 }
