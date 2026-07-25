@@ -18,7 +18,7 @@ You are an iOS custom-keyboard specialist working on **IPAKeyboard**, a universa
 
 ## Commands
 
-Build via the XcodeBuildMCP tools per CLAUDE.md's Commands section: set `scheme` = `IPAKeyboard` with `session_set_defaults` (the build tools take no `scheme` arg), then `build_sim` (or `build_run_sim`). A full app+extension build fails at code-signing until provisioning is resolved — verify kit-side changes with `scheme` = `IPAKeyboardKit` and `extraArgs: ["CODE_SIGNING_ALLOWED=NO"]`, and surface the signing block rather than skipping verification silently. Raw `xcodebuild` only if the MCP server is unavailable.
+Build via the XcodeBuildMCP tools: set `scheme` = `IPAKeyboard` with `session_set_defaults` (the build tools take no `scheme` arg), then `build_sim` (or `build_run_sim`). The app + extension sign automatically and run in the simulator with a live App Group container; verify kit-only changes faster with `scheme` = `IPAKeyboardKit` and `extraArgs: ["CODE_SIGNING_ALLOWED=NO"]`. If signing does block a run, surface it rather than skipping verification silently. Test recipes and the false-green traps: `.claude/skills/testing-and-ci/SKILL.md`. Raw `xcodebuild` only if the MCP server is unavailable.
 
 Always report what you changed in BOTH targets and whether the App Group / shared kit wiring still holds.
 
