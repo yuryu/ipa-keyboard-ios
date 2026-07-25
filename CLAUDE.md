@@ -56,7 +56,7 @@ Keyboard layouts are versioned `Codable` JSON documents, not Swift code — this
 
 - The document holds `arrangements` (→ `Panel` → `KeyRow`), **not** a flat `rows`; `currentSchemaVersion` is `2`, v1 files migrate on decode, newer-than-supported versions are rejected.
 - **Built-ins are read-only — never mutate a bundled layout in place.** Fork with `KeyboardLayout.makeEditableCopy(named:)`; symbol curation is non-destructive (`applyingHiddenSymbols(_:)` returns a filtered copy; hidden sets live in `KeyboardPreferences`, never in the layout document).
-- A nil App Group container is a permanent supported state (unsigned CI, kit unit tests), not a provisioning stopgap: storage and preferences fall back to bundled defaults rather than crash. Adding a bundled layout is JSON only — `LayoutStore` auto-discovers it.
+- A nil App Group container is a permanent supported state (unsigned CI, the unhosted kit-test runner), not a provisioning stopgap — but storage and preferences degrade *differently*: `LayoutStore` serves bundled layouts and throws `StoreError.sharedContainerUnavailable` on writes, while `KeyboardPreferences` stays writable on a suite that opens fine but is process-local rather than shared (`.standard` only if the suite won't open at all). Adding a bundled layout is JSON only — `LayoutStore` auto-discovers it.
 - Bundled layouts use precise IPA code points — `ɡ` U+0261 (not ASCII `g`), `ː` U+02D0 (not colon). **Preserve exact Unicode when editing.**
 
 ## Subagents
