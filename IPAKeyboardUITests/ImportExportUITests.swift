@@ -40,12 +40,13 @@
 //    (auto-presented on first launch of a fresh install) can't cover the
 //    library or block the import-error alert, and
 //    LibraryScreen.resetLayoutsArgument (`LayoutLibrary`'s UI-test reset
-//    hook, issue #27) so a leftover imported row from a previous (future,
-//    provisioned) run can never collide with this run's fixed
-//    `importedLayoutName` — the reset runs before the view (and hence any
-//    injected import for that same launch) ever renders, so it can't clobber
-//    an import injected in the same launch. Replaces the previous
-//    swipe-to-delete self-healing helper.
+//    hook, issue #27) so a leftover imported row from a previous run can
+//    never collide with this run's fixed `importedLayoutName`. Combining the
+//    two hooks in one launch is safe because the reset runs once per
+//    *process*, before the first load — it used to run per `LayoutLibrary`
+//    instance, and SwiftUI's rebuild of the view that owns the library then
+//    deleted the layout the same launch had just imported (issue #191).
+//    Replaces the previous swipe-to-delete self-healing helper.
 //
 
 import XCTest
@@ -387,9 +388,9 @@ final class ImportExportUITests: XCTestCase {
     @MainActor
     func test_importValid_succeedsOrDegradesGracefully() throws {
         // `launch`'s LibraryScreen.resetLayoutsArgument clears any persisted
-        // leftover from a previous (future, provisioned) run before this
-        // launch's injected import runs, so the row assertion below can't
-        // match stale data (issue #27 — see the file-level comment).
+        // leftover from a previous run before this launch's injected import
+        // runs — once per process, so it can't turn around and delete that
+        // import (issues #27 and #191 — see the file-level comment).
         launch(importJSON: Self.validLayoutJSON)
 
         let library = LibraryScreen(app: app)

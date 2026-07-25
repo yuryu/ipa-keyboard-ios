@@ -69,23 +69,58 @@ final class LayoutLibrary {
     /// self-healing via swipe-to-delete — mirrors the
     /// `--uitest-show-onboarding`/`--uitest-skip-onboarding` pattern in
     /// `OnboardingState.swift`. Applied before the first `reload()`, so the
-    /// library never observes the stale state even transiently. When the
-    /// App Group container is unavailable (every unsigned build today — see
-    /// CLAUDE.md's signing note) only the layout deletion is skipped (no
-    /// layouts persisted to delete); the preferences reset still runs,
-    /// clearing the fallback process-local `.standard` suite.
+    /// library never observes the stale state even transiently, and exactly
+    /// once per process (see `LaunchResetGate`). When the App Group
+    /// container is unavailable (every unsigned CI build — see CLAUDE.md's
+    /// signing note) only the layout deletion is skipped (no layouts
+    /// persisted to delete); the preferences reset still runs, clearing the
+    /// process-local fallback suite.
     static let resetLayoutsArgument = "--uitest-reset-layouts"
+
+    /// One-shot gate for `resetLayoutsArgument`, scoped to the *process*
+    /// rather than to a `LayoutLibrary` instance.
+    ///
+    /// SwiftUI re-evaluates a `@State` property's initial-value expression
+    /// every time the declaring view struct is re-initialized, so
+    /// `LayoutListView`'s `@State private var library = LayoutLibrary()`
+    /// builds throwaway libraries whose `init` runs in full — and observing
+    /// a mutation (the launch import's own `reload()`, say) triggers exactly
+    /// such a re-init. Resetting per instance therefore let a throwaway
+    /// delete the layout the same launch had just imported, leaving neither
+    /// a row nor an error alert (issue #191). An instrumented launch with
+    /// both UI-test hooks, before this gate:
+    ///
+    ///     init #1 → reset → import (userLayouts=1) → init #2 → reset (gone)
+    ///
+    /// The app shares `.process`; tests inject a fresh gate so they stay
+    /// hermetic and order-independent.
+    @MainActor
+    final class LaunchResetGate {
+        /// The gate every app-built `LayoutLibrary` shares.
+        static let process = LaunchResetGate()
+
+        private var hasRunReset = false
+
+        /// Returns `true` for the first caller only — that caller owns the
+        /// reset; every later caller must skip it.
+        func claim() -> Bool {
+            guard !hasRunReset else { return false }
+            hasRunReset = true
+            return true
+        }
+    }
 
     init(
         store: LayoutStore = LayoutStore(),
         preferences: KeyboardPreferences = KeyboardPreferences(),
         environment: [String: String] = ProcessInfo.processInfo.environment,
-        launchArguments: [String] = ProcessInfo.processInfo.arguments
+        launchArguments: [String] = ProcessInfo.processInfo.arguments,
+        resetGate: LaunchResetGate = .process
     ) {
         self.store = store
         self.preferences = preferences
         self.launchImportJSON = environment[Self.uiTestImportEnvironmentKey]
-        if launchArguments.contains(Self.resetLayoutsArgument) {
+        if launchArguments.contains(Self.resetLayoutsArgument), resetGate.claim() {
             do {
                 try store.deleteAllUserLayouts()
             } catch LayoutStore.StoreError.sharedContainerUnavailable {
