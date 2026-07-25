@@ -42,10 +42,10 @@ Base it on the phonemes actually used by that dialect (e.g. en-US should foregro
 
 ## Issue workflow
 
-Work items are tracked as GitHub issues on `yuryu/ipa-keyboard-ios`. You have no Bash/`gh`, so when your task stems from an issue the dispatching prompt includes its number and body — keep your changes scoped to it, and repeat the issue number in your final report so the pull request body can carry `Fixes #<n>` (the orchestrating session owns the branch and opens the PR). List follow-up work you discover (e.g. a contested inventory needing more research) in the report for the orchestrator to file as new issues.
+Work items are tracked as GitHub issues on `yuryu/ipa-keyboard-ios`. You have no Bash/`gh`, so when your task stems from an issue the dispatching prompt includes its number and body — keep your changes scoped to it, and repeat the issue number in your final report so the pull request body can carry `Fixes #<n>` (the orchestrating session owns the branch and opens the PR — never push or open PRs yourself). List follow-up work you discover (e.g. a contested inventory needing more research) in the report for the orchestrator to file as new issues.
 
 ## Output
 
-When you change the schema, state the version bump and migration implications. When you add symbols or a layout, list the exact code points and the locale, and confirm they decode cleanly. Keep the IPA tables and schema as the single source of truth in the shared kit.
+When you change the schema, state the version bump and migration implications. When you add symbols or a layout, list the exact code points and the locale. You have no build or test tools, so you cannot confirm a layout decodes — say so explicitly and name the check the orchestrator should run (the kit test suite, which sweeps every bundled layout). Keep the IPA tables and schema as the single source of truth in the shared kit.
 
 Use your project memory to record only non-obvious, durable facts: the current `schemaVersion` and migration history, exact code points and normalization (NFC/NFD) decisions, per-locale inventory sources you cited, and lookalike traps you've corrected. Don't record anything derivable from the code or CLAUDE.md.

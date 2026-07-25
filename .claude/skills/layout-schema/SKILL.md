@@ -28,7 +28,11 @@ Built-ins are read-only — **never mutate a bundled layout in place**. `Keyboar
 
 ## Default layouts (`IPAKeyboardKit/Resources/`, one JSON per layout)
 
-`en-US.json` is General American, schema v2 — one "Split" arrangement with an "IPA" main panel and a "More" panel, a shared globe/space/⌫ bottom bar, consonants left / vowels right via a `spacer`. It uses precise code points — `ɡ` U+0261 (not ASCII `g`), `ː` U+02D0 (not colon), `ɹ` U+0279 as primary rhotic with `r` as an alternate. **Preserve exact Unicode when editing.** Two more dialect layouts ship today: `en-GB.json` ("English (UK) — Standard Southern British") and `ja-JP.json` ("Japanese (Japan) — Tokyo Standard"), both schema v2. Generic layouts are just additional `*.json` here — auto-discovered, no code change; `ipa-full.json` and `ipa-chart.json` (both locale `und`) ship today.
+`ls IPAKeyboardKit/Resources/` is the inventory — dialect layouts are named by BCP-47 tag (`en-US.json`, …) and generic ones by slug (`ipa-full.json`, `ipa-chart.json`, locale `und`). A new layout is JSON only: `LayoutStore` auto-discovers it, no code change.
+
+`en-US.json` is the structural reference: General American, schema v2, one "Split" arrangement with an "IPA" main panel and a "More" panel, a shared globe/space/⌫ bottom bar, consonants left / vowels right via a `spacer`. It uses precise code points — `ɡ` U+0261 (not ASCII `g`), `ː` U+02D0 (not colon), `ɹ` U+0279 as primary rhotic with `r` as an alternate. **Preserve exact Unicode when editing.**
+
+Each bundled layout has a matching test suite (`EnUSDiacriticsTests`, `EnGBLayoutTests`, `JaJPLayoutTests`, `DeDELayoutTests`) plus the all-layouts invariant sweep in `BundledLayoutTests` — add a suite when you add a locale, and expect the sweep to hold for it.
 
 ## Resource bundle access
 

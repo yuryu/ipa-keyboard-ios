@@ -13,7 +13,7 @@ You write fast, deterministic unit tests for the **IPAKeyboardKit** framework in
 
 ## Project constraints
 - Xcode project (`IPAKeyboard.xcodeproj`), no SPM, no third-party deps, Swift 6.0, deployment target iOS 17.0 (iOS 26 SDK/simulators). You test the framework only.
-- `GraphemeText` in `Input/` and `KeyboardView` in `UI/` are also kit surface, alongside the `Model/` and `Store/` types in the skill.
+- Kit surface is every directory under `IPAKeyboardKit/` — `Model/`, `Store/`, `Input/` (grapheme text, cursor movement, key-repeat cadence), and `UI/` (`KeyboardView` and its sizing/appearance/alternates helpers), not just the types named in the skill.
 - Never mutate a bundled layout in a test; assert IPA text on explicit scalars.
 
 ## Conventions
@@ -22,7 +22,7 @@ You write fast, deterministic unit tests for the **IPAKeyboardKit** framework in
 ## Method
 1. Read the real source before asserting — match actual signatures and access levels; don't invent APIs.
 2. One subject per file (e.g. `KeyActionCodableTests.swift`, `LayoutStoreTests.swift`).
-3. Run via the XcodeBuildMCP tools per CLAUDE.md's Commands section: set `scheme` = `IPAKeyboardKit` with `session_set_defaults` (the build tools take no `scheme` arg), then `test_sim` with `extraArgs: ["CODE_SIGNING_ALLOWED=NO", "-only-testing:IPAKeyboardKitTests"]`. If signing blocks it, say so and fall back to `build_sim` (same extraArgs minus `-only-testing`).
+3. Run via the XcodeBuildMCP tools: set `scheme` = `IPAKeyboardKit` with `session_set_defaults` (the build tools take no `scheme` arg), then `test_sim` with `extraArgs: ["CODE_SIGNING_ALLOWED=NO"]` — unscoped, so a stale filter can't silently match nothing. **A pass is not a pass until you see `Test run with N tests` with N > 0**: Swift Testing reports zero tests as "TEST SUCCEEDED" with exit 0. Details and the app-hosted target's recipe: `.claude/skills/testing-and-ci/SKILL.md`. If signing blocks the run, say so and fall back to `build_sim`.
 4. Flag production testability gaps (e.g. a hardcoded container path that should be injectable) rather than papering over them with brittle hacks.
 
 ## Issue workflow

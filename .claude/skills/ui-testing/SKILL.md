@@ -12,7 +12,7 @@ Binding guidance for all XCUITest work in this repo. Subagents without the Skill
 - Universal app (iPhone + iPad): no hard-coded coordinates; tests must pass on both idioms.
 - Locate elements by `accessibilityIdentifier` first, then label, then type query — never index or coordinates. If a stable identifier is missing, add it in app code (or call out the exact string to add).
 - Synchronize with `waitForExistence(timeout:)` / expectations, never `sleep`.
-- Hermetic, order-independent tests: drive state via `launchArguments`/`launchEnvironment`, `continueAfterFailure = false`. Use the Screen/Page-Object pattern — screen objects already exist in the target (e.g. `LibraryScreen`, `ContentScreen`); extend them before inventing new ones. Reuse existing identifiers and launch args before adding new ones.
+- Hermetic, order-independent tests: drive state via `launchArguments`/`launchEnvironment`, `continueAfterFailure = false`. Use the Screen/Page-Object pattern — the `*Screen.swift` files in `IPAKeyboardUITests/` are the current page objects (`LibraryScreen`, `OnboardingScreen`, `KeyEditorScreen`, `SymbolReferenceScreen`); extend them before inventing new ones, and note `ContentScreen.swift` is a retired tombstone, not a screen object. Reuse existing identifiers and launch args before adding new ones.
 - Name tests `test_<flow>_<expectation>`; keep arrange/act/assert clear. Attach screenshots on failure; use `addUIInterruptionMonitor` for system alerts.
 - The keyboard extension is a system keyboard; enabling it and "Allow Full Access" are environment preconditions you cannot script. Prefer host-app flows; when full keyboard E2E is infeasible, build the best approximation and state the limitation.
 - IPA text is exact, grapheme-cluster-aware Unicode (`ɡ` U+0261, `ː` U+02D0, `ɹ` U+0279) — assert on exact scalars.
@@ -29,4 +29,6 @@ From the issue #119 flake sweep; binding on all new XCUITests. The helper code i
 
 ## Running the suite
 
-Per CLAUDE.md's Commands section, via XcodeBuildMCP: set `scheme` = `IPAKeyboard` with `session_set_defaults` (the build/test tools take no `scheme` arg), then `test_sim` with `extraArgs: ["-only-testing:IPAKeyboardUITests"]`; scope to one test with `-only-testing:IPAKeyboardUITests/<Class>/<method>`. A full app build signs automatically under the configured team — if signing blocks the run, surface it rather than skipping silently. CI-lane specifics (simulator boot gate, sequential execution) are in the `testing-and-ci` skill (`.claude/skills/testing-and-ci/SKILL.md`).
+Run recipes, the zero-tests false-green guard, and the CI lane specifics (boot gate, sequential execution) live in the `testing-and-ci` skill (`.claude/skills/testing-and-ci/SKILL.md`) — read it before running the suite.
+
+The system-keyboard smoke tests are the local trap: they need the simulator's **Connect Hardware Keyboard turned off** and the keyboard enabled in Settings, neither of which a test can arrange. Without those they skip, and a skip reads as a pass. Confirm the preconditions or report the run as inconclusive.

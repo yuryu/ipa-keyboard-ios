@@ -34,10 +34,10 @@ The `IPAKeyboard` host target's user-facing surface:
 
 ## Commands
 
-You have no Bash or build tools — you do not run builds. When a change needs verifying in the simulator, write out the XcodeBuildMCP steps from CLAUDE.md's Commands section (set `scheme` = `IPAKeyboard` via `session_set_defaults`, then `build_sim`; signing currently deferred) for the user or the relevant agent to run, and report which views and view models you changed and how they read/write through `LayoutStore`.
+You have no Bash or build tools — you do not run builds. When a change needs verifying in the simulator, write out the XcodeBuildMCP steps (set `scheme` = `IPAKeyboard` via `session_set_defaults`, then `build_sim` — the app signs automatically) for the user or the relevant agent to run, and report which views and view models you changed and how they read/write through `LayoutStore`.
 
 ## Issue workflow
 
-Work items are tracked as GitHub issues on `yuryu/ipa-keyboard-ios`. You have no Bash/`gh`, so when your task stems from an issue the dispatching prompt includes its number and body — keep your changes scoped to it, and repeat the issue number in your final report so the pull request body can carry `Fixes #<n>` (the orchestrating session owns the branch and opens the PR). List follow-up work you discover in the report for the orchestrator to file as new issues; don't leave TODOs in code.
+Work items are tracked as GitHub issues on `yuryu/ipa-keyboard-ios`. You have no Bash/`gh`, so when your task stems from an issue the dispatching prompt includes its number and body — keep your changes scoped to it, and repeat the issue number in your final report so the pull request body can carry `Fixes #<n>` (the orchestrating session owns the branch and opens the PR — never push or open PRs yourself). List follow-up work you discover in the report for the orchestrator to file as new issues; don't leave TODOs in code.
 
 Use your project memory to record only non-obvious, durable facts: real `LayoutStore` API shapes you relied on, view-model/navigation patterns established for the editor, accessibility identifiers you added for `ui-test-author`, and graceful-degradation behaviors observed before provisioning. Don't record anything derivable from the code or CLAUDE.md.

@@ -1,17 +1,19 @@
 ---
 name: host-app-ui
-description: Screen map, view models, and architecture rules for the IPAKeyboard host app's layout-management UI. Use when touching IPAKeyboard/** — host-app screens, navigation, view models, onboarding, or settings.
+description: Screen map, view models, and architecture rules for the IPAKeyboard host app — layout library, detail/editor screens, symbol reference, onboarding, import/export. Use when touching IPAKeyboard/** (host-app screens, navigation, or view models).
 ---
 
 # Host app UI
 
-The **IPAKeyboard** app target is the host app + layout-management UI; it embeds both the keyboard extension and the framework.
-
 ## Screen map
 
-`LayoutListView` (browse built-in + user layouts) → `LayoutDetailView` (metadata, live `KeyboardView` preview, set-active, "Duplicate to Edit" fork, delete) → `LayoutEditorView` (per-layout symbol curation with live preview + typing scratchpad), backed by the `LayoutLibrary` view model over `LayoutStore` + `KeyboardPreferences`.
+`LayoutListView` (browse built-in + user layouts) → `LayoutDetailView` (metadata, live `KeyboardView` preview, set-active, "Duplicate to Edit" fork, export, delete) → `LayoutEditorView` (per-layout symbol curation with live preview + typing scratchpad), backed by the `LayoutLibrary` view model over `LayoutStore` + `KeyboardPreferences`.
+
+Also on the list screen: `OnboardingView` (enable-the-keyboard guidance), `SymbolReferenceView` (searchable IPA reference), and layout **import** via `.fileImporter`. Export is a `ShareLink` on the detail screen, carrying `LayoutExportItem` over the kit's `LayoutTransfer`.
 
 Key-level editing of user layouts ships as `LayoutKeyEditorView` (sheet from `LayoutDetailView`: add/remove/reorder rows, per-key edits via `KeyRowEditorView`/`KeyEditorForm`, live draft preview; user layouts only — built-ins go through "Duplicate to Edit").
+
+The `IPAKeyboard/*.swift` file list is the authoritative surface — check it before assuming a screen doesn't exist yet.
 
 ## Architecture rules for host-app UI work
 

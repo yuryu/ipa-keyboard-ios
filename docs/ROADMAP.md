@@ -53,7 +53,7 @@ The user journey the host app builds toward:
 3. **Fork** a built-in into a user-owned copy ("Duplicate to Edit").
 4. **Edit** a forked layout's actual keys — rows, labels, alternates, widths
    ([#6](https://github.com/yuryu/ipa-keyboard-ios/issues/6)).
-5. **Share**: export/import a layout as a file ([#8](https://github.com/yuryu/ipa-keyboard-ios/issues/8)).
+5. **Share**: export/import a layout as a file.
 
 ### Interaction principles
 
@@ -71,9 +71,10 @@ Delivered: the render spine (extension renders layouts, grapheme-cluster-aware
 editing), schema v2 (arrangements → panels, v1 migration), the host layout
 library (browse/fork/delete/preview), active-layout selection shared across
 targets, two generic layouts ("IPA — Full (QWERTY)" and "IPA — Chart"),
-per-layout symbol curation with an in-app scratchpad, and key-level editing
+per-layout symbol curation with an in-app scratchpad, key-level editing
 of forked layouts (rows, keys, alternates, widths — with live draft preview
-and reset-to-default).
+and reset-to-default), and layout export/import as files
+([#8](https://github.com/yuryu/ipa-keyboard-ios/issues/8)).
 
 **Signing/App Group provisioning**
 ([#3](https://github.com/yuryu/ipa-keyboard-ios/issues/3)) has landed: the
