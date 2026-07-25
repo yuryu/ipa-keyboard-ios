@@ -159,9 +159,19 @@ final class AlternatesPopupUITests: XCTestCase {
 
         let scratch = app.staticTexts["layout-editor-scratch"]
         XCTAssertTrue(scratch.waitForExistence(timeout: 5), "Editor scratchpad missing")
-        XCTAssertEqual(
-            scratch.label, "r",
-            "Slide-to-select should commit the alternate exactly once"
+        // Event-driven wait for the commit to land in the scratchpad (issue
+        // #165): the scratch text always exists — it shows a placeholder
+        // while empty — so bare existence synchronizes nothing, and an
+        // immediate label snapshot races the post-press SwiftUI re-render.
+        // Same pattern as the cap-release test below. Exact label equality
+        // pins exactly-once: a double emission would read "rr", a
+        // cap-release the base "ɹ".
+        let committed = app.staticTexts.matching(identifier: "layout-editor-scratch")
+            .matching(NSPredicate(format: "label == %@", "r")).firstMatch
+        XCTAssertTrue(
+            committed.waitForExistence(timeout: 10),
+            "Slide-to-select should commit the alternate 'r' exactly once — "
+                + "scratchpad reads '\(scratch.label)'"
         )
     }
 
@@ -644,10 +654,18 @@ final class AlternatesPopupUITests: XCTestCase {
 
         let scratch = app.staticTexts["layout-editor-scratch"]
         XCTAssertTrue(scratch.waitForExistence(timeout: 5), "Editor scratchpad missing")
-        XCTAssertEqual(
-            scratch.label, "pʲ",
-            "Top-row hold-and-release should commit the popup cell clamped "
-                + "over the cap, not the base key (issue #122)"
+        // Event-driven wait for the commit (issue #165 — see the
+        // slide-to-select test: the scratch text always exists, so an
+        // immediate label snapshot races the post-press re-render). Exact
+        // equality pins the clamped popup cell: the base key would read
+        // "p", a double emission "pʲpʲ".
+        let committed = app.staticTexts.matching(identifier: "layout-editor-scratch")
+            .matching(NSPredicate(format: "label == %@", "pʲ")).firstMatch
+        XCTAssertTrue(
+            committed.waitForExistence(timeout: 10),
+            "Top-row hold-and-release should commit the popup cell 'pʲ' clamped "
+                + "over the cap, not the base key (issue #122) — "
+                + "scratchpad reads '\(scratch.label)'"
         )
     }
 }

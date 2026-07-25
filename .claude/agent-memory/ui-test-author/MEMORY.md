@@ -2,6 +2,7 @@
 
 - [Swift 6 XCUITest @MainActor pattern](feedback_swift6_xcuitest.md) — use async setUp/tearDown with @MainActor; do NOT use setUpWithError/tearDownWithError in Swift 6
 - [UITest baseline (2026-06-29, updated 2026-07-01)](project_uitest_baseline.md) — screen objects, identifiers, simulator constraint; 2 identifier-bleed bugs (Section + KeyboardView container), list scroll-to-reveal, App Group always unavailable when unsigned
+- [Signed-suite gaps (2026-07-12)](project_signed_suite_gaps.md) — 2 deterministic signed-only failures: reset+import hook loses the file; waitForEither swipes eaten by preview keys; nested discard-confirm buttons
 - [Onboarding flow (issue #7)](project_onboarding_flow.md) — OnboardingScreen page object, launch-arg overrides, OnboardingUITests coverage
 - [Key editor flow (issue #6)](project_key_editor_flow.md) — KeyEditorScreen page objects, KeyEditorUITests, XCTSkip guard for App-Group-unavailable persistence tests
 - [Known pre-failing UI tests (2026-07-12)](project_known_prefailing_uitests.md) — importValid + editor discard-confirm fail on signed fresh sim, pre-existing (stash-verified)

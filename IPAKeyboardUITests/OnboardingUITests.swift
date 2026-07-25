@@ -157,8 +157,17 @@ final class OnboardingUITests: XCTestCase {
         )
 
         let onboarding = OnboardingScreen(app: app)
+        // Must-never-appear probe with a bounded window, not a zero-window
+        // `.exists` snapshot: the preceding waitForContent passes even
+        // beneath a presented sheet — the "Layouts" nav bar stays in the
+        // hierarchy under it (see ImportExportUITests) — so a wrongly
+        // auto-presenting sheet still mid-animation would evade an
+        // instantaneous check, and the help-button reopen below would then
+        // pass vacuously against the already-presented sheet. Per the
+        // negative-assertion polarity rule the window doubles as the settle
+        // time that wrong outcome would need to surface.
         XCTAssertFalse(
-            onboarding.navigationBar.exists,
+            onboarding.navigationBar.waitForExistence(timeout: 2),
             "Onboarding sheet should not auto-present with "
                 + "\(OnboardingScreen.forceSkipArgument)"
         )
