@@ -19,7 +19,10 @@ redeclared for the test target as `LibraryScreen.resetLayoutsArgument`
 statics). Checked in `LayoutLibrary.init`, applied **before** the first
 `reload()` (not from `onAppear` like the import hook, since there's no error
 alert to present against an attached view — this also means the library
-never transiently shows stale rows before they'd be cleared). Calls
+never transiently shows stale rows before they'd be cleared) and, since
+issue #191, only for the caller that claims
+`LayoutLibrary.LaunchResetGate.process` — once per process, not per
+instance. Calls
 `store.deleteAllUserLayouts()` in a do/catch that swallows only the expected
 `StoreError.sharedContainerUnavailable` (the pre-provisioning case — every
 unsigned build today) and hits `assertionFailure` on any other error, then
@@ -36,7 +39,17 @@ process-local `.standard` suite before provisioning).
 (or before/after the import in `ImportExportUITests`). Both now just add
 `LibraryScreen.resetLayoutsArgument` to `app.launchArguments` (`KeyEditorUITests.setUp()`; `ImportExportUITests`'s shared `launch()` helper) and the
 swipe-based helpers (`cleanUpForkedSourceLayout()`,
-`cleanUpImportedLayoutRows()`) were deleted entirely — `openSourceLayoutDetail()` now just waits for the library, and `test_importValid_succeedsOrDegradesGracefully` collapsed from a double-launch (clean, terminate, relaunch-with-import) into one `launch(importJSON:)` call, since the reset always runs before that same launch's injected import (reset is in `LayoutLibrary.init`, import runs later from `LayoutListView.onAppear` — order is guaranteed, so a reset arg and an import env var are safe to combine in one launch).
+`cleanUpImportedLayoutRows()`) were deleted entirely — `openSourceLayoutDetail()` now just waits for the library, and `test_importValid_succeedsOrDegradesGracefully` collapsed from a double-launch (clean, terminate, relaunch-with-import) into one `launch(importJSON:)` call, combining a reset arg and an import env var in the same launch.
+
+**Combining the two hooks was NOT actually safe until issue #191** (fixed
+2026-07-25). The original reasoning recorded here — "reset is in
+`LayoutLibrary.init`, import runs later from `LayoutListView.onAppear`, so
+order is guaranteed" — missed that SwiftUI re-evaluates
+`@State private var library = LayoutLibrary()` on every re-init of the view
+struct, and the import's own `reload()` provokes exactly that: instrumented
+launch showed `init #1 → reset → import (userLayouts=1) → init #2 → reset`,
+the throwaway deleting the just-imported layout with no error to surface.
+The per-process `LaunchResetGate` is what makes the combination safe now.
 
 **Verified 2026-07-02** on `iPhone 17 Pro Max` (OS 26.5), unsigned
 (`CODE_SIGNING_ALLOWED=NO`): `IPAKeyboardKit` scheme build + full unit-test
