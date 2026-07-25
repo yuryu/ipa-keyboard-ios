@@ -246,15 +246,25 @@ struct LayoutTransferTests {
         }
     }
 
-    @Test func storeImportOfValidDataThrowsStoreErrorWhenContainerUnavailable() throws {
-        guard AppGroup.containerURL == nil else {
-            // App Group unexpectedly provisioned here; the degraded-state
-            // path can't be exercised (same guard as LayoutStoreTests).
-            return
-        }
+    @Test(.enabled(if: AppGroup.containerURL == nil,
+                   "App Group provisioned; storeImportOfValidDataThrowsStoreErrorWhenContainerIsNil covers this via nil injection"))
+    func storeImportOfValidDataThrowsStoreErrorWhenContainerUnavailable() throws {
+        // Exercises LayoutStore()'s *default* containerURL argument, so it
+        // only runs where the real container is nil and reports a visible
+        // skip (never a silent pass) in a provisioned environment (#188).
         let data = try LayoutTransfer.exportData(for: makeUnicodeLayout())
         #expect(throws: LayoutStore.StoreError.self) {
             try LayoutStore().importLayout(from: data)
+        }
+    }
+
+    @Test func storeImportOfValidDataThrowsStoreErrorWhenContainerIsNil() throws {
+        // Deterministic nil-injection twin of the test above: a valid
+        // document that can't be persisted surfaces the degraded-state
+        // StoreError in every environment, provisioned or not (#188).
+        let data = try LayoutTransfer.exportData(for: makeUnicodeLayout())
+        #expect(throws: LayoutStore.StoreError.self) {
+            try LayoutStore(containerURL: nil).importLayout(from: data)
         }
     }
 

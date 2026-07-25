@@ -1,3 +1,3 @@
 - [Test style & Swift 6.0 gotchas](feedback_test_style.md) — no @Suite on top-level structs; no key-path shorthand or mutating-func calls directly inside #expect(...)
-- [API facts & test command](project_test_api_facts.md) — StoreError is equatable, correct simulator is iPhone 17, PBXFileSystemSynchronizedRootGroup auto-includes files
+- [API facts & test command](project_test_api_facts.md) — StoreError equatable, iPhone 17 sim, AppGroup.containerURL non-nil even unsigned on sim, "Test run with N tests" counts skips
 - [LayoutLibrary testing state](project_layoutlibrary_testing.md) — coverage as of #82, why readPickedDocument stays seam-free, verify issue "no coverage" claims against main first
