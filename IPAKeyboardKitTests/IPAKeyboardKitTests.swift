@@ -2,9 +2,10 @@
 //  IPAKeyboardKitTests.swift
 //  IPAKeyboardKitTests
 //
-//  Smoke test: verify the current schema version constant and that the
-//  framework bundle contains at least one decodable layout. Everything
-//  deeper is covered by the domain-specific test files.
+//  Smoke test: verify the current schema version constant. Everything deeper
+//  is covered by the domain-specific test files (bundled-layout discovery by
+//  LayoutStoreTests.bundledLayoutsIsNonEmpty and
+//  BundledLayoutTests.atLeastTwoBundledLayouts).
 //
 
 import Testing
@@ -14,9 +15,5 @@ struct IPAKeyboardKitTests {
 
     @Test func currentSchemaVersionIsTwo() {
         #expect(KeyboardLayout.currentSchemaVersion == 2)
-    }
-
-    @Test func frameworkBundleContainsAtLeastOneLayout() {
-        #expect(!LayoutStore().bundledLayouts().isEmpty)
     }
 }

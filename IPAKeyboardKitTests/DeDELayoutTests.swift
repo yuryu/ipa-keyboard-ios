@@ -29,104 +29,24 @@ import Testing
 struct DeDELayoutTests {
 
     // MARK: Helpers
+    //
+    // Key-walking helpers live in LayoutTestSupport.swift; the generic
+    // structural invariants (split arrangement, spacer grouping, one-screen
+    // budget, accessibility labels) are swept across every bundled layout by
+    // BundledLayoutTests — only de-DE-specific content is tested here.
 
     private func deDELayout() throws -> KeyboardLayout {
-        let layouts = LayoutStore().bundledLayouts()
-        return try #require(layouts.first { $0.locale == "de-DE" },
-                            "expected a bundled de-DE layout")
+        try bundledLayout(locale: "de-DE")
     }
 
-    /// All top-level symbol keys of a layout (panel rows only, not alternates).
-    private func topLevelKeys(in layout: KeyboardLayout) -> [Key] {
-        layout.arrangements.flatMap(\.panels).flatMap(\.rows).flatMap(\.keys)
-    }
+    // MARK: Metadata
 
-    /// Every string the layout can insert — rows, function row, switch keys,
-    /// and long-press alternates (recursively).
-    private func insertTexts(in layout: KeyboardLayout) -> Set<String> {
-        var texts = Set<String>()
-        func visit(_ key: Key) {
-            if case .insert(let text) = key.action { texts.insert(text) }
-            key.alternates.forEach(visit)
-        }
-        let panels = layout.arrangements.flatMap(\.panels)
-        (panels.flatMap(\.rows).flatMap(\.keys)
-            + layout.arrangements.compactMap(\.functionRow).flatMap(\.keys)
-            + panels.compactMap(\.switchKey))
-            .forEach(visit)
-        return texts
-    }
-
-    /// The first top-level key of `layout` that inserts exactly `text`.
-    private func key(inserting text: String, in layout: KeyboardLayout) -> Key? {
-        topLevelKeys(in: layout).first { key in
-            if case .insert(let inserted) = key.action { return inserted == text }
-            return false
-        }
-    }
-
-    private func insertText(of key: Key) -> String? {
-        if case .insert(let text) = key.action { return text }
-        return nil
-    }
-
-    // MARK: Decode + metadata
-
-    @Test func deDEDecodesWithExpectedMetadata() throws {
+    @Test func deDEHasTheExpectedDisplayName() throws {
+        // (isBuiltIn and schemaVersion are swept across every bundled layout
+        // by BundledLayoutTests.bundledLayoutsDecode and LayoutStoreTests.)
         let layout = try deDELayout()
-        #expect(layout.isBuiltIn)
-        #expect(layout.locale == "de-DE")
         #expect(layout.name.contains("German"))
         #expect(layout.name.contains("Standard"))
-        #expect(layout.schemaVersion == KeyboardLayout.currentSchemaVersion)
-    }
-
-    // MARK: Structure (mirrors the en-US split-arrangement contract)
-
-    @Test func deDEHasSplitArrangementWithTwoSwitchablePanels() throws {
-        let arrangement = try #require(try deDELayout().primaryArrangement)
-        #expect(arrangement.panels.count == 2)
-        #expect(arrangement.maxRowCount <= 4)
-        #expect(arrangement.totalRowCount <= 5)
-
-        let functionRow = try #require(arrangement.functionRow)
-        #expect(functionRow.keys.contains { $0.action == .nextKeyboard })
-
-        let primary = try #require(arrangement.primaryPanel)
-        guard case .switchPanel(let target) = try #require(primary.switchKey).action else {
-            Issue.record("de-DE primary panel switchKey is not a switchPanel action")
-            return
-        }
-        let secondary = try #require(arrangement.panel(named: target))
-        #expect(secondary.name == target)
-        #expect(secondary.name != primary.name)
-        #expect(secondary.switchKey?.action == .switchPanel(primary.name))
-    }
-
-    @Test func deDEGroupsConsonantsLeftAndVowelsRightWithASpacer() throws {
-        let primary = try #require(try deDELayout().primaryArrangement?.primaryPanel)
-        let grouped = primary.rows.first { row in
-            guard let gap = row.keys.firstIndex(where: \.isSpacer) else { return false }
-            let before = row.keys[..<gap].contains { !$0.isSpacer }
-            let after = row.keys[row.keys.index(after: gap)...].contains { !$0.isSpacer }
-            return before && after
-        }
-        #expect(grouped != nil)
-    }
-
-    @Test func deDEFitsOneScreenPerPanel() throws {
-        // No horizontal scrolling: rows no denser than a QWERTY row, and the
-        // constant keyboard height matches the other bundled dialect layouts.
-        let arrangement = try #require(try deDELayout().primaryArrangement)
-        #expect(arrangement.totalRowCount <= 5)
-        for panel in arrangement.panels {
-            for row in panel.rows {
-                let width = row.keys.reduce(0.0) { $0 + $1.widthFactor }
-                #expect(width <= 12.0, "row too dense in de-DE panel \(panel.name)")
-                #expect(row.keys.filter { !$0.isSpacer }.count <= 10,
-                        "too many keys in a row of de-DE panel \(panel.name)")
-            }
-        }
     }
 
     // MARK: Code-point spot checks (trap-prone distinctive scalars)
@@ -181,25 +101,28 @@ struct DeDELayoutTests {
 
     // MARK: Tense-long / lax-short pairing on the length axis
 
-    @Test func deDEPairsLongTenseVowelsWithTheirShortLaxCounterparts() throws {
-        let layout = try deDELayout()
-        let pairs: [(long: String, short: String, shortLabel: String)] = [
-            ("i\u{02D0}", "\u{026A}", "near-close near-front unrounded vowel"),
-            ("u\u{02D0}", "\u{028A}", "near-close near-back rounded vowel"),
-            ("o\u{02D0}", "\u{0254}", "open-mid back rounded vowel"),
-            ("a\u{02D0}", "a", "open front unrounded vowel"),
-        ]
-        for pair in pairs {
-            let longKey = try #require(key(inserting: pair.long, in: layout),
-                                       "expected a de-DE key for \(pair.long)")
-            let short = try #require(
-                longKey.alternates.first { insertText(of: $0) == pair.short },
-                "\(pair.long) should carry \(pair.short) as a long-press alternate")
-            #expect(short.accessibilityLabel == pair.shortLabel)
-        }
+    private static let tenseLaxPairs: [(long: String, short: String, shortLabel: String)] = [
+        ("i\u{02D0}", "\u{026A}", "near-close near-front unrounded vowel"),
+        ("u\u{02D0}", "\u{028A}", "near-close near-back rounded vowel"),
+        ("o\u{02D0}", "\u{0254}", "open-mid back rounded vowel"),
+        ("a\u{02D0}", "a", "open front unrounded vowel"),
+    ]
 
+    @Test(arguments: DeDELayoutTests.tenseLaxPairs)
+    func deDEPairsLongTenseVowelsWithTheirShortLaxCounterparts(_ pair: (long: String, short: String, shortLabel: String)) throws {
+        let layout = try deDELayout()
+        let longKey = try #require(key(inserting: pair.long, in: layout),
+                                   "expected a de-DE key for \(pair.long)")
+        let short = try #require(
+            longKey.alternates.first { insertText(of: $0) == pair.short },
+            "\(pair.long) should carry \(pair.short) as a long-press alternate")
+        #expect(short.accessibilityLabel == pair.shortLabel)
+    }
+
+    @Test func deDEMidFrontKeyFoldsInBothShortAndLongLaxE() throws {
         // The mid-front key folds in both the short ɛ and the long open-mid ɛː
         // (the disputed but standard-pronunciation "ä" of <spät>, <Käse>).
+        let layout = try deDELayout()
         let eKey = try #require(key(inserting: "e\u{02D0}", in: layout))
         #expect(eKey.alternates.compactMap(insertText(of:)) == ["\u{025B}", "\u{025B}\u{02D0}"])
     }
@@ -287,23 +210,5 @@ struct DeDELayoutTests {
         for text in texts where text.contains("\u{02D0}") {
             #expect(text.unicodeScalars.contains(Unicode.Scalar(0x02D0)!))
         }
-    }
-
-    // MARK: Accessibility — every key, alternates included
-
-    @Test func deDEEveryInsertKeyHasAnAccessibilityLabel() throws {
-        let layout = try deDELayout()
-        func check(_ key: Key) {
-            if case .insert = key.action {
-                #expect(!(key.accessibilityLabel ?? "").isEmpty,
-                        "missing accessibilityLabel for de-DE key \(key.displayLabel)")
-            }
-            key.alternates.forEach(check)
-        }
-        let panels = layout.arrangements.flatMap(\.panels)
-        (panels.flatMap(\.rows).flatMap(\.keys)
-            + layout.arrangements.compactMap(\.functionRow).flatMap(\.keys)
-            + panels.compactMap(\.switchKey))
-            .forEach(check)
     }
 }

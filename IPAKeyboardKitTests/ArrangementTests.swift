@@ -162,6 +162,9 @@ struct KeyboardLayoutRowsInitTests {
 struct KeyboardLayoutForkTests {
 
     private func makeBuiltIn() -> KeyboardLayout {
+        // The panel carries a switchKey so the fork-equality tests below also
+        // cover it (issue #186; this fixture subsumed SchemaV2Tests'
+        // makeEditableCopyForksArrangements).
         KeyboardLayout(
             name: "Source",
             locale: "en-US",
@@ -169,7 +172,9 @@ struct KeyboardLayoutForkTests {
             arrangements: [
                 Arrangement(
                     name: "Split",
-                    panels: [Panel(name: "IPA", rows: [row(.insert("p"))])],
+                    panels: [Panel(name: "IPA",
+                                   switchKey: Key(action: .switchPanel("More"), label: "more"),
+                                   rows: [row(.insert("p"))])],
                     functionRow: row(.backspace)
                 )
             ]
@@ -196,6 +201,7 @@ struct KeyboardLayoutForkTests {
     @Test func makeEditableCopyArrangementsEqualSource() {
         let source = makeBuiltIn()
         let copy = source.makeEditableCopy()
+        // Deep equality covers panels, the switchKey, and the shared functionRow.
         #expect(copy.arrangements == source.arrangements)
     }
 

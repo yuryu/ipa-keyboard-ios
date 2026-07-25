@@ -4,10 +4,10 @@
 //
 //  Verifies every KeyAction case: Codable round-trips, exact JSON shape
 //  (which fields are emitted and which are absent), and decoding from
-//  hand-written JSON strings that match the documented format.
-//
-//  switchPanel and spacer round-trips are also exercised in SchemaV2Tests
-//  in their schema-context; the tests here focus on the JSON shape contract.
+//  hand-written JSON strings that match the documented format. This is the
+//  canonical home for bare KeyAction Codable coverage; the schema-context
+//  counterpart is SchemaV2Tests.v2EncodesArrangementsAndRoundTrips, which
+//  round-trips the actions inside a whole layout document.
 //
 
 import Foundation
@@ -20,12 +20,13 @@ struct KeyActionCodableTests {
 
     // MARK: Round-trips — no-payload cases
 
-    // backspace, space, nextKeyboard, spacer carry no associated value;
-    // parameterise to avoid repetition. `return` is a Swift keyword and is
-    // tested separately below to keep the array literal unambiguous.
+    // backspace, space, return, nextKeyboard, spacer carry no associated
+    // value; parameterise to avoid repetition. (`return` is a Swift keyword
+    // but the type-qualified spelling is unambiguous in the array literal.)
     @Test(arguments: [
         KeyAction.backspace,
         KeyAction.space,
+        KeyAction.return,
         KeyAction.nextKeyboard,
         KeyAction.spacer,
     ])
@@ -33,12 +34,6 @@ struct KeyActionCodableTests {
         let data = try encoder.encode(action)
         let decoded = try decoder.decode(KeyAction.self, from: data)
         #expect(decoded == action)
-    }
-
-    @Test func returnActionRoundTrips() throws {
-        let data = try encoder.encode(KeyAction.return)
-        let decoded = try decoder.decode(KeyAction.self, from: data)
-        #expect(decoded == KeyAction.return)
     }
 
     // MARK: Round-trips — payload cases
@@ -84,40 +79,20 @@ struct KeyActionCodableTests {
 
     // MARK: Decoding from hand-written JSON
 
-    @Test func decodesInsertFromHandWrittenJSON() throws {
-        let json = #"{"type":"insert","text":"p"}"#
-        let action = try decoder.decode(KeyAction.self, from: Data(json.utf8))
-        #expect(action == .insert("p"))
-    }
-
-    @Test func decodesBackspaceFromHandWrittenJSON() throws {
-        let json = #"{"type":"backspace"}"#
-        #expect(try decoder.decode(KeyAction.self, from: Data(json.utf8)) == .backspace)
-    }
-
-    @Test func decodesSpaceFromHandWrittenJSON() throws {
-        let json = #"{"type":"space"}"#
-        #expect(try decoder.decode(KeyAction.self, from: Data(json.utf8)) == .space)
-    }
-
-    @Test func decodesReturnFromHandWrittenJSON() throws {
-        let json = #"{"type":"return"}"#
-        #expect(try decoder.decode(KeyAction.self, from: Data(json.utf8)) == KeyAction.return)
-    }
-
-    @Test func decodesNextKeyboardFromHandWrittenJSON() throws {
-        let json = #"{"type":"nextKeyboard"}"#
-        #expect(try decoder.decode(KeyAction.self, from: Data(json.utf8)) == .nextKeyboard)
-    }
-
-    @Test func decodesSwitchPanelFromHandWrittenJSON() throws {
-        let json = #"{"type":"switchPanel","target":"More"}"#
-        #expect(try decoder.decode(KeyAction.self, from: Data(json.utf8)) == .switchPanel("More"))
-    }
-
-    @Test func decodesSpacerFromHandWrittenJSON() throws {
-        let json = #"{"type":"spacer"}"#
-        #expect(try decoder.decode(KeyAction.self, from: Data(json.utf8)) == .spacer)
+    // One case per action type, matching the documented hand-editable format;
+    // per-argument reporting keeps failure locality per case.
+    @Test(arguments: [
+        (json: #"{"type":"insert","text":"p"}"#, expected: KeyAction.insert("p")),
+        (json: #"{"type":"backspace"}"#, expected: KeyAction.backspace),
+        (json: #"{"type":"space"}"#, expected: KeyAction.space),
+        (json: #"{"type":"return"}"#, expected: KeyAction.return),
+        (json: #"{"type":"nextKeyboard"}"#, expected: KeyAction.nextKeyboard),
+        (json: #"{"type":"switchPanel","target":"More"}"#, expected: KeyAction.switchPanel("More")),
+        (json: #"{"type":"spacer"}"#, expected: KeyAction.spacer),
+    ])
+    func decodesEveryActionFromHandWrittenJSON(_ testCase: (json: String, expected: KeyAction)) throws {
+        let action = try decoder.decode(KeyAction.self, from: Data(testCase.json.utf8))
+        #expect(action == testCase.expected)
     }
 
     // MARK: Error cases

@@ -2,8 +2,10 @@
 //  SchemaV2Tests.swift
 //  IPAKeyboardKitTests
 //
-//  Covers the v2 schema (arrangements → panels), the v1→v2 decode
-//  migration, the `switchPanel` action, and copy-on-write forking.
+//  Covers the v2 schema (arrangements → panels) and the v1→v2 decode
+//  migration. Bare KeyAction Codable behavior lives in
+//  KeyActionCodableTests; copy-on-write forking in
+//  ArrangementTests.KeyboardLayoutForkTests.
 //
 
 import Foundation
@@ -117,51 +119,5 @@ struct SchemaV2Tests {
         #expect(decoded.primaryArrangement?.panel(named: "More")?.rows.first?.keys.first?.action == .insert("ʔ"))
         // The shared bar adds a row on top of the tallest panel's symbol rows.
         #expect(decoded.primaryArrangement?.totalRowCount == 2)
-    }
-
-    // MARK: spacer action
-
-    @Test func spacerActionRoundTrips() throws {
-        let data = try encoder.encode(KeyAction.spacer)
-        let json = try #require(String(data: data, encoding: .utf8))
-        #expect(json.contains("\"spacer\""))
-        #expect(try decoder.decode(KeyAction.self, from: data) == .spacer)
-        #expect(Key.spacer.isSpacer)
-    }
-
-    // MARK: switchPanel action
-
-    @Test func switchPanelActionRoundTrips() throws {
-        let action = KeyAction.switchPanel("More")
-        let data = try encoder.encode(action)
-        let json = try #require(String(data: data, encoding: .utf8))
-        #expect(json.contains("\"switchPanel\""))
-        #expect(json.contains("\"More\""))
-        #expect(try decoder.decode(KeyAction.self, from: data) == action)
-    }
-
-    // MARK: Copy-on-write forking
-
-    @Test func makeEditableCopyForksArrangements() {
-        let source = KeyboardLayout(
-            name: "Source", locale: "en-US", isBuiltIn: true,
-            arrangements: [
-                Arrangement(
-                    name: "Split",
-                    panels: [
-                        Panel(name: "IPA",
-                              switchKey: Key(action: .switchPanel("More"), label: "more"),
-                              rows: [KeyRow(keys: [.insert("i")])]),
-                    ],
-                    functionRow: KeyRow(keys: [Key(action: .backspace, label: "⌫")]))
-            ])
-
-        let copy = source.makeEditableCopy()
-
-        #expect(copy.id != source.id)
-        #expect(copy.isBuiltIn == false)
-        #expect(copy.derivedFrom == source.id)
-        // Deep equality covers panels, switchKey, and the shared functionRow.
-        #expect(copy.arrangements == source.arrangements)
     }
 }

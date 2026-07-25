@@ -24,9 +24,35 @@ struct GraphemeTextTests {
         #expect(GraphemeText.deletionScalarCount(before: "ðə") == 1)
     }
 
-    @Test func basePlusCombiningDiacriticDeletesAsOneCluster() {
-        // "e" + combining acute accent U+0301 is one grapheme, two scalars.
-        let context = "e\u{0301}"
+    /// Canonical cluster-deletion contract for base + one combining mark
+    /// (issue #186): grapheme segmentation doesn't branch on which combining
+    /// mark follows the base, so every pair the bundled layouts compose is
+    /// asserted here once — exact scalars, one user-perceived character,
+    /// deleted as a unit — instead of per-layout copies.
+    private static let combiningPairs: [(base: Unicode.Scalar, mark: Unicode.Scalar)] = [
+        // Combining tone diacritics of the generic layouts (issue #29).
+        (Unicode.Scalar(0x0065)!, Unicode.Scalar(0x0300)!), // e + grave (low tone)
+        (Unicode.Scalar(0x0065)!, Unicode.Scalar(0x0301)!), // e + acute (high tone)
+        (Unicode.Scalar(0x0065)!, Unicode.Scalar(0x0302)!), // e + circumflex (falling)
+        (Unicode.Scalar(0x0065)!, Unicode.Scalar(0x0304)!), // e + macron (mid tone)
+        (Unicode.Scalar(0x0065)!, Unicode.Scalar(0x030B)!), // e + double acute (extra-high)
+        (Unicode.Scalar(0x0065)!, Unicode.Scalar(0x030C)!), // e + caron (rising)
+        (Unicode.Scalar(0x0065)!, Unicode.Scalar(0x030F)!), // e + double grave (extra-low)
+        // en-US narrow-transcription diacritics (issue #15).
+        (Unicode.Scalar(0x00E6)!, Unicode.Scalar(0x0303)!), // æ + nasalized tilde, [mæ̃n]
+        (Unicode.Scalar(0x006C)!, Unicode.Scalar(0x0325)!), // l + voiceless ring below, [pl̥eɪ]
+        (Unicode.Scalar(0x006E)!, Unicode.Scalar(0x0329)!), // n + syllabic line below, [ˈbʌʔn̩]
+        (Unicode.Scalar(0x0074)!, Unicode.Scalar(0x032A)!), // t + dental bridge below, [tɛn̪θ]
+        (Unicode.Scalar(0x0074)!, Unicode.Scalar(0x031A)!), // t + no-audible-release, [kæt̚]
+        // ja-JP devoicing and pitch accent (issue #75).
+        (Unicode.Scalar(0x026F)!, Unicode.Scalar(0x0325)!), // ɯ + ring below, [sɯ̥ki]
+        (Unicode.Scalar(0x0061)!, Unicode.Scalar(0x0301)!), // a + acute, [háɕi] "chopsticks"
+    ]
+
+    @Test(arguments: GraphemeTextTests.combiningPairs)
+    func basePlusOneCombiningMarkDeletesAsOneCluster(_ pair: (base: Unicode.Scalar, mark: Unicode.Scalar)) {
+        let context = String(pair.base) + String(pair.mark)
+        #expect(Array(context.unicodeScalars) == [pair.base, pair.mark])
         #expect(context.count == 1) // one user-perceived character
         #expect(GraphemeText.deletionScalarCount(before: context) == 2)
     }
@@ -36,14 +62,6 @@ struct GraphemeTextTests {
         let family = "👨‍👩‍👧‍👦"
         #expect(family.count == 1)
         #expect(GraphemeText.deletionScalarCount(before: "hi \(family)") == family.unicodeScalars.count)
-    }
-
-    @Test func syllabicConsonantDiacriticDeletesAsOneCluster() {
-        // "n" + combining vertical line below U+0329 marks a syllabic
-        // consonant (IPA syllabic n, "n̩") — one grapheme, two scalars.
-        let context = "n\u{0329}"
-        #expect(context.count == 1)
-        #expect(GraphemeText.deletionScalarCount(before: context) == 2)
     }
 
     @Test func autorepeatTicksDeleteSyllabicConsonantClusterOneAtATime() {
