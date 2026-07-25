@@ -285,6 +285,42 @@ struct RowEditingTests {
         #expect(actions == [.insert("t"), .insert("p"), .insert("k")])
     }
 
+    @Test func moveRowsMultiSourceToOffsetBeyondBothSourcesUsesPreRemovalOffsets() {
+        // Pins SwiftUI's onMove contract: `toOffset` is expressed in
+        // *pre-removal* offsets, so destination 4 means "before the row
+        // currently at index 4" (m) in the original five-row order. Both
+        // source offsets {0, 1} sit below the destination, so the
+        // multi-source correction in moveAtOffsets must subtract 2
+        // (count(where:) == 2) before inserting — expected order
+        // cross-checked against SwiftUI's move(fromOffsets:toOffset:).
+        var layout = KeyboardLayout(
+            name: "Test", locale: "en-US",
+            rows: [row(.insert("p")), row(.insert("t")), row(.insert("k")),
+                   row(.insert("s")), row(.insert("m"))]
+        )
+        let ok = layout.moveRows(fromOffsets: IndexSet([0, 1]), toOffset: 4, inPanelAt: .primary)
+        #expect(ok)
+        let actions = layout.primaryArrangement?.primaryPanel?.rows.map { $0.keys.first?.action }
+        #expect(actions == [.insert("k"), .insert("s"), .insert("p"), .insert("t"), .insert("m")])
+    }
+
+    @Test func moveRowsMultiSourceStraddlingTheDestinationUsesPreRemovalOffsets() {
+        // Source offsets {0, 3} straddle destination 2: exactly one source
+        // index sits below the destination, so the pre-removal-offset
+        // correction must subtract 1 — not the full source count (a mutant
+        // subtracting indices.count would yield [p, s, t, k, m]). Expected
+        // order cross-checked against SwiftUI's move(fromOffsets:toOffset:).
+        var layout = KeyboardLayout(
+            name: "Test", locale: "en-US",
+            rows: [row(.insert("p")), row(.insert("t")), row(.insert("k")),
+                   row(.insert("s")), row(.insert("m"))]
+        )
+        let ok = layout.moveRows(fromOffsets: IndexSet([0, 3]), toOffset: 2, inPanelAt: .primary)
+        #expect(ok)
+        let actions = layout.primaryArrangement?.primaryPanel?.rows.map { $0.keys.first?.action }
+        #expect(actions == [.insert("t"), .insert("p"), .insert("s"), .insert("k"), .insert("m")])
+    }
+
     @Test func moveRowsWithEmptySourceReturnsFalseAndLeavesLayoutUnchanged() {
         var layout = makeTwoPanelLayout()
         let before = layout
@@ -430,6 +466,38 @@ struct KeyEditingTests {
         #expect(ok)
         let keys = layout.row(at: 0, inPanelAt: .primary)?.keys.map(\.action)
         #expect(keys == [.insert("t"), .insert("k"), .insert("p")])
+    }
+
+    @Test func moveKeysMultiSourceToOffsetBeforeBothSourcesUsesPreRemovalOffsets() {
+        // The complementary crossing direction to the multi-source moveRows
+        // test: both source offsets {2, 3} sit at or beyond the destination
+        // 0, so the pre-removal-offset correction must subtract nothing
+        // (count(where:) == 0) and the moved keys land at the front in
+        // source order — SwiftUI onMove semantics, expected order
+        // cross-checked against SwiftUI's move(fromOffsets:toOffset:).
+        var layout = KeyboardLayout(
+            name: "Test", locale: "en-US",
+            rows: [row(.insert("p"), .insert("t"), .insert("k"), .insert("s"), .insert("m"))]
+        )
+        let ok = layout.moveKeys(fromOffsets: IndexSet([2, 3]), toOffset: 0, inRowAt: 0, inPanelAt: .primary)
+        #expect(ok)
+        let keys = layout.row(at: 0, inPanelAt: .primary)?.keys.map(\.action)
+        #expect(keys == [.insert("k"), .insert("s"), .insert("p"), .insert("t"), .insert("m")])
+    }
+
+    @Test func moveKeysMultiSourceStraddlingTheDestinationUsesPreRemovalOffsets() {
+        // Source offsets {1, 4} straddle destination 3: exactly one source
+        // index sits below the destination, so the pre-removal-offset
+        // correction must subtract 1 — not the full source count. Expected
+        // order cross-checked against SwiftUI's move(fromOffsets:toOffset:).
+        var layout = KeyboardLayout(
+            name: "Test", locale: "en-US",
+            rows: [row(.insert("p"), .insert("t"), .insert("k"), .insert("s"), .insert("m"))]
+        )
+        let ok = layout.moveKeys(fromOffsets: IndexSet([1, 4]), toOffset: 3, inRowAt: 0, inPanelAt: .primary)
+        #expect(ok)
+        let keys = layout.row(at: 0, inPanelAt: .primary)?.keys.map(\.action)
+        #expect(keys == [.insert("p"), .insert("k"), .insert("t"), .insert("m"), .insert("s")])
     }
 
     @Test func moveKeysWithEmptySourceReturnsFalseAndLeavesLayoutUnchanged() {
