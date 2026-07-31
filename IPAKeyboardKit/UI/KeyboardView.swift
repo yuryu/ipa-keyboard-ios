@@ -237,10 +237,16 @@ public struct KeyboardView: View {
     private var activePanel: Panel? { arrangement?.panel(named: activePanelName) }
     private var symbolRows: [KeyRow] { activePanel?.rows ?? [] }
 
-    /// The pinned bottom bar: the active panel's switch key (if any) followed by
-    /// the arrangement's shared function row. nil when neither is present.
+    /// The pinned bottom bar: the active panel's switch key (if any) merged
+    /// into the arrangement's shared function row, at the position the device
+    /// idiom's system keyboard uses — after the leading globe on iPad, at the
+    /// left edge on iPhone (the unit-tested `BottomBarOrder`, issue #208).
+    /// nil when neither is present.
     private var bottomBar: KeyRow? {
-        let keys = (activePanel?.switchKey.map { [$0] } ?? []) + (arrangement?.functionRow?.keys ?? [])
+        let keys = BottomBarOrder.keys(
+            switchKey: activePanel?.switchKey,
+            functionRowKeys: arrangement?.functionRow?.keys ?? [],
+            idiom: UIDevice.current.userInterfaceIdiom)
         return keys.isEmpty ? nil : KeyRow(keys: keys)
     }
 
