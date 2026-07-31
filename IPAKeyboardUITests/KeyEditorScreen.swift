@@ -19,6 +19,9 @@
 //    accessibility snapshot, unaffected by the `LayoutListView` Section-bleed
 //    regression documented in `LibraryScreen.row(labelContains:)` — so plain
 //    `app.buttons[identifier]` lookups are reliable here.
+//  - `confirmationDialog` actions are the exception: their identifier lands
+//    on two nested `Button` elements, so those queries take `.firstMatch`
+//    (issue #192 — see `discardConfirmButton`).
 //
 
 import XCTest
@@ -66,12 +69,30 @@ struct LayoutKeyEditorScreen {
         app.buttons["key-editor-reset"]
     }
 
+    /// Confirm button in the reset dialog. `.firstMatch` for the same reason
+    /// as `discardConfirmButton` — both are `confirmationDialog` actions.
     var resetConfirmButton: XCUIElement {
-        app.buttons["key-editor-reset-confirm"]
+        app.buttons["key-editor-reset-confirm"].firstMatch
     }
 
+    /// Confirm button in the discard dialog.
+    ///
+    /// `.firstMatch` is load-bearing, not belt-and-braces (issue #192). On
+    /// iOS 26 a `confirmationDialog` action renders as *nested* `Button`
+    /// elements that both carry the identifier the app applied once:
+    ///
+    ///     Popover > Sheet "Discard changes?" > … > Button > Button
+    ///
+    /// A plain subscript query then throws "Multiple matching elements
+    /// found" at tap time — and `waitForExistence` tolerates multiplicity,
+    /// so the failure lands on the tap, not the wait. The app has no say in
+    /// the dialog's rendered hierarchy (the identifier sits on the single
+    /// `Button` in `LayoutKeyEditorView`), which is why this is fixed test-
+    /// side; same identifier-duplication family as the Section/KeyboardView
+    /// cases tracked by #83. `.firstMatch` resolves to the outer button,
+    /// whose tap reaches the action.
     var discardConfirmButton: XCUIElement {
-        app.buttons["key-editor-discard-confirm"]
+        app.buttons["key-editor-discard-confirm"].firstMatch
     }
 
     /// The root `List`. `key-editor` is applied to it in source, but
