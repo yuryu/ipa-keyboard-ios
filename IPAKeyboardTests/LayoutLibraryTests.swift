@@ -41,6 +41,23 @@ struct LayoutLibraryTests {
                 try? FileManager.default.removeItem(at: containerURL)
             }
         }
+
+        /// Another library over this world's exact storage. Models both a
+        /// relaunch (a fresh `resetGate`, the default) and SwiftUI rebuilding
+        /// the view that owns the library mid-launch (the *same* gate — see
+        /// `LayoutLibrary.LaunchResetGate`).
+        @MainActor
+        func makeLibrary(
+            launchArguments: [String] = [], // isolate from the host runner's real arguments
+            resetGate: LayoutLibrary.LaunchResetGate = LayoutLibrary.LaunchResetGate()
+        ) -> LayoutLibrary {
+            LayoutLibrary(
+                store: LayoutStore(containerURL: containerURL),
+                preferences: KeyboardPreferences(defaults: defaults),
+                environment: [:], // no UI-test launch import hook
+                launchArguments: launchArguments,
+                resetGate: resetGate)
+        }
     }
 
     /// A library over an injected temporary container (writable) or a nil
@@ -55,7 +72,8 @@ struct LayoutLibraryTests {
             store: LayoutStore(containerURL: containerURL),
             preferences: KeyboardPreferences(defaults: UserDefaults(suiteName: suiteName)!),
             environment: [:], // no UI-test launch import/reset hooks
-            launchArguments: []) // isolate from the host runner's real arguments
+            launchArguments: [], // isolate from the host runner's real arguments
+            resetGate: LayoutLibrary.LaunchResetGate()) // never the app-wide gate
         return World(
             library: library,
             containerURL: containerURL,
@@ -373,11 +391,7 @@ struct LayoutLibraryTests {
         #expect(world.library.hiddenSymbols(for: layout) == ["ə", "ɡ"])
 
         // A fresh library over the same storage (a relaunch) reads the same set.
-        let relaunched = LayoutLibrary(
-            store: LayoutStore(containerURL: world.containerURL),
-            preferences: KeyboardPreferences(defaults: world.defaults),
-            environment: [:],
-            launchArguments: []) // isolate from the host runner's real arguments
+        let relaunched = world.makeLibrary()
         #expect(relaunched.hiddenSymbols(for: layout) == ["ə", "ɡ"])
     }
 
@@ -393,5 +407,57 @@ struct LayoutLibraryTests {
 
         #expect(world.library.hiddenSymbols(for: a).isEmpty)
         #expect(world.library.hiddenSymbols(for: b) == ["t"])
+    }
+
+    // MARK: Launch reset hook (--uitest-reset-layouts)
+
+    /// What issue #27 added the hook for: a launch carrying the argument
+    /// starts from a clean slate — no persisted user layouts, no active
+    /// selection, no hidden-symbol curation.
+    @Test func launchResetClearsPersistedLayoutsAndPreferences() throws {
+        let world = makeWorld()
+        defer { world.cleanUp() }
+        let leftover = makeUserLayout(name: "Leftover")
+        world.library.importLayout(data: try LayoutTransfer.exportData(for: leftover))
+        world.library.setActive(leftover)
+        let builtIn = try #require(world.library.builtInLayouts.first)
+        world.library.setHiddenSymbols(["ə"], for: builtIn)
+        #expect(world.library.userLayouts.count == 1)
+
+        let relaunched = world.makeLibrary(
+            launchArguments: [LayoutLibrary.resetLayoutsArgument])
+
+        #expect(relaunched.userLayouts.isEmpty)
+        #expect(relaunched.activeLayoutID == nil)
+        #expect(relaunched.hiddenSymbols(for: builtIn).isEmpty)
+    }
+
+    /// Regression pin for issue #191. SwiftUI re-initializes the view struct
+    /// that owns `@State private var library = LayoutLibrary()`, so more
+    /// libraries are built mid-launch — including right after the launch's
+    /// injected import persisted, because the import's own `reload()` is the
+    /// observed change that provokes the rebuild. Resetting per instance
+    /// deleted that just-imported layout, and since the delete itself
+    /// succeeded the UI showed neither a row nor an error alert. Sharing the
+    /// gate (as one process does) must leave the import alone.
+    @Test func launchResetSkipsRebuiltLibrariesSoASameLaunchImportSurvives() throws {
+        let world = makeWorld()
+        defer { world.cleanUp() }
+        let gate = LayoutLibrary.LaunchResetGate()
+        let launched = world.makeLibrary(
+            launchArguments: [LayoutLibrary.resetLayoutsArgument], resetGate: gate)
+        let imported = makeUserLayout(name: "Same-launch Import")
+        launched.importLayout(data: try LayoutTransfer.exportData(for: imported))
+        #expect(launched.userLayouts.map(\.id) == [imported.id])
+
+        let rebuilt = world.makeLibrary(
+            launchArguments: [LayoutLibrary.resetLayoutsArgument], resetGate: gate)
+
+        // Both the rebuilt library's own load and a reload of the one the
+        // view kept must still see the import — the file is what the reset
+        // used to delete, so this is a storage assertion, not a caching one.
+        #expect(rebuilt.userLayouts.map(\.id) == [imported.id])
+        launched.reload()
+        #expect(launched.userLayouts.map(\.id) == [imported.id])
     }
 }

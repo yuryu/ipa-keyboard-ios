@@ -16,6 +16,31 @@
 
 import XCTest
 
+/// One scroll step inside `scrollView`: a stationary press-drag between two
+/// in-list coordinates, ending with zero deceleration.
+///
+/// Deliberately *not* `swipeUp()`/`swipeDown()`. Those start at the element's
+/// centre, which on the layout list is the "Active" section's live
+/// `KeyboardView` preview: a key's press tracker claims the touch and the
+/// list never moves (issue #191 — a 30 s wait with zero scroll movement in
+/// the failure recording). Both scrolling helpers below therefore drive the
+/// list from an off-preview coordinate instead. Inertia matters too — an
+/// inertial swipe leaves the list decelerating, and a tap issued into that
+/// residual motion is swallowed as a scroll-stop touch.
+///
+/// Gesture geometry on a located element is the documented exception to the
+/// no-coordinates rule (the same one `AlternatesPopupUITests` uses); the
+/// *element* is still found by identifier.
+@MainActor
+private func scrollStep(in scrollView: XCUIElement, towardTop: Bool) {
+    scrollView.coordinate(
+        withNormalizedOffset: CGVector(dx: 0.5, dy: towardTop ? 0.25 : 0.75)
+    ).press(
+        forDuration: 0.05,
+        thenDragTo: scrollView.coordinate(
+            withNormalizedOffset: CGVector(dx: 0.5, dy: towardTop ? 0.75 : 0.25)))
+}
+
 /// Blocks until `element` exists, scrolling `scrollView` between checks.
 /// Both `LayoutListView` and `LayoutDetailView` are plain SwiftUI `List`s
 /// (`UICollectionView`-backed) tall enough that rows/sections below the
@@ -25,12 +50,9 @@ import XCTest
 /// objects below rather than duplicated per screen.
 ///
 /// Hardened against the flake modes of the original swipe loop:
-/// - Scroll steps are stationary press-drags between two in-list
-///   coordinates, ending with zero deceleration — gesture geometry on a
-///   located element (the documented exception AlternatesPopupUITests also
-///   uses), not element location by coordinate. An inertial `swipeUp`
-///   leaves the list decelerating, and a tap issued into that residual
-///   motion is swallowed as a scroll-stop touch instead of activating.
+/// - Scroll steps go through `scrollStep(in:towardTop:)` — an off-preview,
+///   deceleration-free press-drag rather than a `swipeUp` (see its doc for
+///   both reasons).
 /// - Never scrolls until the list exists and has composed at least one
 ///   cell (a generic `cells` query — the Section identifier-bleed breaks
 ///   identifier-prefix matches, see `row(labelContains:)`), so an empty or
@@ -92,12 +114,7 @@ func waitForRevealed(
         var strikes = 0
         var previousEdge: (identifier: String, frame: CGRect)?
         while steps < maxSwipes, strikes < 2, Date() < deadline {
-            scrollView.coordinate(
-                withNormalizedOffset: CGVector(dx: 0.5, dy: towardTop ? 0.25 : 0.75)
-            ).press(
-                forDuration: 0.05,
-                thenDragTo: scrollView.coordinate(
-                    withNormalizedOffset: CGVector(dx: 0.5, dy: towardTop ? 0.75 : 0.25)))
+            scrollStep(in: scrollView, towardTop: towardTop)
             scrolled = true
             steps += 1
             if element.exists { return true }
@@ -159,7 +176,7 @@ enum EitherOutcome {
 /// (issue #99). Pass `.postNavigation` as `timeout` when this follows a
 /// navigation event (cold launch, push, sheet/alert presentation). If
 /// `second` lives in a lazily-composed scroll view (see `waitForRevealed`),
-/// pass `scrollingSecondIn:` so it can be swiped into range while polling —
+/// pass `scrollingSecondIn:` so it can be scrolled into range while polling —
 /// `first` (typically a system alert) is assumed reachable without
 /// scrolling. Returns `nil` if neither appeared by the deadline.
 @MainActor
@@ -175,14 +192,19 @@ func waitForEither(
         if second.exists { return .second }
         let remaining = deadline.timeIntervalSinceNow
         if remaining <= 0 { return nil }
-        // Only swipe once the scroll view is actually there and interactable:
-        // this helper can run right after launch (import flow) while the list
-        // is still composing, and XCUITest gestures on a non-existent element
-        // hard-fail rather than no-op. `isHittable` is false for a missing
-        // element, so it covers both. Deferring the swipe never truncates the
-        // deadline — the loop keeps polling both conditions in place.
-        if let scrollView, swipes < maxSwipes, scrollView.isHittable {
-            scrollView.swipeUp()
+        // Only scroll once the list exists and has composed at least one cell
+        // — this helper can run right after launch (import flow) while the
+        // list is still composing, and XCUITest gestures on a non-existent
+        // element hard-fail rather than no-op. Same composition gate as
+        // `waitForRevealed`, deliberately *not* `isHittable`: the layout
+        // list reports `isHittable == false` (confirmed in the issue #191
+        // failure's activity log — the gate never opened, so this helper's
+        // scrolling had never actually run), while coordinate-based
+        // press-drags on it work fine. Deferring the scroll never truncates
+        // the deadline — the loop keeps polling both conditions in place.
+        if let scrollView, swipes < maxSwipes,
+            scrollView.exists, scrollView.cells.firstMatch.exists {
+            scrollStep(in: scrollView, towardTop: false)
             swipes += 1
         }
         // Poll in short slices so neither condition can appear and sit
