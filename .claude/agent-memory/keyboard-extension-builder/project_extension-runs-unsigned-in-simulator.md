@@ -7,6 +7,8 @@ metadata:
 
 Verified 2026-07-04 (iPhone Air, iOS 26.5 simulator, issue #70 fix round): the keyboard extension **can be enabled and exercised on a simulator from a fully unsigned build** (`CODE_SIGNING_ALLOWED=NO build-for-testing`, `simctl install` the built `IPAKeyboard.app`). Provisioning is NOT a blocker for extension-side empirical verification; only the App Group container is nil (LayoutStore degrades to bundled defaults as designed).
 
+**Prefer ad-hoc signing now (2026-08-02, issue #210):** build with `CODE_SIGN_STYLE=Manual CODE_SIGN_IDENTITY=-` instead of `CODE_SIGNING_ALLOWED=NO` and you get everything above *plus* a live App Group container — still with no certificate, provisioning profile, or Apple account, because `-` resolves to "Sign to Run Locally" on a simulator destination. Confirmed by `simctl get_app_container <udid> net.yuryu.IPAKeyboard groups`, which prints a real path for the ad-hoc build and nothing for the unsigned one. Use unsigned only when deliberately exercising the nil-container degradation.
+
 Hard-won specifics:
 
 - **Enabling**: `simctl spawn <udid> defaults write com.apple.Preferences AppleKeyboards -array …` does *not* reach the live text-input system (even after device reboot — the Settings list stays unchanged). The working path is the Settings app UI: General → Keyboard → Keyboards (`cells["AddNewKeyboard"]`) → tap the app name. Automatable once via a throwaway XCUITest driving `XCUIApplication(bundleIdentifier: "com.apple.Preferences")`.

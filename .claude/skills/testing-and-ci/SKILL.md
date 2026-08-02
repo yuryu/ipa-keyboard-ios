@@ -1,6 +1,6 @@
 ---
 name: testing-and-ci
-description: How to run each of the three test suites (kit, app-hosted, UI) locally, what CI's two unsigned-simulator jobs do, and the false-green traps that make a passing run meaningless. Use when writing, running, or planning tests, changing .github/workflows/**, or debugging CI failures.
+description: How to run each of the three test suites (kit, app-hosted, UI) locally, what CI's two simulator jobs do and how they sign, and the false-green traps that make a passing run meaningless. Use when writing, running, or planning tests, changing .github/workflows/**, or debugging CI failures.
 ---
 
 # Running tests, and the CI lanes
@@ -15,16 +15,20 @@ Use the XcodeBuildMCP tools; raw `xcodebuild` only if the server is unavailable.
 | `IPAKeyboardTests` (app-hosted view models) | `IPAKeyboard` | `["-only-testing:IPAKeyboardTests"]` |
 | `IPAKeyboardUITests` (XCUITest) | `IPAKeyboard` | `["-only-testing:IPAKeyboardUITests"]` — read the `ui-testing` skill first |
 
-Scope to one test with `-only-testing:<Target>/<Class>/<method>`. App-scheme runs sign automatically under the team in the project; if signing blocks a run, surface it rather than reporting a skip as a pass. Raw fallback: `xcodebuild -project IPAKeyboard.xcodeproj -scheme <scheme> -destination 'platform=iOS Simulator,name=iPhone 17' [CODE_SIGNING_ALLOWED=NO] test`.
+Scope to one test with `-only-testing:<Target>/<Class>/<method>`. App-scheme runs sign automatically under the team in the project, which is what gives them a live App Group container; **never work around a signing failure with `CODE_SIGNING_ALLOWED=NO` on the app scheme** — that strips the entitlement and the App-Group tests fail. Reproduce CI's credential-free path instead with `CODE_SIGN_STYLE=Manual CODE_SIGN_IDENTITY=-`. Raw fallback: `xcodebuild -project IPAKeyboard.xcodeproj -scheme <scheme> -destination 'platform=iOS Simulator,name=iPhone 17' [CODE_SIGNING_ALLOWED=NO] test`.
 
 ## A green run can be a false green
 
 - **Swift Testing reports zero tests as success.** `xcodebuild` prints "Executed 0 tests … TEST SUCCEEDED" and exits 0 when a `-only-testing` filter matches nothing — and such a filter is exactly what goes stale after a target rename or test-plan drift. Before believing a pass, confirm the Swift Testing summary line `Test run with N tests` reports N > 0; prefer running the kit scheme unscoped. CI enforces this after both unit steps with `grep -Eq 'Test run with [1-9][0-9]* test'` (issue #188) — keep that guard on any new test step.
-- **A UI suite that silently skips is the other false green.** The system-keyboard smoke tests depend on environment preconditions (hardware keyboard off, the keyboard enabled in Settings) that cannot be scripted; see the `ui-testing` skill.
+- **A UI suite that silently skips is the other false green.** The system-keyboard smoke tests depend on environment preconditions (hardware keyboard off, the keyboard enabled in Settings) that cannot be scripted; see the `ui-testing` skill. The App-Group-dependent tests used to skip this way too — they now require a live container and fail outright without one (issue #210), so don't reintroduce a "skip when the container is unavailable" guard for the app scheme.
 
 ## CI — `.github/workflows/ci.yml`
 
-`macos-26`, two jobs, everything unsigned (`CODE_SIGNING_ALLOWED=NO`). No device or archive lane yet.
+`macos-26`, two jobs. The **app scheme signs ad-hoc** (`CODE_SIGN_STYLE=Manual CODE_SIGN_IDENTITY=-`); the **kit scheme stays unsigned** (`CODE_SIGNING_ALLOWED=NO`). No device or archive lane yet.
+
+Ad-hoc signing needs no certificate, provisioning profile, or Apple account — only a simulator destination, where `CODE_SIGN_IDENTITY=-` resolves to "Sign to Run Locally". `CODE_SIGN_STYLE=Manual` overrides the project's Automatic style so xcodebuild never tries to resolve `DEVELOPMENT_TEAM` against an account the runner doesn't have. This is what embeds the App Group entitlement, so `AppGroup.containerURL` is non-nil and the App-Group **success** paths (forking, importing, the key-editor round trip) run in CI for the first time (issue #210). Verified: `simctl get_app_container <udid> net.yuryu.IPAKeyboard groups` reports a live container for an ad-hoc-signed build and reports nothing for a `CODE_SIGNING_ALLOWED=NO` one.
+
+The kit scheme gains nothing from signing — its test bundle has no `TEST_HOST`, so there's no app to carry the entitlement; its nil-container coverage runs through `LayoutStore`'s injectable `containerURL` seam instead. Signing flags must match between a scheme's `build-for-testing` and its `test-without-building` steps so the latter finds its products.
 
 - **`build-and-test`** — `build-for-testing` the app scheme (app + extension + both app-hosted bundles) and the kit scheme, then `test-without-building` the kit tests, then `-only-testing:IPAKeyboardTests` with `-parallel-testing-enabled NO`.
 - **`ui-test`** — same build, then `IPAKeyboardUITests` sequentially via `test-without-building`, with `TEST_RUNNER_CI: "1"`.

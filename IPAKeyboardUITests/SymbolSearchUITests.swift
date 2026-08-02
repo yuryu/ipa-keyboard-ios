@@ -19,7 +19,7 @@
 //
 //  Environment: this screen reads only bundled layouts through `LayoutStore`
 //  (no App Group container involved), so — unlike the key-editor suite —
-//  every test here runs fully even before signing/provisioning lands.
+//  every test here runs fully even on a build with no App Group container.
 //
 //  Conventions
 //  -----------

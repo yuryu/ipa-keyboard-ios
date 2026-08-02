@@ -46,7 +46,7 @@ Use the XcodeBuildMCP tools (`mcp__XcodeBuildMCP__*`, configured in `.mcp.json`)
 Call `session_show_defaults` once per session before the first build (don't assume defaults are set); if unset, `session_set_defaults` with `projectPath` = `IPAKeyboard.xcodeproj`, simulator e.g. `iPhone 17`. **`build_sim`/`test_sim` take no `scheme` argument** — the scheme comes from the active defaults, so switch it with `session_set_defaults`; never pass `-scheme` in `extraArgs`, it collides with the one the tool injects.
 
 - Kit build, no signing (validates kit + bundled JSON): scheme `IPAKeyboardKit`, `extraArgs: ["CODE_SIGNING_ALLOWED=NO"]`.
-- App + extension: scheme `IPAKeyboard`; signs automatically under the team in the project and runs in the simulator with a live App Group container. Device builds additionally need the device registered with the team; CI stays unsigned.
+- App + extension: scheme `IPAKeyboard`; signs automatically under the team in the project and runs in the simulator with a live App Group container. CI gets the same container without any credentials by signing ad-hoc (`CODE_SIGN_STYLE=Manual CODE_SIGN_IDENTITY=-`) — no certificate, profile, or Apple account is needed for a *simulator* destination. Device builds are the ones that still need real provisioning and the device registered with the team.
 
 **Per-suite run recipes, and the false-green traps that make a passing run meaningless, are in the `testing-and-ci` skill — read it before running or trusting tests.** All XCUITest work (new tests included) is bound by the `ui-testing` skill.
 
@@ -56,7 +56,7 @@ Keyboard layouts are versioned `Codable` JSON documents, not Swift code — this
 
 - The document holds `arrangements` (→ `Panel` → `KeyRow`), **not** a flat `rows`; `currentSchemaVersion` is `2`, v1 files migrate on decode, newer-than-supported versions are rejected.
 - **Built-ins are read-only — never mutate a bundled layout in place.** Fork with `KeyboardLayout.makeEditableCopy(named:)`; symbol curation is non-destructive (`applyingHiddenSymbols(_:)` returns a filtered copy; hidden sets live in `KeyboardPreferences`, never in the layout document).
-- A nil App Group container is a permanent supported state (unsigned CI, the unhosted kit-test runner), not a provisioning stopgap — but storage and preferences degrade *differently*: `LayoutStore` serves bundled layouts and throws `StoreError.sharedContainerUnavailable` on writes, while `KeyboardPreferences` stays writable on a suite that opens fine but is process-local rather than shared (`.standard` only if the suite won't open at all). Adding a bundled layout is JSON only — `LayoutStore` auto-discovers it.
+- A nil App Group container is a permanent supported state (the unhosted kit-test runner, and any `CODE_SIGNING_ALLOWED=NO` build — CI's app-scheme lanes now sign ad-hoc and *do* have a container), not a provisioning stopgap — but storage and preferences degrade *differently*: `LayoutStore` serves bundled layouts and throws `StoreError.sharedContainerUnavailable` on writes, while `KeyboardPreferences` stays writable on a suite that opens fine but is process-local rather than shared (`.standard` only if the suite won't open at all). Adding a bundled layout is JSON only — `LayoutStore` auto-discovers it.
 - Bundled layouts use precise IPA code points — `ɡ` U+0261 (not ASCII `g`), `ː` U+02D0 (not colon). **Preserve exact Unicode when editing.**
 
 ## Subagents

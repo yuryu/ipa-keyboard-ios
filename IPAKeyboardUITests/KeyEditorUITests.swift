@@ -7,28 +7,25 @@
 //  key's inserted text and spoken (VoiceOver) name -> Save -> assert the
 //  change is visible back on the layout-detail screen's live preview.
 //
-//  ENVIRONMENT LIMITATION (confirmed via the runtime accessibility snapshot,
-//  not assumed): `LayoutStore.save`/`delete` require `AppGroup.containerURL`
-//  to be non-nil, which requires the App Group *entitlement* to actually be
-//  embedded in the running process — i.e. a code-signed build. Every build
-//  this suite can currently exercise uses `CODE_SIGNING_ALLOWED=NO` (signing
-//  is deferred per CLAUDE.md — the Apple developer account is mid-
-//  relocation), so the entitlement is never embedded and
-//  `AppGroup.containerURL` is *always* nil here. Concretely: tapping
-//  "Duplicate to Edit" always fails with `LayoutStore.StoreError
-//  .sharedContainerUnavailable`, surfaced by `LayoutListView`'s "Something
-//  went wrong" / "Couldn't save your copy..." alert — confirmed by capturing
-//  the actual alert in the accessibility snapshot on this build. Since
-//  forking is the *only* way to get a user layout to open "Edit Keys" on,
-//  the full persistence round-trip cannot be driven end-to-end in this
-//  environment; it is expected to work once the App Group is signed and
-//  provisioned. `duplicateBuiltInLayout(from:library:)` below handles both
-//  outcomes, and the persistence-dependent tests `XCTSkip` (not fail) when
-//  the container is unavailable, so this suite stays green in the current
-//  environment while still exercising the full flow automatically once
-//  provisioning lands. The two `test_builtInDetail_*`/
-//  `test_duplicateBuiltIn_*` tests below are container-independent and
-//  always run.
+//  REQUIRES A LIVE APP GROUP CONTAINER. `LayoutStore.save`/`delete` need
+//  `AppGroup.containerURL` to be non-nil, which needs the App Group
+//  *entitlement* embedded in the running process — i.e. a code-signed build.
+//  Every lane that runs this suite now signs the app: local runs sign
+//  automatically under the project's team, and CI signs ad-hoc
+//  (`CODE_SIGN_STYLE=Manual CODE_SIGN_IDENTITY=-`, which needs no
+//  certificate or account on a simulator destination — issue #210). Verified
+//  empirically: `simctl get_app_container <udid> net.yuryu.IPAKeyboard
+//  groups` reports a live container for an ad-hoc-signed build and reports
+//  nothing for a `CODE_SIGNING_ALLOWED=NO` one.
+//
+//  So the fork *must* persist here, and `duplicateBuiltInLayout(from:
+//  library:)` below fails the test if it doesn't. These tests used to
+//  `XCTSkip` on the degraded path, which meant a signing regression read as
+//  a green run — the skip-is-a-pass false green the testing-and-ci skill
+//  warns about. The degraded path itself keeps its coverage where it can be
+//  driven deterministically: `IPAKeyboardTests/LayoutLibraryTests.swift`
+//  injects `LayoutStore(containerURL: nil)` and asserts the friendly
+//  shared-storage message.
 //
 //  Conventions
 //  -----------
@@ -48,12 +45,13 @@
 //  default active layout, so its row label is unique (once any leftover
 //  fork has been reset — see "Hermeticity" below).
 //
-//  Hermeticity: when the App Group *is* available (e.g. a future signed run),
-//  `LayoutStore` persists forked user layouts to the container across
-//  `app.launch()` calls within the same test session. "Duplicate to Edit"
-//  always names the fork "<source> (Custom)" with no way to vary it from the
-//  UI, so a leftover fork from a previous run would collide with a fresh one
-//  and make the row(labelContains:) lookups ambiguous. `setUp` passes
+//  Hermeticity: `LayoutStore` persists forked user layouts to the container
+//  across `app.launch()` calls within the same test session — and, now that
+//  every lane has a container, across other suites in the same run too.
+//  "Duplicate to Edit" always names the fork "<source> (Custom)" with no way
+//  to vary it from the UI, so a leftover fork from a previous run would
+//  collide with a fresh one and make the row(labelContains:) lookups
+//  ambiguous. `setUp` passes
 //  `LibraryScreen.resetLayoutsArgument` (`--uitest-reset-layouts`,
 //  `LayoutLibrary`'s UI-test reset hook, issue #27), which clears every user
 //  layout and per-layout preference before the library ever renders — a safe
@@ -110,60 +108,44 @@ final class KeyEditorUITests: XCTestCase {
     /// called with the default `newName: nil` — `"\(name) (Custom)"`.
     private static let forkedLayoutName = "\(sourceLayoutName) (Custom)"
 
-    /// The exact message `LayoutLibrary.fork` sets when `LayoutStore.save`
-    /// throws `.sharedContainerUnavailable` (see `LayoutLibrary.perform`).
-    private static let sharedStorageUnavailableMessage =
-        "Couldn’t save your copy. Saving layouts needs the keyboard’s shared storage, "
-        + "which isn’t set up yet."
-
-    /// Taps "Duplicate to Edit" on `builtInDetail` and handles both possible
-    /// outcomes of `LayoutLibrary.fork` (see the file-level comment):
-    /// - App Group available: a new row appears under "My Layouts" and this
-    ///   returns `true`, leaving the library as the current screen.
-    /// - App Group unavailable: the "Something went wrong" alert appears
-    ///   with the expected message; this dismisses it and returns `false`,
-    ///   leaving the library in its original, working state either way.
+    /// Taps "Duplicate to Edit" on `builtInDetail` and asserts the fork
+    /// persisted: a new row appears under "My Layouts", leaving the library
+    /// as the current screen.
+    ///
+    /// Still polls the "Something went wrong" alert alongside the forked row
+    /// rather than waiting on the row alone — not because the alert is an
+    /// acceptable outcome (it isn't; see the file-level comment), but so the
+    /// failure message names *which* way it went. A run that lost its App
+    /// Group container reports the shared-storage alert by name instead of an
+    /// anonymous "row never appeared" timeout.
     @MainActor
-    @discardableResult
-    private func duplicateBuiltInLayout(from builtInDetail: LayoutDetailScreen, library: LibraryScreen) -> Bool {
+    private func duplicateBuiltInLayout(from builtInDetail: LayoutDetailScreen, library: LibraryScreen) {
         builtInDetail.duplicateButton.tap()
 
-        // Whichever condition actually materialises: the save-failure alert,
-        // or the forked row under "My Layouts". A one-sided fixed-window
-        // probe here could pick the wrong branch on a slow runner (issue
-        // #99), so both are polled under one shared deadline. The success
-        // condition must be the forked row, not the library reappearing:
-        // `LayoutDetailView` pops back unconditionally after `fork`, so the
-        // library's navigation bar shows up on the failure path too — often
-        // before the root-presented alert — and only the row is exclusive to
-        // a persisted fork.
+        // Both conditions polled under one shared deadline: a one-sided
+        // fixed-window probe could pick the wrong branch on a slow runner
+        // (issue #99). The success condition must be the forked row, not the
+        // library reappearing: `LayoutDetailView` pops back unconditionally
+        // after `fork`, so the library's navigation bar shows up on the
+        // failure path too — often before the root-presented alert — and only
+        // the row is exclusive to a persisted fork.
         let errorAlert = app.alerts["Something went wrong"]
         let forkedRow = library.row(labelContains: Self.forkedLayoutName)
         switch waitForEither(
             errorAlert, forkedRow, scrollingSecondIn: library.layoutList, timeout: .postNavigation
         ) {
         case .first:
-            XCTAssertTrue(
-                errorAlert.staticTexts[Self.sharedStorageUnavailableMessage].exists,
-                "Unexpected error-alert message when the shared container is unavailable")
-            errorAlert.buttons["OK"].tap()
-            // The library's nav bar stays in the hierarchy *beneath* the
-            // alert, so waitForContent alone would pass vacuously if the OK
-            // tap silently failed — pin dismissal itself first.
-            XCTAssertTrue(
-                errorAlert.waitForNonExistence(timeout: .postNavigation),
-                "Save-failure alert did not dismiss")
-            XCTAssertTrue(
-                library.waitForContent(timeout: .postNavigation),
-                "Library did not remain usable after dismissing the save-failure alert")
-            return false
+            XCTFail(
+                "'Duplicate to Edit' surfaced the 'Something went wrong' alert instead of "
+                    + "persisting a fork. This suite requires a live App Group container, so "
+                    + "the app must be signed — locally automatic, in CI ad-hoc via "
+                    + "CODE_SIGN_STYLE=Manual CODE_SIGN_IDENTITY=- (issue #210).")
         case .second:
-            return true
+            break
         case nil:
             XCTFail(
                 "Neither the save-failure alert nor the forked row appeared within "
                     + "\(TimeInterval.postNavigation)s of tapping 'Duplicate to Edit'")
-            return false
         }
     }
 
@@ -204,34 +186,25 @@ final class KeyEditorUITests: XCTestCase {
         XCTAssertFalse(detail.editKeysButton.exists, "Built-in detail should not offer 'Edit Keys'")
     }
 
-    /// "Duplicate to Edit" must never crash or strand the app regardless of
-    /// whether the App Group container is available: either a new user-layout
-    /// row appears, or a friendly error alert appears and can be dismissed
-    /// back to a working library. Passes in both environments (see the
-    /// file-level comment on why only the latter is exercised today), so this
-    /// is real, deterministic, always-green coverage of `LayoutLibrary.fork`'s
-    /// error-handling path.
+    /// "Duplicate to Edit" persists a fork of the built-in layout: a new row
+    /// appears under "My Layouts" and the library stays usable. Real coverage
+    /// of `LayoutLibrary.fork`'s success path, which no lane could reach while
+    /// CI ran unsigned (issue #210); the nil-container error path is covered
+    /// deterministically by `LayoutLibraryTests`' injected-seam tests.
     @MainActor
-    func test_duplicateBuiltIn_succeedsOrDegradesGracefully() throws {
+    func test_duplicateBuiltIn_persistsForkedLayout() throws {
         app.launch()
         let detail = openSourceLayoutDetail()
         let library = LibraryScreen(app: app)
 
-        let forkPersisted = duplicateBuiltInLayout(from: detail, library: library)
+        duplicateBuiltInLayout(from: detail, library: library)
 
-        if forkPersisted {
-            let forkedRow = library.waitForRow(labelContains: Self.forkedLayoutName, timeout: 5)
-            XCTAssertTrue(forkedRow.exists, "Forked row not found under My Layouts after a successful fork")
-        } else {
-            XCTAssertTrue(
-                library.waitForRow(labelContains: Self.forkedLayoutName, timeout: 2).exists == false,
-                "No forked row should exist when the fork failed to persist")
-        }
-        // Either way, the library must still be fully usable afterward.
+        let forkedRow = library.waitForRow(labelContains: Self.forkedLayoutName, timeout: 5)
+        XCTAssertTrue(forkedRow.exists, "Forked row not found under My Layouts after a successful fork")
         XCTAssertTrue(library.layoutList.exists, "Layout list not usable after duplicating")
     }
 
-    // MARK: - Full editor flow (skips when the App Group container is unavailable)
+    // MARK: - Full editor flow
 
     @MainActor
     func test_editorFlow_editedKeyPersistsToDetailPreview() throws {
@@ -239,13 +212,7 @@ final class KeyEditorUITests: XCTestCase {
         let builtInDetail = openSourceLayoutDetail()
         let library = LibraryScreen(app: app)
 
-        guard duplicateBuiltInLayout(from: builtInDetail, library: library) else {
-            throw XCTSkip(
-                "App Group container unavailable in this build (CODE_SIGNING_ALLOWED=NO — "
-                    + "signing/provisioning is deferred per CLAUDE.md), so 'Duplicate to Edit' "
-                    + "cannot persist a user layout here. This flow is expected to work once "
-                    + "provisioning lands.")
-        }
+        duplicateBuiltInLayout(from: builtInDetail, library: library)
 
         // Open the forked user layout's detail screen — reveal + tap with a
         // settle probe on "Edit Keys", the sentinel unique to a *user*
@@ -364,21 +331,15 @@ final class KeyEditorUITests: XCTestCase {
     /// Cancel-without-saving must leave the layout unchanged: reopening "Edit
     /// Keys" shows the original content, not a discarded draft. Exercises the
     /// discard-confirmation path, which (unlike Save) never touches the App
-    /// Group container — but still needs one to *open* via a real fork, so
-    /// this shares the same skip guard as the happy-path test above.
+    /// Group container — but still needs one to *open* via a real fork, so it
+    /// shares the happy-path test's container requirement.
     @MainActor
     func test_editorFlow_cancelWithChangesDiscardsDraft() throws {
         app.launch()
         let builtInDetail = openSourceLayoutDetail()
         let library = LibraryScreen(app: app)
 
-        guard duplicateBuiltInLayout(from: builtInDetail, library: library) else {
-            throw XCTSkip(
-                "App Group container unavailable in this build (CODE_SIGNING_ALLOWED=NO — "
-                    + "signing/provisioning is deferred per CLAUDE.md), so 'Duplicate to Edit' "
-                    + "cannot persist a user layout here. This flow is expected to work once "
-                    + "provisioning lands.")
-        }
+        duplicateBuiltInLayout(from: builtInDetail, library: library)
 
         let userDetail = LayoutDetailScreen(app: app)
         XCTAssertTrue(

@@ -23,7 +23,7 @@ env:
 
 jobs:
   build-and-test:
-    name: Build + test (unsigned simulator)
+    name: Build + test (simulator, ad-hoc signed)
     runs-on: macos-26
     steps:
       - uses: actions/checkout@v7
@@ -36,13 +36,23 @@ jobs:
       - name: Show toolchain
         run: xcodebuild -version
 
-      # Signing is deferred until the Apple developer account is provisioned, so
-      # everything runs against a simulator with code signing disabled (CLAUDE.md).
+      # The app scheme signs ad-hoc ("Sign to Run Locally"), which needs no
+      # certificate, provisioning profile, or Apple account — only a simulator
+      # destination. That is what embeds the App Group entitlement, so
+      # `AppGroup.containerURL` is non-nil and the App-Group success paths
+      # (forking, importing, the key-editor round trip) are actually exercised
+      # here; the previous CODE_SIGNING_ALLOWED=NO lane left the container nil
+      # and those tests skipped or took their degraded branch (issue #210).
+      #
+      # CODE_SIGN_STYLE=Manual overrides the project's Automatic style so
+      # xcodebuild never tries to resolve the DEVELOPMENT_TEAM against an
+      # account the runner does not have; CODE_SIGN_IDENTITY=- selects ad-hoc.
+      # A signed *device*/archive lane still needs real provisioning and stays
+      # out of scope (issue #3).
+      #
       # Compile-checks all three targets (app, extension, framework) plus the
       # app-hosted unit-test bundle (IPAKeyboardTests, run below) and the
       # UI-test bundle; the UI tests themselves run in the separate ui-test job.
-      # A signed device/archive lane stays out of scope until provisioning
-      # lands (issue #3).
       #
       # build-for-testing needs only the SDK, not a device, so it targets
       # generic/platform=iOS Simulator: that skips simulator-device resolution
@@ -54,11 +64,15 @@ jobs:
             -project IPAKeyboard.xcodeproj \
             -scheme IPAKeyboard \
             -destination "generic/platform=iOS Simulator" \
-            CODE_SIGNING_ALLOWED=NO \
-            CODE_SIGNING_REQUIRED=NO \
-            CODE_SIGN_IDENTITY="" \
+            CODE_SIGN_STYLE=Manual \
+            CODE_SIGN_IDENTITY=- \
             build-for-testing
 
+      # The kit scheme stays unsigned on purpose: its test bundle has no
+      # TEST_HOST, so there is no app to carry the App Group entitlement and
+      # nothing for signing to buy. The kit tests cover the nil-container
+      # behaviour through LayoutStore's injectable `containerURL` seam rather
+      # than through the real container (issue #210).
       - name: Build IPAKeyboardKit for testing
         run: |
           xcodebuild \
@@ -94,10 +108,14 @@ jobs:
           # ("Test run with N tests …") to report a nonzero count.
           grep -Eq 'Test run with [1-9][0-9]* test' kit-tests.log
 
-      # App-hosted unit tests (IPAKeyboardTests) launch the unsigned app on the
-      # booted simulator as the test host. Sequential for the same clone-race
-      # reason as the UI tests (see the ui-test job); scoped so the UI-test
-      # bundle in the same scheme stays in its own job.
+      # App-hosted unit tests (IPAKeyboardTests) launch the app on the booted
+      # simulator as the test host. Sequential for the same clone-race reason
+      # as the UI tests (see the ui-test job); scoped so the UI-test bundle in
+      # the same scheme stays in its own job. These tests drive `LayoutStore`
+      # through its injected `containerURL` seam, so they behave identically
+      # signed or not — the signing flags here only have to match the
+      # build-for-testing step above so test-without-building finds its
+      # products.
       - name: Run IPAKeyboard app unit tests
         run: |
           set -o pipefail
@@ -108,9 +126,8 @@ jobs:
             -resultBundlePath AppTestResults.xcresult \
             -parallel-testing-enabled NO \
             -only-testing:IPAKeyboardTests \
-            CODE_SIGNING_ALLOWED=NO \
-            CODE_SIGNING_REQUIRED=NO \
-            CODE_SIGN_IDENTITY="" \
+            CODE_SIGN_STYLE=Manual \
+            CODE_SIGN_IDENTITY=- \
             test-without-building 2>&1 | tee app-tests.log
           # Same zero-tests guard as the kit step (#188) — this -only-testing
           # filter is exactly the shape that silently matches nothing after a
@@ -127,10 +144,10 @@ jobs:
             AppTestResults.xcresult
           if-no-files-found: ignore
 
-  # Runs the XCUITest bundle against the unsigned simulator build. Kept as a
-  # separate job so the unit lane's fast feedback stays fast.
+  # Runs the XCUITest bundle against the ad-hoc-signed simulator build. Kept as
+  # a separate job so the unit lane's fast feedback stays fast.
   ui-test:
-    name: UI tests (unsigned simulator)
+    name: UI tests (simulator, ad-hoc signed)
     runs-on: macos-26
     steps:
       - uses: actions/checkout@v7
@@ -139,16 +156,16 @@ jobs:
       - name: Show toolchain
         run: xcodebuild -version
 
-      # Generic destination for the same reason as in build-and-test (#40).
+      # Generic destination for the same reason as in build-and-test (#40);
+      # ad-hoc signing for the App Group container — see the same note (#210).
       - name: Build app + extension for testing
         run: |
           xcodebuild \
             -project IPAKeyboard.xcodeproj \
             -scheme IPAKeyboard \
             -destination "generic/platform=iOS Simulator" \
-            CODE_SIGNING_ALLOWED=NO \
-            CODE_SIGNING_REQUIRED=NO \
-            CODE_SIGN_IDENTITY="" \
+            CODE_SIGN_STYLE=Manual \
+            CODE_SIGN_IDENTITY=- \
             build-for-testing
 
       # Launching the XCUITest runner on a still-booting simulator fails with
@@ -170,6 +187,10 @@ jobs:
       # itself (five measured launches whose numbers are noise on a shared
       # runner). GitHub's own CI=true job variable does not cross the
       # xcodebuild → runner boundary, hence the explicit prefix.
+      #
+      # No "did it actually run?" log guard here, unlike the unit steps: the
+      # App-Group-dependent tests no longer tolerate a nil container, so a
+      # signing regression fails them outright instead of skipping (#210).
       - name: Run IPAKeyboardUITests
         env:
           TEST_RUNNER_CI: "1"
@@ -181,9 +202,8 @@ jobs:
             -resultBundlePath UITestResults.xcresult \
             -parallel-testing-enabled NO \
             -only-testing:IPAKeyboardUITests \
-            CODE_SIGNING_ALLOWED=NO \
-            CODE_SIGNING_REQUIRED=NO \
-            CODE_SIGN_IDENTITY="" \
+            CODE_SIGN_STYLE=Manual \
+            CODE_SIGN_IDENTITY=- \
             test-without-building
 
       - name: Upload UI test results

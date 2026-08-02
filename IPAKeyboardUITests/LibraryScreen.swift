@@ -236,10 +236,15 @@ struct LibraryScreen {
     /// Clears every user layout and per-layout hidden-symbol/active-selection
     /// preference at launch, so fork/persistence tests start from a clean
     /// slate instead of self-healing via swipe-to-delete (issue #27).
-    /// Matches `LayoutLibrary.resetLayoutsArgument`. When the App Group
-    /// container is unavailable (e.g. unsigned CI builds) only the layout
-    /// deletion is skipped; the preferences reset still clears the app's
-    /// fallback process-local defaults.
+    /// Matches `LayoutLibrary.resetLayoutsArgument`.
+    ///
+    /// Load-bearing since every lane started signing the app (issue #210):
+    /// with a live App Group container, forks and imports persist across
+    /// `app.launch()` calls *and across suites* in one test session, so any
+    /// suite whose assertions depend on the library's contents must pass this.
+    /// Should the container ever be unavailable (a `CODE_SIGNING_ALLOWED=NO`
+    /// build), only the layout deletion is skipped; the preferences reset
+    /// still clears the app's fallback process-local defaults.
     static let resetLayoutsArgument = "--uitest-reset-layouts"
 
     // MARK: Navigation

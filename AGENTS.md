@@ -37,11 +37,13 @@ where mistakes are easy to make and expensive to ship:
   (`applyingHiddenSymbols(_:)` returns a filtered copy; hidden sets live
   in `KeyboardPreferences`, never in the layout document).
 - **Graceful degradation without the App Group.** `AppGroup.containerURL`
-  is still nil in unsigned contexts (CI builds with
-  `CODE_SIGNING_ALLOWED=NO`, kit unit tests), so this is a permanent
-  requirement, not a provisioning stopgap: storage and preferences code
-  must fall back (bundled defaults, `.standard` UserDefaults) rather
-  than crash or silently lose data.
+  is still nil wherever the App Group entitlement isn't embedded — the
+  unhosted kit-test runner, and any build made with
+  `CODE_SIGNING_ALLOWED=NO`. (CI's app-scheme lanes now sign ad-hoc and do
+  have a container; the kit scheme still doesn't.) So this stays a
+  permanent requirement, not a provisioning stopgap: storage and
+  preferences code must fall back (bundled defaults, `.standard`
+  UserDefaults) rather than crash or silently lose data.
 - **Keyboard-extension constraints.** Tight memory budget (~48–66 MB), no
   network, no full access assumed; the globe key must respect
   `needsInputModeSwitchKey`.

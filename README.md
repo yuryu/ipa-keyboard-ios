@@ -50,7 +50,18 @@ xcodebuild -project IPAKeyboard.xcodeproj -scheme IPAKeyboardKit \
 # Full app + extension (simulator, automatic signing)
 xcodebuild -project IPAKeyboard.xcodeproj -scheme IPAKeyboard \
   -destination 'platform=iOS Simulator,name=iPhone 17' build
+
+# Same, but signed ad-hoc — no certificate, provisioning profile, or Apple
+# account needed. This is what CI uses; it still embeds the App Group
+# entitlement, which the app-hosted and UI tests need.
+xcodebuild -project IPAKeyboard.xcodeproj -scheme IPAKeyboard \
+  -destination 'platform=iOS Simulator,name=iPhone 17' \
+  CODE_SIGN_STYLE=Manual CODE_SIGN_IDENTITY=- build
 ```
+
+Don't build the app scheme with `CODE_SIGNING_ALLOWED=NO`: that strips the App
+Group entitlement, leaving `AppGroup.containerURL` nil and failing the tests
+that exercise saving, forking, and importing layouts.
 
 ## License
 

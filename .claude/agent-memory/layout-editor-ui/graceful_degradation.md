@@ -20,4 +20,4 @@ drives an alert.
 **Why:** CLAUDE.md mandates degrading gracefully before provisioning — load and
 preview built-ins, never crash or force-unwrap on the nil-container path.
 **How to apply:** don't add eager container-availability checks or new kit API to
-detect it; keep the lazy flip-on-failure approach until real provisioning lands.
+detect it; keep the lazy flip-on-failure approach. Note the nil-container state is permanent, not a provisioning stopgap: CI's app lanes now sign ad-hoc and DO have a container (issue #210), but the unhosted kit-test runner and any `CODE_SIGNING_ALLOWED=NO` build still don't.

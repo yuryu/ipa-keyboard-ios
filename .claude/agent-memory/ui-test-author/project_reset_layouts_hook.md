@@ -39,7 +39,7 @@ process-local `.standard` suite before provisioning).
 (or before/after the import in `ImportExportUITests`). Both now just add
 `LibraryScreen.resetLayoutsArgument` to `app.launchArguments` (`KeyEditorUITests.setUp()`; `ImportExportUITests`'s shared `launch()` helper) and the
 swipe-based helpers (`cleanUpForkedSourceLayout()`,
-`cleanUpImportedLayoutRows()`) were deleted entirely — `openSourceLayoutDetail()` now just waits for the library, and `test_importValid_succeedsOrDegradesGracefully` collapsed from a double-launch (clean, terminate, relaunch-with-import) into one `launch(importJSON:)` call, combining a reset arg and an import env var in the same launch.
+`cleanUpImportedLayoutRows()`) were deleted entirely — `openSourceLayoutDetail()` now just waits for the library, and the valid-import test (then `test_importValid_succeedsOrDegradesGracefully`, renamed `test_importValid_persistsImportedLayout` in issue #210) collapsed from a double-launch (clean, terminate, relaunch-with-import) into one `launch(importJSON:)` call, combining a reset arg and an import env var in the same launch.
 
 **Combining the two hooks was NOT actually safe until issue #191** (fixed
 2026-07-25). The original reasoning recorded here — "reset is in
@@ -57,10 +57,16 @@ run (284 tests, all suites) passed; `IPAKeyboard` scheme
 `build-for-testing` succeeded; `-only-testing:IPAKeyboardUITests/KeyEditorUITests`
 ran all 4 tests (2 pass, 2 `XCTSkip` as expected — container still
 unavailable, see [[project_key_editor_flow]]); `-only-testing:IPAKeyboardUITests/ImportExportUITests`
-ran all 5, all passed. The reset hook itself is still only exercised on its
-no-op path (container unavailable) — like the fork/persistence tests it
-pairs with, it needs provisioning (#3) to verify the actual-deletion path
-end-to-end.
+ran all 5, all passed.
+
+**The actual-deletion path is now exercised (2026-08-02, issue #210).** That
+earlier run only ever hit the hook's no-op path, because an unsigned build
+has no App Group container and so nothing was ever persisted to clear. Every
+lane now signs the app (locally automatic; CI ad-hoc via
+`CODE_SIGN_STYLE=Manual CODE_SIGN_IDENTITY=-`), so forks and imports really
+persist and the reset really deletes them — see [[project_uitest_baseline]].
+This also makes the suite stateful *across* suites in one session, which is
+what makes the hook load-bearing rather than belt-and-braces.
 
 **How to apply:** any new UI test that persists a user layout (fork, import,
 or future flows) should add `LibraryScreen.resetLayoutsArgument` to its

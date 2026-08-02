@@ -22,12 +22,16 @@
 //  - Export: tapping the "Export Layout" ShareLink and asserting the system
 //    share sheet appears IS drivable and covered below. What the share sheet
 //    does after that is system-owned.
-//  - Persistence: on unsigned builds (CODE_SIGNING_ALLOWED=NO — signing is
-//    deferred per CLAUDE.md) `AppGroup.containerURL` is nil, so a *valid*
-//    import cannot persist; it must instead surface the friendly
-//    shared-storage alert. `test_importValid_succeedsOrDegradesGracefully`
-//    passes in both environments, exercising whichever path the build allows
-//    (same pattern as KeyEditorUITests.duplicateBuiltInLayout).
+//  - Persistence: a *valid* import must persist, which needs
+//    `AppGroup.containerURL` to be non-nil — i.e. the App Group entitlement
+//    embedded by a code-signed build. Every lane that runs this suite signs
+//    the app (locally automatic; in CI ad-hoc via CODE_SIGN_STYLE=Manual
+//    CODE_SIGN_IDENTITY=-, which needs no certificate or account on a
+//    simulator destination — issue #210), so
+//    `test_importValid_persistsImportedLayout` requires the success path
+//    rather than tolerating the degraded one. The nil-container path keeps
+//    its coverage in IPAKeyboardTests/LayoutLibraryTests.swift, which injects
+//    `LayoutStore(containerURL: nil)` deterministically.
 //
 //  Conventions
 //  -----------
@@ -381,12 +385,13 @@ final class ImportExportUITests: XCTestCase {
 
     // MARK: - Import (valid document)
 
-    /// A valid document must either persist (row under "My Layouts") or —
-    /// on unsigned builds where the App Group container is nil — surface the
-    /// friendly shared-storage alert and leave the library usable. Never a
-    /// crash, never a silent drop. Green in both environments.
+    /// A valid document persists: a row appears under "My Layouts" and the
+    /// library stays usable. Real coverage of the import success path, which
+    /// no lane could reach while CI ran unsigned (issue #210); the
+    /// nil-container path is covered deterministically by `LayoutLibraryTests`'
+    /// injected-seam tests.
     @MainActor
-    func test_importValid_succeedsOrDegradesGracefully() throws {
+    func test_importValid_persistsImportedLayout() throws {
         // `launch`'s LibraryScreen.resetLayoutsArgument clears any persisted
         // leftover from a previous run before this launch's injected import
         // runs — once per process, so it can't turn around and delete that
@@ -397,36 +402,28 @@ final class ImportExportUITests: XCTestCase {
         let alert = app.alerts["Something went wrong"]
         let importedRow = library.row(labelContains: Self.importedLayoutName)
 
-        // Whichever condition actually materialises: the degraded-state
-        // alert, or the imported row. A one-sided fixed-window probe here
-        // could pick the wrong branch on a slow runner (issue #99), so both
-        // are polled under one shared deadline and the branch below follows
-        // whichever one actually appeared.
+        // Both conditions polled under one shared deadline: a one-sided
+        // fixed-window probe could pick the wrong branch on a slow runner
+        // (issue #99). The alert is not an acceptable outcome here — it is
+        // polled so that a run which lost its App Group container reports the
+        // shared-storage failure by name rather than an anonymous timeout.
         switch waitForEither(
             alert, importedRow, scrollingSecondIn: library.layoutList, timeout: .postNavigation
         ) {
         case .first:
-            let message = alert.staticTexts.matching(
+            let sharedStorage = alert.staticTexts.matching(
                 NSPredicate(
                     format: "label CONTAINS %@ AND label CONTAINS %@",
                     Self.importFailurePrefix, Self.sharedStorageMessageFragment)
             ).firstMatch
-            XCTAssertTrue(
-                message.exists,
-                "Valid-import failure alert should carry the shared-storage message")
-            alert.buttons["OK"].tap()
-            // The library's nav bar stays in the hierarchy *beneath* the
-            // alert, so waitForContent alone would pass vacuously if the OK
-            // tap silently failed — pin dismissal itself first.
-            XCTAssertTrue(
-                alert.waitForNonExistence(timeout: .postNavigation),
-                "Shared-storage alert did not dismiss")
-            XCTAssertTrue(
-                library.waitForContent(timeout: .postNavigation),
-                "Library not usable after dismissing the shared-storage alert")
-            XCTAssertFalse(
-                library.waitForRow(labelContains: Self.importedLayoutName, timeout: 2).exists,
-                "No imported row should exist when persistence was unavailable")
+            XCTFail(
+                sharedStorage.exists
+                    ? "Valid import hit the shared-storage failure path. This suite requires a "
+                        + "live App Group container, so the app must be signed — locally "
+                        + "automatic, in CI ad-hoc via CODE_SIGN_STYLE=Manual "
+                        + "CODE_SIGN_IDENTITY=- (issue #210)."
+                    : "Valid import raised the 'Something went wrong' alert for a reason other "
+                        + "than shared storage")
         case .second:
             XCTAssertTrue(library.waitForContent(timeout: .postNavigation), "Library did not appear")
             XCTAssertTrue(

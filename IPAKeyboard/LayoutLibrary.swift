@@ -71,7 +71,8 @@ final class LayoutLibrary {
     /// `OnboardingState.swift`. Applied before the first `reload()`, so the
     /// library never observes the stale state even transiently, and exactly
     /// once per process (see `LaunchResetGate`). When the App Group
-    /// container is unavailable (every unsigned CI build — see CLAUDE.md's
+    /// container is unavailable (a `CODE_SIGNING_ALLOWED=NO` build — CI's
+    /// app lanes sign ad-hoc and do have a container, see CLAUDE.md's
     /// signing note) only the layout deletion is skipped (no layouts
     /// persisted to delete); the preferences reset still runs, clearing the
     /// process-local fallback suite.

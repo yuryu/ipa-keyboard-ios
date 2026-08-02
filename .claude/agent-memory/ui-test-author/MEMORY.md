@@ -1,9 +1,9 @@
 # UI Test Author Memory Index
 
 - [Swift 6 XCUITest @MainActor pattern](feedback_swift6_xcuitest.md) — use async setUp/tearDown with @MainActor; do NOT use setUpWithError/tearDownWithError in Swift 6
-- [UITest baseline (2026-06-29, updated 2026-07-01)](project_uitest_baseline.md) — screen objects, identifiers, simulator constraint; 2 identifier-bleed bugs (Section + KeyboardView container), list scroll-to-reveal, App Group always unavailable when unsigned
+- [UITest baseline (2026-06-29, updated 2026-08-02)](project_uitest_baseline.md) — screen objects, identifiers, simulator constraint; 2 identifier-bleed bugs (Section + KeyboardView container), list scroll-to-reveal, App Group container now AVAILABLE in every lane (ad-hoc signing) and the suite is stateful across suites
 - [Onboarding flow (issue #7)](project_onboarding_flow.md) — OnboardingScreen page object, launch-arg overrides, OnboardingUITests coverage
-- [Key editor flow (issue #6)](project_key_editor_flow.md) — KeyEditorScreen page objects, KeyEditorUITests, XCTSkip guard for App-Group-unavailable persistence tests
+- [Key editor flow (issue #6)](project_key_editor_flow.md) — KeyEditorScreen page objects, KeyEditorUITests; full editor round trip now verified end to end (skip guards removed, issue #210)
 - [Reset-layouts launch hook (issue #27)](project_reset_layouts_hook.md) — --uitest-reset-layouts arg, LayoutStore.deleteAllUserLayouts/KeyboardPreferences.resetAll, retired swipe-to-delete self-healing
 - [Press interactions (issues #120/#183)](project_press_interactions.md) — key-preview-balloon identifier, gesture-on-main + pre-resolved activity-free AX-snapshot observer for transient UI (queries AND per-poll snapshotWithError crash the runner), cap-release commit test
 
