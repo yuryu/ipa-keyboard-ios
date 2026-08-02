@@ -14,6 +14,7 @@
 
 import CoreGraphics
 import Testing
+import UIKit
 @testable import IPAKeyboardKit
 
 struct KeyRowSizingTests {
@@ -24,11 +25,16 @@ struct KeyRowSizingTests {
     private let spacing: CGFloat = 6
 
     /// The rows the view renders for a panel: its symbol rows plus the pinned
-    /// bottom bar (switch key + shared function row), mirroring
-    /// `KeyboardView.bottomBar` — the grid reference spans all of them.
+    /// bottom bar (switch key merged into the shared function row), built
+    /// through the same `BottomBarOrder` the view uses — the grid reference
+    /// spans all of them. The idiom is arbitrary here: it only permutes the
+    /// bar's keys, and every width in this file derives from the factors
+    /// present, not their order.
     private func renderedRows(panel: Panel, arrangement: Arrangement) -> [KeyRow] {
-        let bottomKeys = (panel.switchKey.map { [$0] } ?? [])
-            + (arrangement.functionRow?.keys ?? [])
+        let bottomKeys = BottomBarOrder.keys(
+            switchKey: panel.switchKey,
+            functionRowKeys: arrangement.functionRow?.keys ?? [],
+            idiom: .phone)
         return panel.rows + (bottomKeys.isEmpty ? [] : [KeyRow(keys: bottomKeys)])
     }
 

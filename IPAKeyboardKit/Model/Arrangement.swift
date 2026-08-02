@@ -19,10 +19,12 @@ public struct Panel: Codable, Sendable, Hashable, Identifiable {
     public var id: UUID
     /// Display name and the target a `switchPanel` key refers to, e.g. "More".
     public var name: String
-    /// The panel-specific key shown at the start of the arrangement's shared
-    /// bottom bar — the affordance that *leaves* this panel (its
-    /// `switchPanel(target)` names the panel to show). nil for panels with no
-    /// way out (e.g. a single-panel arrangement).
+    /// The panel-specific key merged into the arrangement's shared bottom bar
+    /// — the affordance that *leaves* this panel (its `switchPanel(target)`
+    /// names the panel to show). It renders at the bar's left edge, except on
+    /// iPad, where it follows a leading globe key so the globe keeps the
+    /// corner its system keyboard gives it (`BottomBarOrder`). nil for panels
+    /// with no way out (e.g. a single-panel arrangement).
     public var switchKey: Key?
     public var rows: [KeyRow]
 
